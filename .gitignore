@@ -1,1 +1,36 @@
-.claude
+# --- Not published ------------------------------------------------------------
+# Thesis documents, AI workflow trail, and Claude Code tooling are kept out of the
+# repository. They live on disk and must be backed up separately — docs/ holds the
+# frozen source of truth (proposal, ADRs, interface contracts) and has no history here.
+docs/
+.docs/
+.claude/
+
+# Corpus snapshots. The Amazon-derived subset may not be redistributable; ship a
+# download+build script and a hash manifest instead of the data itself.
+data/
+
+# --- Build output --------------------------------------------------------------
+# Generated protobuf stubs (regenerate with `make proto`)
+gateway/internal/ragpb/
+rag/src/rag/pb/
+
+# Go
+gateway/gateway
+gateway/bin/
+*.test
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Experiment figures regenerate from raw/ via `make figures`
+experiments/results/*/figures/
+
+# --- OS ------------------------------------------------------------------------
+.DS_Store

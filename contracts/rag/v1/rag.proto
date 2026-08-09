@@ -1,0 +1,48 @@
+// Go<->Python seam. THE single definition — both sides generate from this file.
+//
+// Frozen: docs/interfaces.md §B (v0.3). Any change to a wire shape requires an ADR in
+// docs/decisions.md and a version bump in interfaces.md. Never hand-edit generated stubs
+// on either side (.docs/ai/rules.md #4).
+//
+// Two RPCs, deliberately: the C1 cascade must obtain source overlap WITHOUT paying for
+// generation — "the retriever doubles as a reuse-safety oracle" (ADR-007). A single
+// Answer RPC would force a generation to get the overlap, destroying the cascade.
+
+syntax = "proto3";
+
+package rag.v1;
+
+option go_package = "github.com/hung/thesis/gateway/internal/ragpb;ragpb";
+
+service RagService {
+  // Full miss path: retrieve + generate. Streaming is optional and out of scope (ADR-016).
+  rpc Answer(AnswerRequest) returns (stream AnswerChunk);
+
+  // Retrieval only — supplies the chunk IDs the source-overlap rule compares against.
+  rpc Retrieve(RetrieveRequest) returns (RetrieveResponse);
+}
+
+message RetrieveRequest {
+  string query = 1;
+  uint32 top_k = 2;                    // pinned per run and reported (ADR-014)
+}
+
+message RetrieveResponse {
+  repeated string chunk_ids     = 1;   // stable chunk IDs, ranked (interfaces.md §C)
+  repeated float  scores        = 2;   // aligned with chunk_ids; retriever similarity
+  uint64          dataset_epoch = 3;   // corpus version these chunks came from (§E)
+}
+
+message AnswerRequest {
+  string query  = 1;
+  uint32 top_k  = 2;
+  bool   stream = 3;                   // defaults false in scope (SSE dropped — ADR-016)
+}
+
+message AnswerChunk {
+  string text = 1;                        // token / span when streaming
+  bool   done = 2;                        // true on the terminal chunk
+  repeated string source_chunk_ids = 3;   // terminal chunk; provenance for C1 + C2
+  string model_used    = 4;               // terminal chunk; constant (routing rejected, ADR-011)
+  uint64 dataset_epoch = 5;               // epoch at retrieval; gates write-back (§E)
+}
