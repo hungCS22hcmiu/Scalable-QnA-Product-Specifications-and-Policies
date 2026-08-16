@@ -15,7 +15,11 @@ gateway logic before then unless a task explicitly says otherwise.
 - Redis needs **`redis-stack-server`**, not plain Homebrew `redis` — the plain `redis` 8.10
   formula ships a config that references search-module files it doesn't bundle and crashes on
   start. `brew install redis-stack` (tap `redis-stack/redis-stack`) instead; see
-  `docs/worklog/W05.md`'s 2026-08-15 entry.
+  `docs/worklog/W05.md`'s 2026-08-15 entry. It's installed as a **cask**, so `brew services`
+  can't manage it — persistence is a manual LaunchAgent instead:
+  `~/Library/LaunchAgents/com.redis-stack.server.plist` (`RunAtLoad` + `KeepAlive`), loaded via
+  `launchctl load -w ~/Library/LaunchAgents/com.redis-stack.server.plist`. It survives reboot/
+  logout; check with `launchctl list | grep redis-stack` and `redis-cli PING`.
 - `make ingest` — chunk + embed `data/dev-v0/*.json` into Redis (`python3 -m rag.ingest`).
 - `rag ask "<question>"` (or `python3 -m rag.cli ask "<question>"` if the console-script isn't on
   `PATH`) — retrieval-only CLI, prints top-k chunks with chunk IDs. This is the W5 exit test.

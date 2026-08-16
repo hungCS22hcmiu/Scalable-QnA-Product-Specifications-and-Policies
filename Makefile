@@ -40,7 +40,10 @@ demo-reset: ## Restore corpus, flush cache, pre-warm nothing (defense_demo.md se
 
 proto: ## Regenerate gRPC stubs from contracts/ (never hand-edit stubs)
 	@command -v protoc >/dev/null || { echo "SKIPPED — protoc not installed (make setup)"; exit 0; }
-	protoc -I contracts --go_out=. --go-grpc_out=. contracts/rag/v1/rag.proto
+	protoc -I contracts \
+	  --go_out=$(GATEWAY) --go_opt=module=github.com/hung/thesis/gateway \
+	  --go-grpc_out=$(GATEWAY) --go-grpc_opt=module=github.com/hung/thesis/gateway \
+	  contracts/rag/v1/rag.proto
 	mkdir -p $(RAG)/src/rag/pb
 	cd $(RAG) && $(PY) -m grpc_tools.protoc -I ../contracts \
 	  --python_out=src/rag/pb --grpc_python_out=src/rag/pb ../contracts/rag/v1/rag.proto
