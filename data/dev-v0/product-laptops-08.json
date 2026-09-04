@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-08",
+  "title": "Creator Studio 16",
+  "specs": {
+    "cpu": "10-core ARM",
+    "ram": "32GB",
+    "storage": "1TB SSD",
+    "ports": "3x USB-C, SD card slot",
+    "battery": "16 hours",
+    "weight": "1.9kg",
+    "display": "16-inch mini-LED, 4K"
+  },
+  "category": "laptops"
+}

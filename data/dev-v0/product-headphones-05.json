@@ -1,0 +1,13 @@
+{
+  "doc_id": "product-headphones-05",
+  "title": "StudioMonitor One",
+  "specs": {
+    "type": "over-ear wired",
+    "anc": "no",
+    "battery": "n/a (wired)",
+    "connectivity": "3.5mm, 6.35mm adapter",
+    "weight": "310g",
+    "mic": "no"
+  },
+  "category": "headphones"
+}

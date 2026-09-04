@@ -1,0 +1,12 @@
+{
+  "doc_id": "product-furniture-01",
+  "title": "Oakline Dining Table 6-Seat",
+  "specs": {
+    "material": "solid oak",
+    "dimensions": "180x90x75cm",
+    "seats": 6,
+    "assembly": "required, ~45 min",
+    "finish": "natural matte"
+  },
+  "category": "furniture"
+}

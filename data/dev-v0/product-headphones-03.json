@@ -1,0 +1,13 @@
+{
+  "doc_id": "product-headphones-03",
+  "title": "EarBuds Pop 3",
+  "specs": {
+    "type": "in-ear true wireless",
+    "anc": "no",
+    "battery": "6 hours (24 with case)",
+    "connectivity": "Bluetooth 5.3",
+    "weight": "5g each",
+    "mic": "yes"
+  },
+  "category": "headphones"
+}

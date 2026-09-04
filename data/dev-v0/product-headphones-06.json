@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-headphones-06",
+  "title": "SportFit Hooks",
+  "specs": {
+    "type": "in-ear wireless",
+    "anc": "no",
+    "battery": "10 hours",
+    "connectivity": "Bluetooth 5.1",
+    "weight": "8g each",
+    "mic": "yes",
+    "water_resistance": "IPX7"
+  },
+  "category": "headphones"
+}

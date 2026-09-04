@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-10",
+  "title": "Food Processor 12-Cup",
+  "specs": {
+    "type": "food processor",
+    "power": "900W",
+    "capacity": "12 cups",
+    "features": "dough blade, dicing kit, 3 speeds"
+  },
+  "category": "kitchen"
+}

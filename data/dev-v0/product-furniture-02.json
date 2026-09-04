@@ -1,0 +1,12 @@
+{
+  "doc_id": "product-furniture-02",
+  "title": "Oakline Dining Table 4-Seat",
+  "specs": {
+    "material": "solid oak",
+    "dimensions": "140x80x75cm",
+    "seats": 4,
+    "assembly": "required, ~30 min",
+    "finish": "natural matte"
+  },
+  "category": "furniture"
+}

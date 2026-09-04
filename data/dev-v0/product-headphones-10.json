@@ -1,0 +1,13 @@
+{
+  "doc_id": "product-headphones-10",
+  "title": "Travel Fold ANC",
+  "specs": {
+    "type": "over-ear foldable",
+    "anc": "yes",
+    "battery": "35 hours",
+    "connectivity": "Bluetooth 5.2, 3.5mm",
+    "weight": "260g",
+    "mic": "yes"
+  },
+  "category": "headphones"
+}

@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-04",
+  "title": "Chromebook Lite 11",
+  "specs": {
+    "cpu": "4-core ARM",
+    "ram": "4GB",
+    "storage": "64GB eMMC",
+    "ports": "1x USB-C, 1x USB-A",
+    "battery": "12 hours",
+    "weight": "1.1kg",
+    "display": "11.6-inch HD"
+  },
+  "category": "laptops"
+}

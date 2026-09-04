@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-07",
+  "title": "Rice Cooker Smart 8",
+  "specs": {
+    "type": "rice cooker",
+    "capacity": "8 cups",
+    "power": "700W",
+    "features": "fuzzy logic, keep-warm 24h"
+  },
+  "category": "kitchen"
+}

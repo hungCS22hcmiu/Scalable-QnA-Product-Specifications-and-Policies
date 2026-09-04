@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-10",
+  "title": "Nano Book 12",
+  "specs": {
+    "cpu": "4-core ARM",
+    "ram": "8GB",
+    "storage": "128GB SSD",
+    "ports": "1x USB-C",
+    "battery": "15 hours",
+    "weight": "0.9kg",
+    "display": "12-inch IPS, 2000x1500"
+  },
+  "category": "laptops"
+}

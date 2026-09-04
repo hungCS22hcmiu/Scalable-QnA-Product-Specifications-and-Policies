@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-02",
+  "title": "UltraBook Air 13",
+  "specs": {
+    "cpu": "8-core ARM",
+    "ram": "8GB",
+    "storage": "256GB SSD",
+    "ports": "2x USB-C",
+    "battery": "20 hours",
+    "weight": "1.0kg",
+    "display": "13-inch IPS, 2560x1600"
+  },
+  "category": "laptops"
+}

@@ -13,6 +13,16 @@ from llama_index.core.base.embeddings.base import BaseEmbedding
 
 from rag import config
 
+# One client per process, reused across calls -- see generate.py for the same reasoning.
+# Timeout is passed per request rather than set here, because `timeout` is a per-instance
+# pydantic field on OllamaEmbedding and a client-level default would silently ignore it.
+#
+# Only the SYNC path shares a client. The async methods below keep their per-call
+# AsyncClient: an httpx.AsyncClient binds to the event loop it is used from, so a
+# module-level one is a real hazard -- and nothing in this service calls the async path
+# (retrieve.py and ingest.py are both sync). They exist only to satisfy BaseEmbedding.
+_client = httpx.Client()
+
 
 class OllamaEmbedding(BaseEmbedding):
     base_url: str = config.OLLAMA_BASE_URL
@@ -22,7 +32,7 @@ class OllamaEmbedding(BaseEmbedding):
         super().__init__(model_name=model_name, **kwargs)
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
-        resp = httpx.post(
+        resp = _client.post(
             f"{self.base_url}/api/embed",
             json={"model": self.model_name, "input": texts},
             timeout=self.timeout,

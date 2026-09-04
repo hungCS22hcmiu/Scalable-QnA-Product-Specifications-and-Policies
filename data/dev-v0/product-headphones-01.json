@@ -1,0 +1,13 @@
+{
+  "doc_id": "product-headphones-01",
+  "title": "SoundMax ANC Pro",
+  "specs": {
+    "type": "over-ear",
+    "anc": "yes",
+    "battery": "40 hours",
+    "connectivity": "Bluetooth 5.3, 3.5mm",
+    "weight": "250g",
+    "mic": "yes"
+  },
+  "category": "headphones"
+}

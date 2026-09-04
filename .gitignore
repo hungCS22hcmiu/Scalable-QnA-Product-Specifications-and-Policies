@@ -1,14 +1,23 @@
 # --- Not published ------------------------------------------------------------
-# Thesis documents, AI workflow trail, and Claude Code tooling are kept out of the
-# repository. They live on disk and must be backed up separately — docs/ holds the
-# frozen source of truth (proposal, ADRs, interface contracts) and has no history here.
-docs/
-.docs/
+# docs/ is version-controlled: the frozen source of truth is the most valuable
+# artifact here and a local-only copy is a single point of failure.
+# Local machinery stays out — Claude Code config, and the AI workflow trail whose
+# per-task spec/impact/plan/approvals are write-once once a task closes.
 .claude/
+.docs/
 
-# Corpus snapshots. The Amazon-derived subset may not be redistributable; ship a
-# download+build script and a hash manifest instead of the data itself.
-data/
+# Submitted prose stays off a public remote: a public copy of text that is also
+# handed in can register as a plagiarism-detection match against its own author.
+docs/learning/
+
+# --- Corpus -------------------------------------------------------------------
+# dev-v0 is author-written (worklog W05, 2026-08-15) — freely releasable, and
+# tracking it keeps the W5/W6 results reproducible.
+# v1 stays out until data-card.md §1's redistribution TODO is resolved: the
+# Amazon-Reviews-2023 dataset card states no license and this remote is public.
+# Un-ignore once the terms are verified, or ship a download+build script and a
+# hash manifest instead of the raw data (ADR-013).
+data/v1/
 
 # --- Build output --------------------------------------------------------------
 # Generated protobuf stubs (regenerate with `make proto`)

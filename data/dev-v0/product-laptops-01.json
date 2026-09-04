@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-01",
+  "title": "UltraBook Pro 14",
+  "specs": {
+    "cpu": "8-core ARM",
+    "ram": "16GB",
+    "storage": "512GB SSD",
+    "ports": "2x USB-C, 1x HDMI",
+    "battery": "18 hours",
+    "weight": "1.2kg",
+    "display": "14-inch OLED, 2880x1800"
+  },
+  "category": "laptops"
+}

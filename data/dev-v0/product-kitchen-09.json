@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-09",
+  "title": "Electric Kettle Rapid",
+  "specs": {
+    "type": "electric kettle",
+    "capacity": "1.7L",
+    "power": "1850W",
+    "features": "boil in 3 min, auto shut-off"
+  },
+  "category": "kitchen"
+}

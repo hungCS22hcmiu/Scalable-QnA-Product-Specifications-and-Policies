@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-headphones-04",
+  "title": "EarBuds Pop 3 Pro",
+  "specs": {
+    "type": "in-ear true wireless",
+    "anc": "yes",
+    "battery": "8 hours (32 with case)",
+    "connectivity": "Bluetooth 5.3",
+    "weight": "6g each",
+    "mic": "yes",
+    "water_resistance": "IPX4"
+  },
+  "category": "headphones"
+}

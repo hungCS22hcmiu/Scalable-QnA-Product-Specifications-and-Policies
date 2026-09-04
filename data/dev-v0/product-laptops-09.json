@@ -1,0 +1,15 @@
+{
+  "doc_id": "product-laptops-09",
+  "title": "Rugged Field 14",
+  "specs": {
+    "cpu": "6-core x86",
+    "ram": "16GB",
+    "storage": "512GB SSD",
+    "ports": "2x USB-C, 1x USB-A, Ethernet",
+    "battery": "13 hours",
+    "weight": "2.0kg",
+    "display": "14-inch sunlight-readable FHD",
+    "rating": "MIL-STD-810H"
+  },
+  "category": "laptops"
+}

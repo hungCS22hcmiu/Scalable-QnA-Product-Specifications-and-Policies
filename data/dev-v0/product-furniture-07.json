@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-furniture-07",
+  "title": "Office Chair ErgoFlex",
+  "specs": {
+    "material": "mesh back, foam seat",
+    "adjustability": "height, armrest, recline, lumbar",
+    "weight_capacity": "120kg",
+    "assembly": "required, ~20 min"
+  },
+  "category": "furniture"
+}

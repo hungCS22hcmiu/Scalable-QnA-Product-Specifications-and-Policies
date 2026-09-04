@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-07",
+  "title": "Budget Note 15",
+  "specs": {
+    "cpu": "4-core x86",
+    "ram": "8GB",
+    "storage": "256GB SSD",
+    "ports": "1x USB-C, 2x USB-A",
+    "battery": "9 hours",
+    "weight": "1.8kg",
+    "display": "15.6-inch FHD"
+  },
+  "category": "laptops"
+}
