@@ -32,3 +32,16 @@ CORPUS_KEY_PREFIX = "corpus:"
 # Real epoch tracking (interfaces.md §E) is dependency-map/invalidation scope, W9-W11.
 # retrieve() returns this constant until then.
 DATASET_EPOCH_STUB = 0
+
+# --- ADR-021: generation LLM ---
+LLM_MODEL = "qwen3.5:2b-q4_K_M"    # Ollama tag actually invoked
+LLM_MODEL_ID = "qwen3.5-2b"        # wire `model_used` id (interfaces.md §A's frozen example
+                                    # string) -- do not conflate with the Ollama tag above
+LLM_THINK = False                  # mandatory on every call -- hidden CoT mode inflates
+                                    # latency ~5x with no observed quality benefit (ADR-021)
+
+# --- ADR-017: envelope ---
+LLM_NUM_CTX = 8192
+
+# --- gRPC server (this service) ---
+GRPC_ADDR = os.environ.get("RAG_GRPC_ADDR", "0.0.0.0:50051")
