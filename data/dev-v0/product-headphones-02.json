@@ -1,0 +1,13 @@
+{
+  "doc_id": "product-headphones-02",
+  "title": "SoundMax ANC Lite",
+  "specs": {
+    "type": "over-ear",
+    "anc": "yes",
+    "battery": "30 hours",
+    "connectivity": "Bluetooth 5.2",
+    "weight": "220g",
+    "mic": "yes"
+  },
+  "category": "headphones"
+}

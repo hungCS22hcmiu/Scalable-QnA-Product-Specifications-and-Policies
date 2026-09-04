@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-03",
+  "title": "Blender Pro X",
+  "specs": {
+    "type": "blender",
+    "power": "1200W",
+    "capacity": "2L",
+    "features": "6 pre-set programs, self-clean"
+  },
+  "category": "kitchen"
+}

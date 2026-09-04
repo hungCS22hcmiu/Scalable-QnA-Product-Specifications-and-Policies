@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-furniture-10",
+  "title": "Wardrobe 3-Door Sliding",
+  "specs": {
+    "material": "engineered wood",
+    "dimensions": "180x60x220cm",
+    "assembly": "required, ~90 min",
+    "mirror": "one door mirrored"
+  },
+  "category": "furniture"
+}

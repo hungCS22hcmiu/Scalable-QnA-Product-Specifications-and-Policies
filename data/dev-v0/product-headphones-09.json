@@ -1,0 +1,13 @@
+{
+  "doc_id": "product-headphones-09",
+  "title": "Conference Buds",
+  "specs": {
+    "type": "in-ear true wireless",
+    "anc": "yes",
+    "battery": "5 hours (20 with case)",
+    "connectivity": "Bluetooth 5.3",
+    "weight": "4g each",
+    "mic": "dual-array noise-cancelling"
+  },
+  "category": "headphones"
+}

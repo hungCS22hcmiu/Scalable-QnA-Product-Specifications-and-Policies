@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-03",
+  "title": "WorkStation 16 X",
+  "specs": {
+    "cpu": "12-core x86",
+    "ram": "32GB",
+    "storage": "1TB SSD",
+    "ports": "3x USB-C, 1x HDMI, 1x Ethernet",
+    "battery": "10 hours",
+    "weight": "2.1kg",
+    "display": "16-inch IPS, 3840x2400"
+  },
+  "category": "laptops"
+}

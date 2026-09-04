@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-06",
+  "title": "Stand Mixer Deluxe",
+  "specs": {
+    "type": "stand mixer",
+    "power": "500W",
+    "capacity": "5L bowl",
+    "features": "10-speed, dough hook + whisk + beater included"
+  },
+  "category": "kitchen"
+}

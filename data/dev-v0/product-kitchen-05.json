@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-05",
+  "title": "Air Fryer XL",
+  "specs": {
+    "type": "air fryer",
+    "capacity": "7L",
+    "power": "1800W",
+    "features": "dual basket, app control"
+  },
+  "category": "kitchen"
+}

@@ -1,0 +1,15 @@
+{
+  "doc_id": "product-laptops-05",
+  "title": "Gamer Edge 15",
+  "specs": {
+    "cpu": "8-core x86",
+    "ram": "16GB",
+    "storage": "1TB SSD",
+    "ports": "2x USB-C, 2x USB-A, 1x HDMI",
+    "battery": "5 hours",
+    "weight": "2.4kg",
+    "display": "15.6-inch 165Hz FHD",
+    "gpu": "discrete 8GB"
+  },
+  "category": "laptops"
+}

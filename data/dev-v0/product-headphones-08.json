@@ -1,0 +1,13 @@
+{
+  "doc_id": "product-headphones-08",
+  "title": "Gamer Surround 7.1",
+  "specs": {
+    "type": "over-ear wired",
+    "anc": "no",
+    "battery": "n/a (wired, USB powered)",
+    "connectivity": "USB-A",
+    "weight": "340g",
+    "mic": "detachable boom"
+  },
+  "category": "headphones"
+}

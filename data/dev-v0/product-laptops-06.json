@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-laptops-06",
+  "title": "Convertible Flex 14",
+  "specs": {
+    "cpu": "6-core ARM",
+    "ram": "16GB",
+    "storage": "512GB SSD",
+    "ports": "2x USB-C",
+    "battery": "14 hours",
+    "weight": "1.4kg",
+    "display": "14-inch touchscreen, 1920x1200"
+  },
+  "category": "laptops"
+}

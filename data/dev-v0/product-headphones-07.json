@@ -1,0 +1,14 @@
+{
+  "doc_id": "product-headphones-07",
+  "title": "Kids Volume-Safe",
+  "specs": {
+    "type": "on-ear wired",
+    "anc": "no",
+    "battery": "n/a (wired)",
+    "connectivity": "3.5mm",
+    "weight": "150g",
+    "mic": "no",
+    "volume_limit": "85dB"
+  },
+  "category": "headphones"
+}

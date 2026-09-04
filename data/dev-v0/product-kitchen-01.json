@@ -1,0 +1,12 @@
+{
+  "doc_id": "product-kitchen-01",
+  "title": "Espresso Master 20",
+  "specs": {
+    "type": "espresso machine",
+    "pressure": "20 bar",
+    "water_tank": "1.5L",
+    "power": "1450W",
+    "features": "built-in grinder, milk frother"
+  },
+  "category": "kitchen"
+}

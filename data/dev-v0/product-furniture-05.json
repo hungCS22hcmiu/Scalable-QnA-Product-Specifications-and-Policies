@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-furniture-05",
+  "title": "Bookshelf Tower 5-Tier",
+  "specs": {
+    "material": "engineered wood",
+    "dimensions": "80x30x180cm",
+    "assembly": "required, ~35 min",
+    "weight_capacity": "15kg per shelf"
+  },
+  "category": "furniture"
+}

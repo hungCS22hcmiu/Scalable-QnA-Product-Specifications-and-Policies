@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-02",
+  "title": "Drip Brew Classic",
+  "specs": {
+    "type": "drip coffee maker",
+    "capacity": "12 cups",
+    "power": "900W",
+    "features": "programmable timer, auto shut-off"
+  },
+  "category": "kitchen"
+}

@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-08",
+  "title": "Toaster Duo Steel",
+  "specs": {
+    "type": "toaster",
+    "slots": 2,
+    "power": "850W",
+    "features": "bagel setting, removable crumb tray"
+  },
+  "category": "kitchen"
+}

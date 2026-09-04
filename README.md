@@ -36,7 +36,9 @@ Sustainable load is then:
 
 > **λ_max = min( μ_gen / (1 − h) , μ_hit / h )**  where *h* is the cache hit share
 
-At *h* = 0 capacity is μ_gen — a handful of requests per second. As *h* rises, the binding constraint
+At *h* = 0 capacity is μ_gen — a handful of requests per second, and on this machine that is a measured
+number, not an estimate: **28.2 tokens/sec aggregate** at the frozen envelope (`num_ctx = 8192`,
+`OLLAMA_NUM_PARALLEL = 4`, holding macOS green pressure at 1.7 GB). As *h* rises, the binding constraint
 moves off the LLM and onto the lookup path. Finding that crossover on fixed hardware is the systems
 result.
 
@@ -69,7 +71,7 @@ flowchart LR
         D{"Cache hit?<br/>exact / semantic + provenance"}
     end
     R[("Redis<br/>cache + vector index")]
-    S["Python RAG service<br/>+ Gemma via Ollama"]
+    S["Python RAG service<br/>+ Qwen 3.5 2B via Ollama"]
 
     C -->|query| D
     D <-->|lookup / write-back| R
@@ -94,7 +96,7 @@ a generation was in flight during the edit.
 | Gateway | **Go** | Goroutines, `atomic.Pointer` copy-on-write, `singleflight`, `x/sync/semaphore`; ~20 MB idle in a 16 GB budget where a Python equivalent with an ML runtime would cost ~2 GB — roughly one concurrent generation slot |
 | Cache + vector search | **Redis** (RedisVL) | Sub-ms lookups, exact FLAT vector index, LRU and TTL in one store |
 | RAG service | **Python** (LlamaIndex) | Ingestion, chunking, retrieval — invoked only on a miss |
-| LLM | **Gemma 4 E4B** via Ollama, 4-bit | Edge-sized; runs natively (Docker on macOS has no Metal passthrough) |
+| LLM | **Qwen 3.5 2B** via Ollama, `q4_K_M`, `think: false` | **Chosen by measurement, not reputation** — 1.7 GB resident, the smallest of five candidates that passed the RAG-QA screen; runs natively (Docker on macOS has no Metal passthrough) |
 | Seam | **gRPC** | Pooled HTTP/2 channel; a retrieval-only RPC lets the provenance check run without paying for generation |
 | Load testing | **k6**, off-box | A co-hosted generator would steal CPU in exactly the high-load region being measured |
 
@@ -112,23 +114,38 @@ Makefile       the command surface — run `make help`
 
 ## Status
 
-Build phase begins **W5 (Aug 10, 2026)**. Pre-thesis submission **Aug 31**; thesis complete **Dec 13**.
+Build began **W5 (Aug 10, 2026)** and is in progress. Pre-thesis submission **Aug 31**; thesis complete
+**Dec 13**.
 
-| Weeks | Lands |
-| :--- | :--- |
-| W5 | Memory-envelope spike, corpus ingestion, retrieval with stable chunk IDs |
-| W6–W7 | RAG service over gRPC, gateway with Tier-1 and Tier-2 caches |
-| W9–W11 | Source-aware invalidation with a concurrency-safe dependency map |
-| W12–W15 | The provenance rule, judged correctness evaluation |
-| W16–W19 | Admission control, then the load and redundancy sweeps |
+| Weeks | Lands | |
+| :--- | :--- | :--- |
+| W5 | Memory-envelope spike, corpus ingestion, retrieval with stable chunk IDs | ✅ **done** — envelope frozen from measurement, `dev-v0` ingested, retrieval returning chunk IDs |
+| W6–W7 | RAG service over gRPC, gateway with Tier-1 and Tier-2 caches | in progress |
+| W8 | Frozen experimental corpus `v1` + sensitivity gate, off-box k6 harness | |
+| W9–W11 | Source-aware invalidation with a concurrency-safe dependency map | |
+| W12–W15 | The provenance rule, judged correctness evaluation | |
+| W16–W19 | Admission control, then the load and redundancy sweeps | |
 
 ## Running it
 
-Not yet runnable end-to-end — that lands in W6–W7. Once it does:
+The **RAG pipeline runs today**; the gateway lands in W6–W7, so there is no end-to-end `/ask` yet.
 
 ```bash
-make setup     # report missing tooling
-make ingest    # build the index
+make setup                                          # report missing tooling
+cd rag && pip3 install -e '.[dev]'                  # install the RAG service
+make ingest                                         # chunk + embed the corpus into Redis
+rag ask "can I return this laptop after 30 days?"   # retrieval only — prints top-k chunks with IDs
+make verify                                         # lint + build + test
+```
+
+Two environment constraints that are not optional: Redis must be **`redis-stack-server`** (the plain
+formula ships a config referencing search modules it does not bundle), and **Ollama runs natively on
+the host, never in Docker** — macOS containers have no Metal passthrough, and a CPU-bound LLM
+invalidates every latency measurement.
+
+Once the gateway lands:
+
+```bash
 make dev       # redis + rag service + gateway
 make ask Q="can I return this laptop after 30 days?"
 ```

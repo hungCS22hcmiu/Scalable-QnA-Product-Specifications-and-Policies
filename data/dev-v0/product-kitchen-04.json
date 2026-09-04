@@ -1,0 +1,11 @@
+{
+  "doc_id": "product-kitchen-04",
+  "title": "Air Fryer Compact",
+  "specs": {
+    "type": "air fryer",
+    "capacity": "3.5L",
+    "power": "1400W",
+    "features": "digital touchscreen, 8 presets"
+  },
+  "category": "kitchen"
+}
