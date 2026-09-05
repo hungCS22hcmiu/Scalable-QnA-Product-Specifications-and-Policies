@@ -48,6 +48,28 @@ Week numbers are retained **only** as the scheduling handle the `/week` command 
 | :--- | :--- | :--- | :--- |
 | **8** | **Freeze the corpus** | Build `v1` to the structural requirements of **ADR-024** and **ADR-028**. Run the gate — procedure and criteria are in `data-card.md` §7, not restated here. Record `K` and derive `cache_capacity = round(0.25 × K)` (**ADR-027**). Run a coarse **μ_hit probe** on the existing gateway: pre-warm, replay cached queries, drive to saturation. Stand up the off-box k6 harness | `v1` frozen + hashed after **G1, G2 and G3 all pass** · `K` and derived capacity recorded in `data-card.md` · **μ_hit recorded** — it decides whether S1's wording stands (ADR-027) · k6 drives the gateway from a second machine |
 
+> **Building `v1` is four jobs, not a download** (`data-card.md` §1–§4). Each has already been
+> flagged as a risk there; they are listed here because any one of them can slip the freeze:
+>
+> 1. **Catalog** — ~150 products from McAuley-lab `Amazon-Reviews-2023`. ⚠️ Its dataset card
+>    **states no license**, so redistribution is unresolved: default to shipping a
+>    **download + build script and a hash manifest**, not the raw data (ADR-013). `data/v1/` stays
+>    gitignored until the terms are verified.
+> 2. **Product questions** — mined from **AmazonQA**. ⚠️ **Measure the join rate first.** AmazonQA
+>    is the 2016 release keyed on `asin`; the catalog is keyed on `parent_asin`. Coverage across a
+>    near-decade gap is unverified. If too few questions map, either select products *from* the
+>    QA-covered set or author more of the workload — and record which was done.
+> 3. **Policy questions — authored in-house, because they do not exist.** AmazonQA is product Q&A
+>    and contains **no policy questions at all**. Return windows, warranty terms, restocking fees:
+>    all written by hand. This is where **stratum B mostly lives**, so it is not a small side job.
+> 4. **Rewrite every query to be self-contained.** Real AmazonQA questions are asked on a product
+>    page and are elliptical — *"does this fit?"*, *"how long is the warranty?"* — while `/ask`
+>    carries no product context (`interfaces.md` §A). Rewriting is required, and it is **reported
+>    as a limitation**, never presented as raw real traffic.
+>
+> Tag each query with its **stratum** (A / B-within / B-cross / C / D) *and* its paraphrase type.
+> Neither can be retrofitted once the snapshot is hashed.
+
 > ⚠️ **μ_hit is the one that can change the report.** `Final_Proposal.md` §3 and the submitted report both state that the load-conversion crossover is computed rather than observed, on the basis that μ_hit is far above ~16 req/s. If the probe returns **≤ ~16 req/s**, that reasoning inverts and S1's empirical wording is restored (ADR-027). Measure it before writing anything further that depends on it.
 
 ### Phase 2 — Invalidation and literature
@@ -55,6 +77,26 @@ Week numbers are retained **only** as the scheduling handle the `/week` command 
 | Week | Focus | Key tasks | Done when |
 | :--- | :--- | :--- | :--- |
 | **9** | Dependency map | `dep:*` under `noeviction` in its own region, in-process index, purge through a single writer goroutine hitting **both** tiers via `t1_key`, **epoch-guarded write-back**. Stand up the **per-request evaluation log** (`interfaces.md` §H, ADR-029) — fields populate as features land, and it blocks every later measurement | Editing a policy purges exactly its dependents · an in-flight generation during an edit is discarded · `raw/requests.jsonl` written and parseable |
+
+> ⚠️ **The evaluation log is how every accuracy number gets computed — and it currently cannot
+> feed the judge.** `interfaces.md` §H records one JSONL row per request with the cache outcome,
+> `similarity`, `source_overlap`, `entered_band`, `similarity_only_decision`, both chunk-ID lists
+> and the stage timings. Four metrics in `experiment-protocol.md` §4 are **not computable without
+> it**, and two of its fields (`similarity_only_decision`, `answer_sha256`) **cannot be
+> reconstructed after the run**.
+>
+> **The gap:** §H stores `answer_sha256`, never the answer **text**, and `raw/` is specified as
+> "k6 json, judge outputs, pressure samples" — nothing durably holds the served answers. But §4
+> requires judging to run **offline, in batch, with the generator unloaded**, and a judge needs
+> the candidate answer text. Recovering it from the cache afterwards is unsound: the cache is
+> bounded at `round(0.25 × K)` with LRU eviction, so any answer evicted mid-run is gone — and
+> `raw/` is write-once, so this cannot be patched after the fact.
+>
+> **Likely fix, cheap:** a content-addressed `raw/answers/{answer_sha256}.txt`. It dedupes for
+> free — identical answers across configurations collapse to one file — and it is keyed by a field
+> §H already carries. **Needs an ADR** before W9, since §H and `experiment-protocol.md` §3 are
+> both frozen.
+
 | **10** | Literature verification | Clear the remaining ⬜ rows in proposal §10.1. **Partly discharged already** — the block was pulled forward and produced ADR-026, which found two systems occupying C1 and narrowed the claim. What remains: FreshCache and the serving-scheduler row, plus reading GroundedCache and FinCacheServe in full, since they now carry the positioning | Every ⬜ cleared or the claim rewritten. A characterisation that fails is **corrected, not defended** |
 | **11** | Guard and update set | Copy-on-write guard shipped. `RWMutex` comparison as a synthetic microbenchmark sweeping edit rate. ~20-edit update set, balanced `substantive` / `cosmetic`. Completeness and precision harness against a **swept** TTL baseline — cell `(3, on)` of ADR-023 | Completeness and precision reproducible from one script · microbenchmark curve exists |
 
