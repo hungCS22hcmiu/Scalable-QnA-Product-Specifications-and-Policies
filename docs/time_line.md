@@ -72,6 +72,31 @@ Week numbers are retained **only** as the scheduling handle the `/week` command 
 | :--- | :--- | :--- | :--- |
 | **15** | Headline B | All five configurations at `mutation: off`. Sweep τ and θ **on the validation split**, report on **held-out test**. Wilson intervals. Hit-path p95 and band-entry share per point. End-to-end p95 at matched hit rate. Static-cache ablation. **Frontier reported per stratum, including the B-within against B-cross split** (ADR-028) | **Headline B** exists with its isolation controls · the B-within result is reported, since it is what answers the product-identifier objection |
 
+> **Tuning theme — W15 is where the reuse formula gets properly exercised, not just measured.**
+> The sweep in the row above is currently one line; the intent is a thorough pass. Run many cases
+> and many *kinds* of paraphrase over `v1`, watch where the rule holds and where it breaks, and
+> use that to improve the Tier-2 decision — the goal being the highest hit rate that keeps
+> false hits inside δ. Adding something at Tier 1 is in scope to *consider* here too.
+>
+> Three constraints, so this stays evaluation and does not become tuning-to-taste:
+>
+> 1. **Tune on the validation split, report on held-out test** (`experiment-protocol.md` §5).
+>    Non-droppable (proposal §12). The deliverable is a **frontier**, not a tuned point.
+> 2. **Tier 1 may be measured, not changed.** `cache/` must never make a reuse decision
+>    (`architecture-guardrails.md`), and a more aggressive `Normalize` would also threaten G3's
+>    zero-collision invariant. Any Tier-1 idea enters as a reported ablation; the shipped function
+>    stays ADR-015's.
+> 3. **Pin the sweep before running it.** `Final_Proposal.md` §9.4 already books this debt in its
+>    own words — *"θ's range is not stated anywhere"*, τ's granularity unstated, the cascade-band
+>    bounds unspecified, and *"the best fixed threshold"* with no written selection objective —
+>    and names `experiment-protocol.md` as where they are fixed, *"before the sweep runs"*.
+>    Note the band needs its **quantity** defined before any bound means anything: `entered_band`
+>    is a boolean everywhere today.
+>
+> **Deferred by decision (2026-09-05).** Scoped only if the topic is approved at the advisor
+> meeting; there is no point specifying a sweep for a study that may be rescoped. See
+> `worklog/W08.md` for the findings behind these three constraints.
+
 ### Phase 5 — Systems hardening
 
 | Week | Focus | Key tasks | Done when |
