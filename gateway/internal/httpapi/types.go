@@ -23,5 +23,6 @@ type askResponse struct {
 
 const (
 	cacheTier1Hit = "TIER1_HIT"
+	cacheTier2Hit = "TIER2_HIT"
 	cacheMiss     = "MISS"
 )

@@ -12,10 +12,11 @@ import (
 // sha256 equality is not a judgement (architecture-guardrails.md).
 type Store struct {
 	rdb *redis.Client
+	dim int // Tier-2 vector width, supplied by main.go from embed.Dim -- see tier2.go
 }
 
-func NewStore(rdb *redis.Client) *Store {
-	return &Store{rdb: rdb}
+func NewStore(rdb *redis.Client, dim int) *Store {
+	return &Store{rdb: rdb, dim: dim}
 }
 
 // Get looks up the exact-match entry for query. The bool is false on a cache miss.
