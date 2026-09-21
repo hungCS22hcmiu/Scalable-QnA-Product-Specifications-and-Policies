@@ -19,7 +19,7 @@ it is a proposal waiting for an ADR.
 | 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟡 §2.3 deletes and §2.6 drift done 2026-09-21; §4.5 tracking resolved (both now tracked) | the rest waits on decisions in #3, #4 |
 | 3 | Super plan + FR/NFR/RR | 🔴 not started | human sign-off on shape |
 | 4 | Harness re-engineering (scope-based, week-free) | 🔴 not started | two open decisions below |
-| 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🔴 investigated, not decided | one probe + human call |
+| 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🟡 **probe run 2026-09-21 (§5.6)** — PQA is thick enough, but the licence finding reverses §5.1 and the chunking claim in §5.2 is wrong | **human call**, on §5.6's three points |
 
 ---
 
@@ -284,9 +284,135 @@ authoring shrinks.
 
 ### 5.5 ⚠️ Live risk
 
-`data/v1-draft/` — **175 files staged in git**, derived from Amazon-Reviews-2023 whose licence is
-unresolved. `.gitignore` excludes only `data/v1/`. `fetch_corpus_v1.py`'s own header says *"Do not
-`git add` `data/v1-draft/` until then."* **Unstage before any commit.**
+~~`data/v1-draft/` — **175 files staged in git**~~ — **closed 2026-09-21**: unstaged, and
+`data/v1-draft/` added to `.gitignore` alongside `data/v1/`. The files remain on disk and the script
+regenerates them. Note that §5.6's licence finding means the *replacement* corpus inherits the same
+constraint, so this exclusion is permanent rather than provisional.
+
+---
+
+### 5.6 PROBE RUN 2026-09-21 — the result, and two things it reverses
+
+Run against the real data, not the documentation: `amazon_pqa_inkjet_printers.json` (128 MB,
+complete) and `amazon_pqa_chairs.json`. No AWS CLI needed — the bucket serves over plain HTTPS.
+Script: scratchpad `pqa_probe.py`.
+
+#### ✅ §5.4's question is answered: PQA is **not** thin
+
+| | `inkjet_printers` |
+| :--- | ---: |
+| products (`asin`) | 1,288 |
+| questions | 92,070 |
+| questions per product — mean / median / max | **71.5 / 8 / 5,741** |
+| products with ≥ 2 questions | **82.5 %** |
+| products with ≥ 5 questions | **63.7 %** |
+| answers per question — mean / median | 2.4 / 2 |
+
+And they are **genuine paraphrase clusters**, which is what §5.4 actually asked. Across the
+category, **43.6 %** of multi-question products carry at least one near-duplicate question pair
+(content-word Jaccard 0.45–0.99, excluding exact repeats):
+
+- *"can it print address labels?"* / *"Does it print labels?"* — **stratum C**, different wording,
+  same grounding.
+- *"Does this have usb slot? can i just insert usb stick and print?"* / *"Does it have usb slot? i
+  can just insert usb and print?"* — near-literal, **stratum A**.
+
+#### ⭐ An unlooked-for finding: PQA supplies **B-within traps naturally**
+
+The same clustering surfaced pairs that look like paraphrases and have **different answers**:
+
+- *"Does printer work with windows 10?"* / *"Will this unit work with Windows 7?"*
+- *"will it work with an IPAD 2?"* / *"Does this printer work with an iPad and an iPhone?"*
+
+Same product, same shape, one condition flipped — which is exactly **ADR-035's residual** and
+exactly what `data-card.md` §2's **B-within** stratum is built to hold. Today those pairs would be
+author-constructed, and report §4.5.2 / limitation 10 concedes that the measured residual is
+*"partly a property of how carefully the author split conditions."* Natural traps weaken that
+objection materially. **This is a reason to adopt PQA that neither §5.1 nor §5.4 anticipated.**
+
+One product's twelve questions also span refurbishment, warranty period, ink, scanning and fax —
+several distinct groundings per product, and *"Warranty period?"* arrives naturally, which is the
+policy-side question the authored policy corpus has to join to.
+
+#### ⚠️ Reversal 1 — the licence does **NOT** close `data-card.md` §1's `TODO(W8)`
+
+§5.1 records *"Licence: CDLA-Permissive-1.0 (AWS Open Data Registry) → redistribution with
+attribution"* and concludes the redistribution question is closed. **Two authoritative sources
+disagree, and the more restrictive one is the dataset's own.**
+
+| Source | Says |
+| :--- | :--- |
+| AWS Open Data Registry (`datasets/amazon-pqa.yaml`) | `License: https://cdla.dev/permissive-1-0/` |
+| `s3://amazon-pqa/readme.txt` — which that same registry entry names as `Documentation:` | *"Permission to make digital or hard copies … for **personal or classroom use** … provided that copies are **not made or distributed for profit or commercial advantage** … **For all other uses, contact the owner/author(s). Copyright held by the owner/author(s).**"* |
+
+That second text is the **ACM personal/classroom-use notice**, not CDLA-Permissive-1.0, and the word
+"CDLA" appears **zero** times in the readme. CDLA-Permissive grants redistribution; the readme
+grants personal and classroom copying and reserves everything else.
+
+**What this changes.** Using PQA for this thesis is squarely covered — academic use is the granted
+case, with the required citation (Rozen et al., NAACL 2021; the readme supplies the BibTeX).
+**Publishing a derived corpus on a public git remote is not clearly covered**, which is the exact
+question `data-card.md` §1 `TODO(W8)` asks. So the conclusion is the same as before the switch, and
+it is the one **ADR-013 already anticipated**: keep `data/v1/` gitignored and ship a
+**download + build script plus a hash manifest**, not the raw data. PQA deletes the *join* problem
+(§5.1's real win) — it does not delete the *redistribution* problem.
+
+#### ⚠️ Reversal 2 — §5.2's chunking claim is wrong as measured
+
+§5.2 argues the switch to prose *"arguably helps ADR-024 requirement 3, since prose chunks past
+`chunk_size` more readily than a spec table."* Measured:
+
+| | `inkjet_printers` |
+| :--- | ---: |
+| product prose (5 bullets + description), median chars | **504** (≈ 126 tokens) |
+| products estimated to yield ≥ 3 chunks at `chunk_size = 256` | **1.6 %** |
+
+`product_description` is frequently **empty**; the bullets carry the content and they are short.
+PQA products would ingest at roughly **one chunk each** — the same shape as `dev-v0`, which is what
+`corpus_gate.py`'s G1 measured at **0 qualifying pairs**.
+
+**This is less damaging than it first looks, and the distinction matters.** ADR-024 requirement 3 is
+about **policy** documents, which stay authored in-house and are written to length deliberately.
+`dev-v0`'s G1 failure came from having only **44 chunks in total**, so every question retrieved a
+near-identical set; one PQA category alone supplies **~1,288** product chunks, so corpus *diversity*
+is not the problem it was. What the measurement does kill is the claim that switching to PQA helps
+requirement 3 — it does not help it at all, and requirement 3 rests entirely on the authored
+policy half, exactly as it did before.
+
+#### ⚠️ The readme's own field list does not match its own data
+
+§5.1's field list is copied faithfully from `readme.txt` — and **the readme is wrong**. Verified
+against the bytes:
+
+| `readme.txt` says | the data actually has |
+| :--- | :--- |
+| `asin_id` | **`asin`** |
+| `bullet_points` (one field) | **`bullet_point1` … `bullet_point5`** (five fields) |
+| `is_yes-no_question` | **`question_type`** (`"yes-no"` \| `"WH"`) |
+| `answer_text`, `yes-no_answer` | **`answers`** (list of `{answer_text}`), **`answer_aggregated`** |
+
+A corpus builder written against the documentation produces **empty records silently** — the first
+run of this probe returned "no parseable records" for exactly that reason. Whoever writes the
+builder must read the bytes first.
+
+#### Category dependence — select products, do not sample them
+
+`inkjet_printers` has a median of 8 questions per product; `chairs` is far thinner. The distribution
+is also extremely skewed within a category (p99 = 958, max = 5,741 for printers), so the workload
+build must **select into the thick tail**, not sample uniformly. `TODO`: fill the `chairs` row once
+the download completes — the partial read at 58 % of the file gave median 2, ≥5 questions on 24.8 %
+of products, which if it holds means furniture categories are usable but need a bigger product pool
+for the same number of clusters.
+
+#### The call this leaves to the human
+
+1. **Adopt PQA?** The probe says yes on thickness, and adds the natural-B-within argument.
+2. **Accept that redistribution stays closed** and that `v1` ships as a build script + hash
+   manifest (ADR-013's path), rather than as tracked data.
+3. **Which categories**, given the thickness varies by category and drives how many products are
+   needed to reach the workload's distinct-query count `K` (ADR-027 derives capacity from it).
+
+All three want an ADR once decided — this file records a proposal, not a decision (see Authority).
 
 ---
 
@@ -303,7 +429,7 @@ unresolved. `.gitignore` excludes only `data/v1/`. `fetch_corpus_v1.py`'s own he
 
 ## Suggested order
 
-**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0 is done.** Next: **5**.
+**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0 is done.** **5's probe is run (§5.6)** and waits on the human call. Next: **3**.
 
 ADRs first, because everything else cites them. Dataset next, because it decides the content of report
 §4.2 and unblocks the `v1` freeze that Phase 1's exit criterion depends on. Then requirements, then the
