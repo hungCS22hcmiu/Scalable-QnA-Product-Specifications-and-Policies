@@ -1,6 +1,6 @@
 # Decision Log (ADRs)
 
-**Status:** living document · **Created:** 2026-07-23 · **Last revised:** 2026-09-21 (ADR-035…040)
+**Status:** living document · **Created:** 2026-07-23 · **Last revised:** 2026-09-21 (ADR-035…041)
 **Companion to:** `Final_Proposal.md` (rationale source), `interfaces.md` (schemas these decisions pin), `time_line.md` (decide-by weeks).
 
 > **Read ADR-016 first.** It records the 2026-08-09 scope reduction and supersedes or closes several entries below. Section references in older entries point at the archived proposal; the mapping to current sections is in ADR-016.
@@ -46,9 +46,10 @@
 | **ADR-035** | **Adopt the answer–evidence support gate (lexical at the published τ_s, plus a numeric arm)** | **Decided (method)** | — |
 | **ADR-036** | **Retire the unfiltered similarity-only phase, `tau_high`, and the inline counterfactual** | **Decided (method)** | — |
 | **ADR-037** | **`Retrieve` returns chunk text — `interfaces.md` v0.9** | **Decided (frozen)** | — |
-| **ADR-038** | **Condition-splitting is a `v1` corpus requirement** | **Decided (data)** | — |
+| **ADR-038** | **Condition-splitting is a `v1` corpus requirement** | **Decided (data)** · **amended by ADR-041** | — |
 | **ADR-039** | **`v1` corpus source: Amazon-PQA; redistribution stays closed** | **Decided (data)** | — |
 | **ADR-040** | **Co-hosted load generation, bounded: amends ADR-012** | **Decided (method)** | — |
+| **ADR-041** | **Opposing conditions live in distinct DOCUMENTS: amends ADR-038** | **Decided (data)** | — |
 
 ---
 
@@ -700,7 +701,7 @@ The cascade's unfiltered Phase-1 Tier-2 search and its `tau_high` short-circuit 
 ### ADR-038 — Condition-splitting is a `v1` corpus requirement, independent of the chunk-count rule
 **Decided (data)** · 2026-09-21 · *`data-card.md` §2, §7; ADR-024 (requirement 3), ADR-028, ADR-035; report §3.6.1.*
 
-`v1`'s policy documents are split on clause and section structure so that **one chunk carries one condition**. A paragraph stating the opened and the unopened condition together, or the return window and the warranty window together, is split before the corpus is frozen. The corpus gate gains a **fifth criterion, G5**: no chunk states two opposing conditions of the same kind. The explicit structured `condition:` tag — a metadata field on each chunk, with reuse additionally requiring tag-set agreement — is **considered and not adopted**; the split alone is required.
+`v1`'s policy documents are split on clause and section structure so that **one chunk carries one condition**. ⚠️ **Amended by ADR-041 (2026-09-21): the chunk is the wrong granularity.** An intra-document split is invisible to `reuse.Namespace`, which is document-granular by design; opposing conditions must live in **distinct documents**. The reasoning below stands — only the granularity changes. A paragraph stating the opened and the unopened condition together, or the return window and the warranty window together, is split before the corpus is frozen. The corpus gate gains a **fifth criterion, G5**: no chunk states two opposing conditions of the same kind. The explicit structured `condition:` tag — a metadata field on each chunk, with reuse additionally requiring tag-set agreement — is **considered and not adopted**; the split alone is required.
 
 - **Rationale.** This is ADR-035's residual, addressed at the only place it can be addressed. Where retrieval genuinely returns the same chunk for two questions that differ only in the condition asked about, containment is **1 by construction**, the support gate sees **full support either way**, and similarity is no help because the token carrying the entire semantic difference is a negation or a single condition word that carries almost no weight in the embedding. Every signal this design permits itself is blind to that case, and the permitted alternatives do not rescue it (ADR-035's alternatives). Splitting conditions apart at authoring time is the **only** lever this design has, and it exists only while the corpus is being written.
 - **Why this is a second and independent requirement, not a restatement of ADR-024 requirement 3.** Requirement 3 asks for policy documents long enough to yield at least three chunks, so that **containment has something to sweep** — it is about giving θ a gradient. This requirement is about whether the phenomenon **can be separated at all**. The two must not be conflated: a document can satisfy requirement 3 with three chunks and still state both conditions inside one of them, which satisfies the letter of requirement 3 while leaving the residual structurally unavoidable.
@@ -776,3 +777,37 @@ ADR-012 requires load generation to run off-box. **No second machine exists and 
   - ⚠️ **Two margins that must not be conflated.** ADR-027's falsification trigger (μ_hit ≤ ~16 req/s) is **cleared** by the lower bound of 61, but by only **3.8×**. That is a different comparison from *"μ_gen ≪ μ_hit by two to three orders of magnitude"*, which is separately correct (0.19 against 61 is ~320×) and which licenses `h* > 0.99`. The second margin is the one a co-hosted lower bound must clear, and it clears it with far less room, so the two are stated separately wherever both appear. (`Final_Proposal.md` §3's own wording — *"observable only if μ_hit ≤ ~16 req/s"* — is accurate; an earlier note in `two-lane-cache/approvals.md` attributed to it a phrase, *"far above ~16 req/s"*, that it does not contain.)
 - **Falsification / revisit trigger:** if item 1.6 measures the generator's footprint as large enough to move the system under test out of green at the sweep's own rates, this amendment does not apply and the sweep cannot be run co-hosted at all — in which case the honest outcome is a reduced load range, reported as such, not a run taken anyway.
 - **Invalidates:** none — `experiments/results/` holds no run directories (verified 2026-09-21). The 2026-09-06 co-hosted probe was already marked non-citable and stays so; this ADR governs future runs only.
+---
+
+### ADR-041 — Opposing conditions live in distinct documents, not distinct chunks: an amendment to ADR-038
+**Decided (data)** · 2026-09-21 · *amends ADR-038; ADR-024 (requirement 3), ADR-028, ADR-030, ADR-035; `data-card.md` §2, §7; `reuse/lane.go`.*
+
+ADR-038 requires that **one chunk carries one condition**. That granularity does not achieve what it was adopted for. Opposing conditions — *opened* against *unopened*, *removable* against *not removable*, *within* against *outside* a window — must be authored into **distinct documents with distinct `doc_id`s**, not merely into distinct chunks of one document. Corpus-gate criterion **G5** is restated at document granularity: **no two opposing conditions of the same kind may share a `doc_id`**.
+
+- **Rationale — the namespace is document-granular, deliberately, so a chunk-level split is invisible to it.** `reuse.Namespace` takes the policy component from the `doc_id` of the **rank-1 policy chunk**, and `docID()` strips `#chunk-{ordinal}` on purpose: its own comment records why — *"re-chunking a policy must not silently repartition the cache."* That is a good property and is not being given up. Its consequence, missed when ADR-038 was written, is that `policy-returns-electronics#chunk-2` (opened) and `#chunk-3` (unopened) both yield the namespace `policy-returns-electronics`. **Splitting by chunk buys the reuse rule nothing.**
+- **Rationale — under a chunk-level split, all four conjuncts are blind at once.** If retrieval returns **both** chunks — which is the expected case, since the embedding carries almost no weight on the negation or condition word (report §2.2.1) — then for *"can I return an opened product"* against *"can I return an unopened product"*:
+
+  | Conjunct | Separates them? | Why not |
+  | :--- | :---: | :--- |
+  | `sim ≥ τ` | no | the two questions are near-identical to the embedding |
+  | `namespace` | **no** | same document, so the same namespace |
+  | `overlap ≥ θ` | **no** | the same chunk set both ways, so containment is 1.0 |
+  | `support` | **no** | the concatenated evidence contains *both* conditions' text, so `S_lex` is full in both directions |
+
+  ADR-035 disclosed this case as the residual and ADR-038 was the mitigation. At chunk granularity the mitigation does not reach it. At document granularity the **namespace conjunct does** — and that conjunct already exists, is already implemented, and is already being measured.
+- **Why this is the cheapest admissible fix.** It adds **no mechanism, no parameter and no hit-path cost**. It does not read the query text, so it does not reopen the constraint that removed the bypass classifier (ADR-018). It is a corpus-authoring rule checked by a structural gate criterion — the same class of thing ADR-038 already was.
+- **What it does NOT claim.** It does not eliminate the residual. It still depends on retrieval ranking the *correct* condition document first, which is the rank-1 instability already documented in `reuse/lane.go`. The difference is categorical rather than probabilistic: under a chunk-level split the two queries **cannot** be separated by any conjunct; under a document-level split they **can** be, and the rate at which they actually are is what RQ2a measures.
+- **Alternatives, and why not:**
+  - **A condition flag computed from the query text before retrieval.** Rejected, and it is the alternative most likely to be proposed again, so the reasons are recorded. (i) It makes the reuse decision read the query as a *predictive* signal, which is exactly what ADR-018 removed the bypass classifier for: a misclassification becomes a false hit with no bucket to hold it. (ii) No permitted instrument computes it reliably — a keyword rule misses *"if it hasn't been opened"*, an NLI model or classifier is ML on the hit path (rules.md #7, ADR-016), and an LLM call per request costs the generation the cache exists to avoid. [27] measures exactly this: lexical and NLI detectors both collapse under conformal calibration on the hard cases. (iii) Structurally, *before retrieval* there is no provenance yet, so every signal available at that point is query-side by construction.
+  - **Make `Namespace`'s policy component chunk-granular.** Rejected — it would separate intra-document conditions, but it discards the re-chunking-stability property `docID()` exists to provide, and it substitutes rank-1 **chunk** instability for rank-1 **document** instability, which is strictly worse. It would also refuse legitimate reuse whenever two paraphrases of one question retrieve different chunks of the same policy.
+  - **Raise θ until containment separates them.** Rejected — containment is 1.0 in both directions here, so no θ exists. This is the same granularity argument that produced ADR-030.
+  - **Leave it as measured residual.** Rejected on the author's decision: it is cheap to fix before the freeze and impossible after, and an avoidable residual reported as structural would misrepresent the limit.
+- **Consequences:**
+  - `data-card.md` §7's **G5** is restated at document granularity and stays **structural** (stage 1, corpus files only).
+  - `data-card.md` §2 records the document-level rule as a property of the authored policy corpus.
+  - ⚠️ **Authoring cost rises, and ADR-024 requirement 3 is not relaxed to absorb it.** Each condition document must still reach ≥3 chunks, so one category's return policy split into *opened* and *unopened* is now two documents of roughly 550 words each rather than one. This is stated rather than quietly traded away; if it proves infeasible during authoring, the relaxation returns as its own decision with its own reasoning.
+  - Corpus **diversity improves as a side effect** — more, shorter policy documents means more distinct `doc_id`s and more varied top-`k` retrieval sets, which is what G1 measures and what `dev-v0` failed at.
+  - The `MIXED` lane inherits the fix unchanged: its composite `{product}|{policy}` takes the same rank-1 policy `doc_id`, so distinct condition documents separate mixed questions too.
+  - `super-plan.md` Phase 3 items 3.3 and 3.5 are updated to the document-level rule.
+- **Falsification / revisit trigger:** if `v1` is authored to this rule and RQ2a still measures a material residual on the B-within stratum, then rank-1 document instability — not granularity — is the binding constraint, and the namespace's stability becomes the thing to work on rather than the corpus.
+- **Invalidates:** none — `experiments/results/` holds no run directories (verified 2026-09-21) and `v1` is not yet authored. This is **only** actionable before the freeze.

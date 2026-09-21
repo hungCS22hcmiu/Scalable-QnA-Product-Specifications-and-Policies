@@ -165,3 +165,50 @@ the second is tight.
 
 **Next.** Item 1.1 (F1) or 1.2 (`httpapi` tests) — 1.2 unblocks 1.3 and 1.4, so it is the one
 that opens the most.
+
+---
+
+## 2026-09-21 (fourth entry) · Phase 1 · <hours>h
+
+**Did.** Wrote **ADR-041**, amending ADR-038, and propagated it: `data-card.md` §7's G5 restated
+at document granularity, `super-plan.md` items 3.3 and 3.5, `Final_Proposal.md` §9.3, and the
+residual sections of both reports.
+
+**Found — and it was a hole in yesterday's own plan.** The author asked whether the plan separates
+*"can I return an opened product"* from *"can I return an unopened product"*, and whether a
+condition flag computed before retrieval was needed. Checking the code to answer it turned up a
+gap ADR-038 did not close.
+
+`reuse/lane.go:140`'s `docID()` strips `#chunk-{ordinal}` **deliberately** — its own comment says
+*"the namespace is the DOCUMENT, not the chunk: re-chunking a policy must not silently repartition
+the cache."* ADR-038 required one condition per **chunk**. Those two do not compose: an
+intra-document split yields the same namespace for both conditions. And where retrieval returns
+both chunks — the expected case, since the embedding barely weights a negation — **all four
+conjuncts go blind simultaneously**: similarity cannot separate near-identical questions, the
+namespace is identical, containment is 1.0 over the same chunk set, and the support gate sees both
+conditions' text in the concatenated evidence. The mitigation ADR-035 pointed at did not reach the
+case ADR-035 disclosed.
+
+**Decisions.** **ADR-041** — opposing conditions live in **distinct documents**. The namespace
+conjunct then separates them using machinery that already exists: no new mechanism, no new
+parameter, no hit-path cost, and no reading of the query text. G5 becomes *"no two opposing
+conditions of the same kind share a `doc_id`"*.
+
+The pre-retrieval flag was **rejected**, and the reasons are recorded in the ADR because it is the
+alternative most likely to come back: it makes the reuse decision read the query as a *predictive*
+signal, which is exactly what ADR-018 removed the bypass classifier for; no permitted instrument
+computes it reliably (a keyword rule misses *"if it hasn't been opened"*, a classifier or NLI model
+is ML on the hit path, an LLM call per request costs the generation being cached, and [27] measures
+lexical and NLI detectors collapsing on precisely these cases); and structurally, *before*
+retrieval there is no provenance, so every signal available then is query-side by construction.
+Where the condition label **does** legitimately live is the workload: stratum B-within, measured
+as RQ2a. It is an input to the *evaluation*, never to the *decision*.
+
+**Blocked.** Nothing new. Authoring cost rises and ADR-024 requirement 3 was **not** relaxed to
+absorb it — one category's return policy split into *opened* / *unopened* is now two documents of
+roughly 550 words each. Recorded as a consequence rather than traded away; if it proves infeasible
+during authoring it returns as its own decision.
+
+**Exit test.** Not run — Phase 1's six items are still unstarted.
+
+**Next.** Unchanged: item 1.2 (`httpapi` tests), which unblocks 1.3 and 1.4.
