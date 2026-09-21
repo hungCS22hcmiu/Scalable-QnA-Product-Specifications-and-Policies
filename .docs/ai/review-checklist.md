@@ -23,7 +23,7 @@ Reads: `docs/interfaces.md`, `.docs/ai/rules.md`
 
 ## `experiment-reviewer` — runs when a diff touches measurement
 
-Reads: `docs/experiment-protocol.md`, `docs/Final_Proposal.md` §9, `.docs/ai/rules.md`
+Reads: `docs/experiment-protocol.md`, `docs/learning/Final_Proposal.md` §9, `.docs/ai/rules.md`
 
 - [ ] Metric computed as §4 defines it — hit ratio is hits ÷ **total**; shed is **not** counted as served
 - [ ] Goodput, not throughput, wherever S1/S2 are involved

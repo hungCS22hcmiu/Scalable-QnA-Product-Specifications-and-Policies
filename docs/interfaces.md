@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.8 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-09-10 (ADR-034)
+**Status:** Draft v0.9 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-09-21 (ADR-035, ADR-036, ADR-037)
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `defense_demo.md` (§2 `/ask` contract), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -30,6 +30,19 @@
 > already retrieved once before reaching `Answer`, which then retrieved again; the duplicated work
 > is the **query embedding**, not the vector search. Additive — an empty field preserves the old
 > behaviour exactly.
+
+> **v0.9 changes (ADR-035, ADR-036, ADR-037).** The reuse rule gains a fourth and final test — an
+> **answer–evidence support gate** adopted from GroundedCache at its published threshold, in a
+> lexical arm and a numeric arm — and two things follow at this seam. **§B `RetrieveResponse` gains
+> `texts`**, positionally aligned with `chunk_ids`: the gateway has only ever held chunk
+> *identifiers*, and the gate compares a cached answer against chunk *text*, so it cannot run at all
+> without this field. **§H gains `refusal_cause`, `support_lex` and `support_numeric_ok`**, without
+> which a support refusal is indistinguishable from a namespace refusal and the adopted gate's
+> contribution cannot be attributed. In the same revision **§H's `similarity_only_decision` is
+> retired** together with the unfiltered similarity-only cascade phase and the `tau_high`
+> short-circuit that produced it (ADR-036); the counterfactual becomes a cross-configuration join
+> on the static-cache arm. Additive at §B — an absent `texts` is today's behaviour exactly — but
+> **removing** at §H, which is why ADR-036 carries the reasoning rather than this note.
 
 > **v0.8 changes (ADR-034).** `RetrieveRequest` and `AnswerRequest` gain `product_id` (§B). When
 > set, retrieval runs its normal unscoped search first, then drops any chunk belonging to a
@@ -178,6 +191,8 @@ message RetrieveResponse {
   repeated string chunk_ids     = 1;   // stable chunk IDs, ranked (see §C)
   repeated float  scores        = 2;   // aligned with chunk_ids; retriever similarity
   uint64          dataset_epoch = 3;   // corpus version these chunks came from (§E)
+  repeated string texts         = 4;   // v0.9, ADR-037 — chunk text, POSITIONALLY
+                                       // ALIGNED with chunk_ids; see below
 }
 
 message AnswerRequest {
@@ -191,6 +206,18 @@ message AnswerRequest {
                                              // empty (v0.8, ADR-034) — see below
 }
 
+// **`texts` (v0.9, ADR-037).** `texts[i]` is the text of `chunk_ids[i]`, or the field is absent
+// entirely -- there is no partial population. The support gate of ADR-035 compares a cached
+// answer against this text; the gateway has never held chunk text and the gate cannot run at
+// all without it. `text` is a field `store.build_schema()` declares, so this reads a schema
+// field, not a storage-layout detail (the distinction ADR-033 settled).
+//
+// ⚠️ **Alignment is an invariant, not a convention.** A `texts` array shifted by one scores a
+// cached answer against the WRONG chunk's text and returns a support verdict that is wrong with
+// no error raised anywhere -- the same silent-failure class as the three invariants of v0.3.
+// It joins ADR-033's three obligations on this RPC: return the ids you were given, preserve
+// rank order, drop a missing id rather than substitute one, and keep `texts` aligned.
+//
 // **`product_id` (v0.8, ADR-034).** Optional, on both `RetrieveRequest` and `AnswerRequest`. When
 // non-empty, the service runs its normal unscoped top_k search FIRST -- ranking is untouched --
 // then POST-filters: drops any chunk belonging to a different product, and if product_id's own
@@ -419,7 +446,9 @@ Four metrics in `experiment-protocol.md` §4 are **not computable without this r
   "similarity": 0.91,
   "source_overlap": 0.80,               // null when the cascade short-circuited
   "entered_band": true,                 // consulted provenance — see the field note, v0.6
-  "similarity_only_decision": "HIT",    // ⚠️ counterfactual, see below
+  "refusal_cause": "SUPPORT",           // v0.9 — null when reuse was served; see below
+  "support_lex": 0.21,                  // v0.9, ADR-035 — null when the gate arm is off
+  "support_numeric_ok": false,          // v0.9, ADR-035 — null when the gate arm is off
 
   "retrieved_chunk_ids": ["policy-warranty-electronics#chunk-1"],
   "entry_sources": ["policy-warranty-electronics#chunk-1"],
@@ -443,10 +472,9 @@ Four metrics in `experiment-protocol.md` §4 are **not computable without this r
 }
 ```
 
-> ⚠️ **Two fields cannot be reconstructed after the fact, and both carry a metric on their own.**
+> ⚠️ **`answer_sha256` cannot be reconstructed after the fact.** It is the `sha256` of the served answer text. `experiment-protocol.md` §4 keys judge verdicts by `sha256(query ‖ candidate_answer)` to keep judging affordable, and the hash must be taken when the answer is served rather than recomputed from a possibly re-generated answer.
 >
-> - **`similarity_only_decision`** — what the fixed-threshold baseline *would* have decided for this request, recorded at the moment the rule ran. *Decisions changed by provenance* is the share of Tier-2 candidates where this disagrees with the served outcome. Re-deriving it later would require replaying against cache state that no longer exists. It is the metric that makes the **pre-registered null interpretable** (`experiment-protocol.md` §6) — without it, a null result cannot be distinguished from a thin corpus.
-> - **`answer_sha256`** — `sha256` of the served answer text. `experiment-protocol.md` §4 keys judge verdicts by `sha256(query ‖ candidate_answer)` to keep judging affordable, and the hash must be taken when the answer is served rather than recomputed from a possibly re-generated answer.
+> ⚠️ **`similarity_only_decision` is RETIRED at v0.9 (ADR-036).** It recorded what a fixed-threshold baseline *would* have decided, inline, because re-deriving it would have required replaying against cache state that no longer exists. It was produced by the unfiltered similarity-only cascade phase, and it is retired **with** that phase. *Decisions changed by provenance* is now a **cross-configuration join** of configurations 3 and 4 on `request_id`'s query identity — valid only on the **static-cache** arm, where both runs are guaranteed identical cache state, which is why ADR-036 moves that arm into the non-negotiable list. A log written before v0.9 carries the old field; do not mix the two derivations in one figure.
 
 Field notes:
 
@@ -455,6 +483,8 @@ Field notes:
 | `stratum` | Carried from the workload record (`data-card.md` §2). Enables the frontier to be reported per sub-stratum, which is what answers the product-ID objection (ADR-028) |
 | `t1_key` | Recording it lets the Tier-1 collision invariant (ADR-028) be re-verified from run output, not only at corpus-freeze time |
 | `entered_band` | Distinguishes short-circuit hits from cascade-band hits; `experiment-protocol.md` §4 requires their latencies reported separately. ⚠️ **v0.6 (ADR-030) restates what this measures.** It was *"paid for retrieval — the rule's cost driver"*. Since the gateway issues retrieval **concurrently with the embedding**, every Tier-1 miss pays for retrieval whether or not it enters the band, so this now records **how often the rule consulted provenance** and no longer bounds what the rule costs. Read `t_overlap_ms` for the cost, and note it is wall-clock-concurrent with `t_embed_ms` |
+| `refusal_cause` | **v0.9 (ADR-035).** Why a Tier-2 candidate was refused: `SIMILARITY` \| `NAMESPACE` \| `CONTAINMENT` \| `SUPPORT` \| `NONE` (reuse served). Without it a support refusal is indistinguishable from a namespace refusal and the adopted gate's contribution cannot be attributed — which is the exact methodological gap this study records against the source paper's conjunctive reporting |
+| `support_lex` / `support_numeric_ok` | **v0.9 (ADR-035).** The two gate arms, **reported separately and never summed**. `support_lex` is the fraction of the cached answer's content tokens present in the fresh evidence; `support_numeric_ok` is the fail-closed numeric check. Both null on the gate-off arm of configuration 4, which is how the two arms are told apart in the log itself |
 | `t_*_ms` | Null where the stage did not run. Sum need not equal `t_total_ms` — the difference is gateway overhead and is reported as such |
 | `writeback_discarded` | A nonzero count under load is evidence the epoch guard is working, not a bug (§E) |
 
@@ -464,6 +494,6 @@ Field notes:
 
 ## Versioning
 
-These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, or the Redis schema is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12). Current version: **v0.8** (2026-09-10 — ADR-034 adds the optional `product_id` of §B, scoping `Retrieve`/`Answer`'s own corpus search to the asked-about product plus all policy content, closing a cross-product grounding failure unscoped search could not avoid on a flat corpus — never a reuse-decision signal, ADR-028's boundary is untouched; ADR-033 lets `Answer` accept pre-retrieved chunks in §B, so a request retrieves once rather than twice; ADR-032 adds the optional `product_id` of §A and the doc-id kind prefix of §C; ADR-031 moves eviction into the gateway in §D; ADR-030's reuse rule v2 restates what `entered_band` in §H measures).
+These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, or the Redis schema is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12). Current version: **v0.9** (2026-09-21 — ADR-037 adds `texts` to §B's `RetrieveResponse`, positionally aligned with `chunk_ids`, because ADR-035's support gate compares a cached answer against chunk text the gateway has never held; ADR-035 adds §H's `refusal_cause` and the two support-arm fields, so the adopted gate's contribution is attributable rather than inferred from a conjunction; ADR-036 **retires** §H's `similarity_only_decision` with the unfiltered cascade phase and `tau_high` that produced it, moving *decisions changed by provenance* to a cross-configuration join valid only on the static-cache arm. Earlier: v0.8, 2026-09-10 — ADR-034 adds the optional `product_id` of §B, scoping `Retrieve`/`Answer`'s own corpus search to the asked-about product plus all policy content, closing a cross-product grounding failure unscoped search could not avoid on a flat corpus — never a reuse-decision signal, ADR-028's boundary is untouched; ADR-033 lets `Answer` accept pre-retrieved chunks in §B, so a request retrieves once rather than twice; ADR-032 adds the optional `product_id` of §A and the doc-id kind prefix of §C; ADR-031 moves eviction into the gateway in §D; ADR-030's reuse rule v2 restates what `entered_band` in §H measures).
 
 **Frozen study-wide, from measurement or by policy — changing any of these mid-study invalidates every comparison:** the generation LLM, Qwen 3.5 2B `q4_K_M` with `think: false` (ADR-021) · the embedding model and `DIM` (ADR-003) · `top_k` · the **FLAT (exact) vector index** — no mid-study HNSW upgrade, since approximate retrieval would inject overlap noise indistinguishable from C1's signal · `num_ctx = 8192` and `OLLAMA_NUM_PARALLEL = 4` (ADR-017, from the feasibility spike) · the **cache-capacity ratio `C/K = 0.25`** (ADR-027) and the rule that **Redis evicts nothing while the gateway enforces the entry count** (§D, ADR-031 — this supersedes the two-region split frozen at v0.3) · the **`policy-` / `product-` doc-id kind prefix** (§C, ADR-032), on which the reuse rule's lane selection depends.

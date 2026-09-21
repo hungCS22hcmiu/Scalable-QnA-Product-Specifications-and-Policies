@@ -37,6 +37,18 @@ message RetrieveResponse {
   repeated string chunk_ids     = 1;   // stable chunk IDs, ranked (interfaces.md §C)
   repeated float  scores        = 2;   // aligned with chunk_ids; retriever similarity
   uint64          dataset_epoch = 3;   // corpus version these chunks came from (§E)
+
+  // Chunk text, POSITIONALLY ALIGNED with chunk_ids: texts[i] is the text of chunk_ids[i],
+  // or the field is absent entirely -- never partially populated (ADR-037, interfaces.md §B
+  // v0.9). The answer-evidence support gate (ADR-035) compares a cached answer against this
+  // text; the gateway holds only identifiers and scores, so the gate cannot run without it.
+  //
+  // Alignment is an invariant, not a convention. An array shifted by one scores a cached
+  // answer against the wrong chunk and returns a support verdict that is wrong with no error
+  // raised anywhere. It joins the three obligations AnswerRequest.retrieved_chunk_ids already
+  // carries: return the ids you were given, preserve rank order, drop a missing id rather
+  // than substitute one.
+  repeated string texts         = 4;
 }
 
 message AnswerRequest {

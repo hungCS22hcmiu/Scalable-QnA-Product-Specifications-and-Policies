@@ -14,9 +14,9 @@ it is a proposal waiting for an ADR.
 
 | # | Concern | State | Blocked on |
 | :---: | :--- | :--- | :--- |
-| **0** | **`docs/` does not know about the approved pivot** | 🟡 partly actioned | ADR-035…038 |
+| **0** | **`docs/` does not know about the approved pivot** | 🟢 **done 2026-09-21** — ADR-035…038 written, and carried into `interfaces.md` (v0.9), `experiment-protocol.md`, `data-card.md` (G5), `CLAUDE.md` | — |
 | 1 | Rewrite `Pre-Thesis_Report_Full.md` (+ `Final_Proposal.md`) | 🟡 C1 alignment done 2026-09-15 | §4.2 waits on #5 · §5.1 waits on #3 |
-| 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🔴 not started | decisions in #3, #4 |
+| 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟡 §2.3 deletes and §2.6 drift done 2026-09-21; §4.5 tracking resolved (both now tracked) | the rest waits on decisions in #3, #4 |
 | 3 | Super plan + FR/NFR/RR | 🔴 not started | human sign-off on shape |
 | 4 | Harness re-engineering (scope-based, week-free) | 🔴 not started | two open decisions below |
 | 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🔴 investigated, not decided | one probe + human call |
@@ -32,7 +32,17 @@ condition-splitting.
 
 Everything else in this file stands on what is actually decided, so this goes first.
 
-### 0.1 ADRs owed
+### 0.1 ADRs owed — ✅ written 2026-09-21
+
+All four are in `docs/decisions.md`, and the documents they touch were edited in the same pass rather
+than left to drift (the lag `two-lane-cache`'s trail had to record as "still owed" after ADR-032).
+`interfaces.md` is at **v0.9**; `data-card.md` §7's gate is at **five** criteria; the run manifest
+gains `support_gate`, because configuration 4 is two arms and `(config_id, mutation)` no longer
+identifies a run on its own. Execution trail: `.docs/work/pre-thesis-sweeping/`.
+
+**Still owed as code, not as decisions** — ADR-035's gate, ADR-036's removals and ADR-037's seam
+work are recorded, not implemented. Build order is `Recommended_system.md` §4/§8, and F1 precedes it.
+
 
 | ADR | Title | Touches | Why it cannot wait |
 | :--- | :--- | :--- | :--- |
@@ -115,8 +125,9 @@ shakedown result, and the reasoning behind ADR-030…033. Deleting it destroys e
 
 ### 2.3 Delete
 
-`.pytest_cache/` · `.ruff_cache/` · `docs/.DS_Store` · `.claude/scheduled_tasks.lock` ·
-prune `.claude/settings.local.json` (**52 allow entries**, many one-shot junk such as
+~~`.pytest_cache/` · `.ruff_cache/` · `docs/.DS_Store` · `.claude/scheduled_tasks.lock`~~ — **deleted
+2026-09-21**, and all four are now in `.gitignore` so they cannot come back as tracked files.
+Still to do: prune `.claude/settings.local.json` (**41 allow entries**, many one-shot junk such as
 `Bash(kill 8460)` and single-use `awk` invocations).
 
 ### 2.4 Reclassify
@@ -131,9 +142,19 @@ which is organised by week and cannot survive #4.
 
 ### 2.6 Drift found
 
-- `CLAUDE.md` and `.docs/ai/rules.md` cite **`docs/Final_Proposal.md`**. The file is at
-  **`docs/learning/Final_Proposal.md`**. Same for the report. Two top-level thesis documents are
-  living inside a folder named `learning/`.
+- ~~`CLAUDE.md` and `.docs/ai/rules.md` cite **`docs/Final_Proposal.md`**~~ — **fixed 2026-09-21**
+  (three references in `CLAUDE.md`, one in `.docs/ai/review-checklist.md`; `rules.md` had none). The
+  files still live at **`docs/learning/`**, which remains wrong as *placement*: two top-level thesis
+  documents inside a folder named `learning/`. Moving them is #2's call, since `docs/learning/` is
+  gitignored as a whole and a move changes what is published.
+- **Also fixed 2026-09-21, found while doing the above:** `CLAUDE.md` still stated C1 as *"retrieval
+  provenance beats embedding similarity"* — the claim ADR-026 narrowed and the pivot replaced — and
+  still described `data-card.md` §7's gate as **three** criteria when it had been four since ADR-032
+  and is now five. Both corrected.
+- **A vacuous pass in the Makefile**, found by running `make verify` for the base commit:
+  `command -v X && X … || echo "SKIPPED — not installed"` printed the not-installed message when the
+  tool was **present and failing**, and exited 0. It had been hiding a live ruff error in
+  `fetch_corpus_v1.py`. Fixed, and the error with it.
 
 ---
 
@@ -197,8 +218,10 @@ and `state/` are ignored"*, and `.docs/README.md` says *"It is committed."* Neit
 
 Consequences:
 
-- The task trail that `.docs/README.md` calls the raw material for the write-up **has no version
-  history and no remote copy.**
+- ~~The task trail … **has no version history and no remote copy.**~~ **Resolved 2026-09-21**: the
+  author chose to track both. `.gitignore` now ignores only `settings.local.json`, `state/` and the
+  scheduled-tasks lock; `.claude/README.md` dates the correction rather than reading as if it had
+  always been true. `docs/learning/` stays ignored — that one is deliberate (§6).
 - The choice in #4 between `.claude/current-task` and `.docs/work/<slug>/` is **not** a
   tracked-versus-untracked choice today. Both are untracked.
 - The two READMEs must be corrected, or `.gitignore` changed, or both — but the mismatch cannot stand,
@@ -280,7 +303,7 @@ unresolved. `.gitignore` excludes only `data/v1/`. `fetch_corpus_v1.py`'s own he
 
 ## Suggested order
 
-**0 → 5 → 3 → 4 → 2 → 1(remainder)**
+**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0 is done.** Next: **5**.
 
 ADRs first, because everything else cites them. Dataset next, because it decides the content of report
 §4.2 and unblocks the `v1` freeze that Phase 1's exit criterion depends on. Then requirements, then the

@@ -143,7 +143,7 @@ C1 can only produce a signal where queries are **similar but ground differently*
 >
 > **Two stages, which resolves an apparent contradiction in the outcome table below.** A failure is
 > said to mean *"do not proceed to ingestion"*, yet G1/G2 are defined over `retrieve(q)` and so need
-> an ingested index. They split by what they need: **G3 and G4 are structural** — corpus files and
+> an ingested index. They split by what they need: **G3, G4 and G5 are structural** — corpus files and
 > the workload file only, and `make gate-corpus STRUCTURAL=1` runs them alone, which is the loop to
 > run while authoring. **G1 and G2 need the frozen retrieval path.** Stage 1 failing aborts before
 > stage 2, so a mis-slugged corpus is never embedded.
@@ -163,7 +163,7 @@ C1 can only produce a signal where queries are **similar but ground differently*
 
 > ⚠️ **Which overlap — the gate's is not the rule's (ADR-024).** The rule's overlap is `|A ∩ B| / |B|`, between a query's retrieval and a *cached entry's* provenance — **asymmetric, and therefore not well-defined for a query–query pair**, which is what this gate counts. The gate uses symmetric Jaccard `J(A,B) = |A ∩ B| / |A ∪ B|` over the two top-k retrieval sets. At equal `top_k` this is monotone in `|A ∩ B|` and orders pairs identically to `|A ∩ B| / k`; at `top_k = 5`, `J ≤ 0.2` admits **at most one shared chunk**. The gate statistic is a **corpus property**, never the rule's operating metric, and the two are reported separately so they cannot be conflated.
 
-**Four criteria, all of which must pass before the snapshot is hashed.**
+**Five criteria, all of which must pass before the snapshot is hashed.**
 
 | # | Criterion | On failure |
 | :---: | :--- | :--- |
@@ -171,23 +171,27 @@ C1 can only produce a signal where queries are **similar but ground differently*
 | **G2** | **`B-within` > 0** (ADR-028) | Rebuild. A corpus of only cross-product traps is defeated by a one-line change to the cache key, and C1 would be redundant by construction |
 | **G3** | **Zero Tier-1 collisions** (ADR-028) | Disambiguate the offending query text. Do not proceed to ingestion |
 | **G4** | **Every `doc_id` begins with `policy-` or `product-`** (ADR-032, `interfaces.md` §C v0.6) | Re-slug the offending documents before ingestion |
+| **G5** | **No chunk states two opposing conditions of the same kind** (ADR-038) | Split the offending document on clause or section structure. Do not proceed to ingestion — this is unfixable after the freeze |
 
 **G2 — the within/cross split.** Every pair counted by G1 is additionally labelled `B-within` (same product, different grounding) or `B-cross` (different product). The gate reports both counts. **No numeric floor above zero is set**: there is no evidence yet from which to derive one, and an invented threshold is less defensible than a stated gap. The first gate run on `v1` supplies the number, and it is recorded below as a frozen corpus statistic.
 
 **G4 — the doc-id kind prefix.** The reuse rule reads a question's lane from the *prefix* of the documents its retrieval returned (ADR-030), so the prefix is the only place a document's kind is recorded. A corpus that omits it does not fail loudly: every question classifies into the spec lane, the lane machinery reports plausible values throughout, and the mixed lane never fires — a null result produced by the corpus rather than by the rule. It is a one-line check over the ingested doc-ids and runs alongside G1. Ingestion enforces the same rule (`rag/src/rag/ingest.py:record_kind()`), so G4 is a check that ingestion was actually the path taken.
 
+**G5 — condition-splitting, and why it is not G-something-else restated.** ADR-024 requirement 3 asks for policy documents long enough to yield at least three chunks, so that **containment has a gradient to sweep**. G5 asks something different and independent: that **one chunk carries one condition**. A document can satisfy requirement 3 with three chunks and still state the opened and the unopened condition — or the return window and the warranty window — inside one of them. Where that happens, two questions differing only in the condition asked about retrieve the *same* chunk: containment is **1 by construction**, the support gate of ADR-035 sees **full support either way**, and similarity carries almost no weight on the negation or condition word that holds the entire semantic difference. Every signal this design permits itself is blind to that case, so the only lever is corpus-side and it exists **only before the freeze**. The check is structural — it reads the corpus files, needs no ingested index, and runs in stage 1 alongside G3 and G4. The residual that survives it is reported as RQ2a with its own interval, on the `B-within` stratum built to contain it.
+
 **G3 — the Tier-1 collision check.** Tier 1 is a bare hash lookup that runs **no reuse rule** (`interfaces.md` §D), so a collision is unguarded and silent. Procedure: group all workload queries by `normalize(q)` using the ADR-015 function, and fail any group whose members disagree on `doc_ids` or `reference_answer`. Note that stripping punctuation collapses `Model A-1` and `Model A1`. The check is ~30 lines and runs alongside G1.
 
 | Outcome | Action |
 | :--- | :--- |
-| G1 ∧ G2 ∧ G3 ∧ G4 all pass | Freeze and hash the corpus. Record the statistics below |
-| Any criterion fails | Fix the corpus, re-run all four. Do not proceed to ingestion |
+| G1 ∧ G2 ∧ G3 ∧ G4 ∧ G5 all pass | Freeze and hash the corpus. Record the statistics below |
+| Any criterion fails | Fix the corpus, re-run all five. Do not proceed to ingestion |
 
 **Recorded as frozen corpus statistics** (they are also what make a null C1 interpretable rather than merely disappointing — proposal §5 C1 fallback). Every one of them is printed by `make gate-corpus`, and `REPORT=<path>` additionally writes them as JSON so the freeze record is machine-readable rather than transcribed by hand:
 
 - `TODO(W8): count of high-similarity / low-overlap pairs (G1).`
 - `TODO(W8): B-within and B-cross counts and their ratio (G2).`
 - `TODO(W8): Tier-1 collision groups found, and benign duplicate groups (G3).`
+- `TODO(W8): chunks carrying more than one condition, before and after splitting (G5).`
 - `TODO(W8): distribution of source-overlap across all high-similarity pairs (the overlap-variance statistic).`
 - `TODO(W8): per-stratum query counts (A / B-within / B-cross / C / D, §2) and the trap fraction of the workload.`
 - `TODO(W8): K — the count of distinct queries in the frozen workload.` ⚠️ **Cache capacity derives from this**: `cache_capacity = round(0.25 × K)` (ADR-027). Record both `K` and the derived capacity here and in every run manifest.
