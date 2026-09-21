@@ -1,6 +1,6 @@
 # Decision Log (ADRs)
 
-**Status:** living document · **Created:** 2026-07-23 · **Last revised:** 2026-09-21 (ADR-035…039)
+**Status:** living document · **Created:** 2026-07-23 · **Last revised:** 2026-09-21 (ADR-035…040)
 **Companion to:** `Final_Proposal.md` (rationale source), `interfaces.md` (schemas these decisions pin), `time_line.md` (decide-by weeks).
 
 > **Read ADR-016 first.** It records the 2026-08-09 scope reduction and supersedes or closes several entries below. Section references in older entries point at the archived proposal; the mapping to current sections is in ADR-016.
@@ -20,7 +20,7 @@
 | ADR-009 | Single-node envelope; scale-out = future work | Decided (scope) | — |
 | ADR-010 | Predictor-gated invalidation w/ blind-purge fallback | **Superseded by ADR-016** | — |
 | ADR-011 | Small routing model (RQ4) | **Rejected by ADR-016** | — |
-| ADR-012 | Load generation off-box | Decided | — |
+| ADR-012 | Load generation off-box | Decided · **amended by ADR-040** | — |
 | ADR-013 | Project LICENSE | **Open** | **W7** (before submission) |
 | ADR-014 | Chunking: size=256, overlap=40, top_k=5 | **Decided (frozen)** | — |
 | ADR-015 | Tier-1 query normalization | Decided | — |
@@ -48,6 +48,7 @@
 | **ADR-037** | **`Retrieve` returns chunk text — `interfaces.md` v0.9** | **Decided (frozen)** | — |
 | **ADR-038** | **Condition-splitting is a `v1` corpus requirement** | **Decided (data)** | — |
 | **ADR-039** | **`v1` corpus source: Amazon-PQA; redistribution stays closed** | **Decided (data)** | — |
+| **ADR-040** | **Co-hosted load generation, bounded: amends ADR-012** | **Decided (method)** | — |
 
 ---
 
@@ -751,3 +752,27 @@ The cascade's unfiltered Phase-1 Tier-2 search and its `tau_high` short-circuit 
   - The policy corpus, the update set, ADR-038's G5 condition-splitting and the strata definitions are **untouched** — this ADR changes where product and question text comes from, nothing about the experimental design.
 - **Falsification / revisit trigger:** if the selected categories cannot jointly satisfy requirement 2's policy differentiation and this ADR's thickness requirement, the corpus falls back to PQA products with **authored** A/C paraphrases, and the natural-trap argument above is withdrawn with it — stated here so the fallback is not taken silently.
 - **Invalidates:** none — `experiments/results/` holds no run directories (verified 2026-09-21) and `v1` is not yet frozen. `dev-v0` is unaffected and remains the functional corpus.
+---
+
+### ADR-040 — Co-hosted load generation, bounded: an amendment to ADR-012
+**Decided (method)** · 2026-09-21 · *amends ADR-012; ADR-017, ADR-022, ADR-027; `experiment-protocol.md` §1, §4; `super-plan.md` "Measuring without a second machine".*
+
+ADR-012 requires load generation to run off-box. **No second machine exists and none is dated** (confirmed with the author 2026-09-21). Rather than leave that as a silent deviation, ADR-012 is amended: **off-box remains required for any figure reported as a ceiling**, and **co-hosted generation is admissible for bounded-rate sweeps** where (a) the generator's own CPU and resident footprint are measured and recorded for that run, (b) memory pressure stays green throughout with the generator running, and (c) the resulting figure is reported as a **bound** with the direction of the co-hosting bias stated. The green-pressure discard rule of ADR-012 and `experiment-protocol.md` §1 is **unchanged** — a run leaving green is still discarded and repeated at lower load.
+
+- **Rationale — the two measurement regimes are not the same, and lumping them loses the distinction.** The 2026-09-06 run that drove macOS memory pressure to *urgent* was the **Tier-1 μ_hit probe at 400 req/s**, driving a path that serves ~8000 req/s. The main capacity sweep is a different regime entirely: μ_gen ≈ 0.19 req/s caps `λ_max` at ≈ 16 req/s even at the best hit rate the redundancy sweep can reach, so the sweep offers **≲ 16 req/s** and a generator at that rate is cheap. Treating "co-hosting is invalid" as uniform would discard the sweep to protect against a hazard that only the ceiling probe creates.
+- **Rationale — the headline claim is an inequality, and the bias runs in its favour.** S1's claim is not a value but that `h* = μ_hit / (μ_gen + μ_hit)` lies **outside** the range of `h` the workload reaches (≈ 0.988), i.e. that the system is generation-bound throughout its operating range (ADR-027). `h*` is **monotone increasing in μ_hit**, and co-hosting **depresses** μ_hit — the generator starves the embedding server that bounds the Tier-2 hit path. A co-hosted measurement is therefore a *lower* bound on μ_hit and hence a *lower* bound on `h*`. At the already-measured co-hosted **61 req/s**, `h* ≥ 0.9969 > 0.988`: the finding stands **at the bound**, and an off-box run could only raise μ_hit and strengthen it. **A bound is sufficient for the claim being made.**
+- **What this does NOT license, stated so it cannot be read as blanket permission:**
+  - **Any figure presented as a ceiling rather than a bound.** The Tier-1 μ_hit number in particular is reported as a lower bound and labelled as one.
+  - **Latency percentiles at high offered rate**, where generator and system under test contend for the same cores. Either the generator's concurrent CPU is reported alongside p95, or p95 claims are restricted to the rates where the footprint measurement shows headroom.
+  - **Any relaxation of the green-pressure rule.** Unchanged.
+- **Alternatives, and why not:**
+  - **Wait for a second machine.** Rejected — there is no date, and the remaining budget cannot absorb an open-ended block on the entire capacity half of the study.
+  - **Rent a cloud VM as the generator.** Rejected as the default, kept as an option: the hit path is ~27 ms, so a WAN round-trip of tens of milliseconds would dominate p95 and the measurement would describe the network. It would be usable for goodput and saturation but not for latency, which is a narrower gain than it first appears.
+  - **Drop Headline A to a qualitative claim.** Rejected — it is S1, and `Final_Proposal.md` §12 lists the load-testing evaluation as non-negotiable.
+  - **Report co-hosted numbers without the footprint measurement.** Rejected — that is the silent deviation this ADR exists to prevent; the measurement is what separates a bound from a guess.
+- **Consequences:**
+  - `super-plan.md` item **1.6** measures the generator's footprint, and Phase 7 runs under this régime.
+  - Every co-hosted figure carries its interference measurement in the run manifest, and the write-up states the limitation rather than arguing around it.
+  - ⚠️ **Two margins that must not be conflated.** ADR-027's falsification trigger (μ_hit ≤ ~16 req/s) is **cleared** by the lower bound of 61, but by only **3.8×**. That is a different comparison from *"μ_gen ≪ μ_hit by two to three orders of magnitude"*, which is separately correct (0.19 against 61 is ~320×) and which licenses `h* > 0.99`. The second margin is the one a co-hosted lower bound must clear, and it clears it with far less room, so the two are stated separately wherever both appear. (`Final_Proposal.md` §3's own wording — *"observable only if μ_hit ≤ ~16 req/s"* — is accurate; an earlier note in `two-lane-cache/approvals.md` attributed to it a phrase, *"far above ~16 req/s"*, that it does not contain.)
+- **Falsification / revisit trigger:** if item 1.6 measures the generator's footprint as large enough to move the system under test out of green at the sweep's own rates, this amendment does not apply and the sweep cannot be run co-hosted at all — in which case the honest outcome is a reduced load range, reported as such, not a run taken anyway.
+- **Invalidates:** none — `experiments/results/` holds no run directories (verified 2026-09-21). The 2026-09-06 co-hosted probe was already marked non-citable and stays so; this ADR governs future runs only.

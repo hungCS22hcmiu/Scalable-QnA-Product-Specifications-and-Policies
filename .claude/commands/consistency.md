@@ -24,8 +24,10 @@ rg -n 'config_id|eight config|1\.\.8' docs/
 #    (prose that records WHEN something happened is history and must stay: "W5 spike", "W08.md")
 rg -n 'this week|next week|by W[0-9]+|decide-by W[0-9]+|W[0-9]+ onward' docs/ README.md CLAUDE.md .claude/ .docs/ --glob '!docs/archive/**' --glob '!docs/worklog/W0*.md'
 
-# 4b. The phase plan has ONE owner. Until #3 is filled that is time_line.md; after, super-plan.md
-rg -n 'Exit criterion|Done when' docs/time_line.md docs/super-plan.md
+# 4b. The phase plan has ONE owner: super-plan.md. time_line.md is RETIRED (2026-09-21), and any
+#     instruction read out of it is a bug -- three of its rows were wrong when it was retired.
+rg -n '^\*\*Exit:\*\*' docs/super-plan.md
+rg -n 'RETIRED' docs/time_line.md
 
 # 5. Every "proposal §N" reference resolves to a heading in Final_Proposal.md
 rg -ho 'proposal §[0-9]+(\.[0-9])?' docs/*.md | sort -u
@@ -39,8 +41,8 @@ git status --short
 
 **Checks that require reading, not grepping:**
 
-- Do `Final_Proposal.md` §12's drop order and `time_line.md` Ground Rule 2 list the same items in the
-  same order?
+- Does anything still take an *instruction* from `time_line.md`? It is retired; only its Risk
+  Register and Learning Path are live, and `super-plan.md` owns execution.
 - Do the frozen-value lists in `interfaces.md`, `experiment-protocol.md` §1, and
   `.docs/ai/frozen-values.txt` cover the same set?
 - Does every **Open** ADR still have a decide-by that resolves? Decide-by used to be a week

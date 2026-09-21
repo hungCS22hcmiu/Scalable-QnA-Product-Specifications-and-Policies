@@ -197,7 +197,7 @@ demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing (defense_demo.
 # themselves: the trap (Q4) clears tau=0.85 by only 0.019 and fails theta=0.60, and an
 # off-hand rewording drops it below tau -- at which point a fixed threshold refuses it too
 # and step 4 proves nothing (defense_demo.md 4). Re-derived and verified 2026-09-05;
-# the record is .docs/work/mvp-advisor-demo/plan.md 1b.
+# the record is .docs/work/archive/mvp-advisor-demo/plan.md 1b.
 DEMO_Q1 := Am I entitled to a full refund on my headphones 30 days after delivery?
 DEMO_Q3 := Is a full refund possible for my headphones 30 days after delivery?
 DEMO_Q4 := Am I entitled to a full refund on my sofa 30 days after delivery?

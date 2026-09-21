@@ -30,7 +30,7 @@ S is cheap because it needs one document, not because it skips the human.
 2. **`spec.md`** — all scopes:
    - The change in one sentence.
    - Which **phase** it serves, and which super-plan item or exit criterion (`docs/super-plan.md`,
-     or `docs/time_line.md` until #3 is filled).
+     in `docs/super-plan.md`).
    - Which `FR-xx` / `NFR-xx` / `RR-xx` it discharges, once `docs/requirements.md` is filled.
    - Acceptance: how we will know it is done, as a check that can be run.
    - Out of scope: what this explicitly does not do.

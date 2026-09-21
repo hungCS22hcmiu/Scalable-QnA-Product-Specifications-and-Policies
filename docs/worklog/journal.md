@@ -101,3 +101,67 @@ explicit close or abandon.
 
 **Next.** Fill the super plan and requirements, or resolve F1. F1 is the one that threatens an
 already-measured contribution.
+
+---
+
+## 2026-09-21 (third entry) · Phase 1 · <hours>h
+
+**Did.** Redesigned the phase plan from the codebase rather than from the pre-code schedule, and
+retired `time_line.md` into **`docs/super-plan.md`** — **eight** phases, each with a binary
+`**Exit:**` line the session banner and `/gate` now read. Wrote **ADR-040** amending ADR-012.
+Cleaned the references that broke with it: `architecture.md` §5's week-based build order (it
+scheduled `admission/` and `telemetry/` as future work when both were built, and gave `deps/` a
+slot it never occupied), `experiments/README.md`'s claim to four scripts that do not exist, the
+archived-trail paths in `Makefile` and eleven `docs/learning/` files, and both report preambles
+still saying ADR-035…038 were owed.
+
+**Found.** Two agent sweeps over the codebase, and what they turned up changed the plan's shape.
+
+- **`httpapi/` is 856 lines with zero tests** — the whole cascade, the miss path, the
+  coalescing-wraps-admission nesting, Tier-1 promotion, and the single-exit eval-record emit.
+  Every number the thesis will report passes through untested code. This became **Phase 1**,
+  which did not exist in the old plan at all.
+- **F1 has no ADR and no detector.** `make env-check` prints a static warning string and asserts
+  the *requested* `OLLAMA_NUM_PARALLEL`, never the effective slot count. Nothing parses the
+  Ollama server log for `-np` / `n_slots`.
+- **The judge harness, the workload generator and the figure generators do not exist**, and
+  `experiments/README.md` claimed all three. `make figures` invokes an absent script with no guard.
+- **`corpus_gate.py` implements four criteria; `data-card.md` §7 requires five.** G5 landed in
+  the document yesterday and not in the code.
+- **A latent bug with an expiry date.** Tier-1 promotion mints a second, untracked `t1_key` per
+  entry, harmless *only* while capacity is unbounded and C2 is unbuilt — and the plan bounds
+  capacity in Phase 3 and ships C2 in Phase 4. Both preconditions expire inside the plan.
+- **ADR-035, ADR-036 and ADR-037 are 0% implemented.** The proto and stubs carry `texts`;
+  neither `server.py` nor `ragclient` touches it.
+
+**The reframing the plan is built on.** With `μ_gen` frozen, `λ_max = min(μ_gen/(1−h), μ_hit/h)`
+leaves `h` as the only free variable, and `h ≤ ρ` for any cache that serves no false hit. So
+**minimising false hits and serving more requests are one frontier, not two** — the support gate
+does not tax throughput, it licenses running lower thresholds at the same δ, which raises `h`.
+That is why it moved to Phase 2. Corollary worth keeping: **admission control does not raise
+capacity, it protects it** (S2, not S1), and it is already built.
+
+**Decisions.** **ADR-040** — co-hosted load generation, bounded, amending ADR-012. Confirmed with
+the author: no second machine and no date for one. The resolution is not to pretend: off-box stays
+required for anything reported as a **ceiling**; co-hosted is admissible for bounded-rate sweeps
+with the generator's footprint measured and pressure green. It works because S1's claim is an
+**inequality** — `h*` is monotone increasing in μ_hit and co-hosting *depresses* μ_hit, so a
+co-hosted figure is a lower bound on both, and at the measured 61 req/s `h* ≥ 0.9969 > 0.988`.
+A bound is sufficient for the claim being made.
+
+**Blocked.** Nothing new. `two-lane-cache` still needs an explicit close or abandon;
+`requirements.md` is still empty, so super-plan items cite C1/C2/C3 and S1–S4 rather than
+requirement IDs.
+
+**Correction to this session's own work.** I wrote into `super-plan.md` and ADR-040 that
+`Final_Proposal.md` carries the phrase *"far above ~16 req/s"* and overstates the margin. **It
+does not contain that phrase** — it appears only inside `two-lane-cache/approvals.md`, quoting
+itself, and the proposal's actual wording (*"observable only if μ_hit ≤ ~16 req/s"*) is accurate.
+Both places are corrected to state the real point instead: *μ_gen ≪ μ_hit by two to three orders
+of magnitude* and *61 clears the 16 req/s trigger by 3.8×* are **different comparisons**, and only
+the second is tight.
+
+**Exit test.** Not run. Phase 1 has just been defined; none of its six items is started.
+
+**Next.** Item 1.1 (F1) or 1.2 (`httpapi` tests) — 1.2 unblocks 1.3 and 1.4, so it is the one
+that opens the most.

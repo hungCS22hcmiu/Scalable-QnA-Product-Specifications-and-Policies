@@ -133,17 +133,21 @@ Use `make`; do not invent ad-hoc invocations. Targets: `spike` · `ingest` · `d
 
 ## 5. Build order
 
-The tree above is the target. What is real at any moment follows `time_line.md`:
+The tree above is the target. What is real at any moment follows **`docs/super-plan.md`**.
 
-| Weeks | Lands |
+> ⚠️ **The week-based table that stood here was retired on 2026-09-21** along with
+> `time_line.md`. It had become misleading in both directions: it scheduled
+> `gateway/internal/{admission,telemetry}` for "W16–W17" when both were built and tested, and it
+> gave `gateway/internal/deps/` a slot it never occupied — that package is still a six-line
+> `doc.go`. A build order that disagrees with the tree teaches you to stop trusting it.
+
+**What is actually built, 2026-09-21** — the inventory, not a schedule:
+
+| State | Packages |
 | :--- | :--- |
-| W5 | `rag/src/rag/{ingest,retrieve,chunkid}.py`, `data/dev-v0/`, the frozen envelope |
-| W6 | `rag/src/rag/{generate,server}.py`, `contracts/`, `gateway/{cmd,internal/{httpapi,cache,ragclient}}` |
-| W7 | `gateway/internal/{embed,reuse}` (fixed τ), first `experiments/scripts/` |
-| W8 | `data/v1/`, `experiments/k6/` |
-| W9–W11 | `gateway/internal/deps/` |
-| W12–W15 | `reuse/` overlap rule + cascade, judge harness |
-| W16–W17 | `gateway/internal/{admission,telemetry}` |
+| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, embed}` |
+| **Built, no tests** | `gateway/internal/{httpapi, catalog}` · `cmd/gateway` — `httpapi` is the cascade, and closing that gap is `super-plan.md` item 1.2 |
+| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the answer–evidence support gate (ADR-035) · `data/v1/` · the judge harness, workload generator and figure generators |
 
 ## 6. Invariants that fail silently
 

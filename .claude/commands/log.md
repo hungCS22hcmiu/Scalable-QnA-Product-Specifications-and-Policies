@@ -29,7 +29,7 @@ conditions attached — corpus, configuration, pressure — or they are not reus
 
 Rules:
 
-1. **Hours are recorded honestly**, including short days. The budget claim in `time_line.md`
+1. **Hours are recorded honestly**, including short days. The remaining-budget claim in `super-plan.md`
    is checkable only if the numbers are real.
 2. **A number without its conditions is not a result.** Corpus, configuration, memory pressure,
    and whether the run is citable at all (`dev-v0` never is — ADR-020).

@@ -1,8 +1,25 @@
-# Project Timeline — Thesis Phase
+# Project Timeline — Thesis Phase · ⚠️ RETIRED 2026-09-21
+
+> ## This file no longer plans the work. **`docs/super-plan.md` does.**
+>
+> It was written before the code existed, and the codebase has since run ahead of it in some
+> places and stayed empty in others. Three of its instructions were actively wrong by the time it
+> was retired: its W12 row said to populate `similarity_only_decision` (**retired by ADR-036**),
+> its W8 detail described the Amazon-Reviews-2023 × AmazonQA join and *"measure the join rate
+> first"* (**replaced by ADR-039**), and its Phase 5 scheduled `admission/` and `telemetry/` as
+> future work when both were already built and tested. **Do not act on anything below.**
+>
+> **Two sections here are still live and have no other home**, which is why the file is kept
+> rather than deleted: the **Risk Register** and the **Learning Path**. Read those; treat the
+> Phase Plan and Working Detail as the historical record of how the schedule was planned before
+> there was code to plan against.
+>
+> `.claude/hooks/lib.sh` reads `super-plan.md` first and falls back here only for a phase the
+> super plan does not carry.
 
 **Project:** Scalable QA Platform for E-Commerce via Provenance-Aware Semantic Caching (`Final_Proposal.md`)
 **Basis:** part-time alongside full-time employment — 2–3 days/week ≈ **15 h**
-**Revised:** 2026-09-02 — pre-thesis submitted; replanned by **phase and exit criterion** rather than by date (ADR-027, ADR-028, ADR-029 folded in)
+**Revised:** 2026-09-02 — replanned by phase and exit criterion rather than by date · **Retired 2026-09-21** into `super-plan.md`
 
 > **Pre-thesis is closed.** The runway shipped a working end-to-end prototype and the submitted report. Everything below is thesis-phase work. Remaining budget **≈ 225 h** to completion in **December 2026**.
 
@@ -19,9 +36,9 @@
 
 ---
 
-## Phase Plan
+## Phase Plan — superseded
 
-The exit criterion is the gate. Phases are sequential and a phase does not open until its predecessor's criterion is met.
+⚠️ **Superseded by `super-plan.md`, which re-derived these boundaries from the critical path.** Kept as the record of the pre-code plan. The exit criterion is the gate. Phases are sequential and a phase does not open until its predecessor's criterion is met.
 
 | Phase | Focus | Exit criterion |
 | :--- | :--- | :--- |
@@ -38,7 +55,9 @@ The exit criterion is the gate. Phases are sequential and a phase does not open 
 
 ---
 
-## Working Detail
+## Working Detail — superseded, and partly WRONG
+
+⚠️ **Do not act on this section.** See the retirement note at the top of the file for the three instructions that were wrong when it was retired.
 
 ⚠️ **Week numbers are now vestigial.** They were retained as the handle `/week` and the session
 banner read; the harness stopped reading them on **2026-09-21** (`Pre-thesis_Sweeping.md` #4) and
@@ -168,7 +187,7 @@ reads them, and nothing should start.**
 
 ---
 
-## Learning Path
+## Learning Path — still live
 
 Mostly discharged in the runway. What remains:
 
@@ -181,7 +200,7 @@ Mostly discharged in the runway. What remains:
 
 ---
 
-## Risk Register
+## Risk Register — still live
 
 | Risk | Likelihood | Impact | Mitigation |
 | :--- | :---: | :---: | :--- |

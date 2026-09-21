@@ -62,29 +62,44 @@ current_phase() {
   tr -cd '0-9' < "$f"
 }
 
-# The phase's row from the phase plan. time_line.md owns it TODAY; super-plan.md takes
-# it over once #3 is filled (super-plan.md "What this document owns"). Reads whichever
-# is authoritative, preferring the super plan once it carries real rows, so the handover
-# needs no edit here.
+# super-plan.md owns the phase plan from 2026-09-21; time_line.md is retired but kept
+# and is still the fallback, so a phase the super plan has not filled still resolves.
+# A heading alone does not count as filled -- an unfilled section carries TODO.
+phase_in_super_plan() {
+  local n="${1:-}" sp="$REPO_ROOT/docs/super-plan.md"
+  [[ -n "$n" && -f "$sp" ]] || return 1
+  grep -qE "^### Phase $n — " "$sp" 2>/dev/null || return 1
+  ! grep -A2 -E "^### Phase $n — " "$sp" 2>/dev/null | grep -q 'TODO(after sign-off)'
+}
+
 phase_row() {
   local n="${1:-$(current_phase)}"
   [[ -z "$n" ]] && return 1
-  local sp="$REPO_ROOT/docs/super-plan.md" tl="$REPO_ROOT/docs/time_line.md"
-  if [[ -f "$sp" ]] && grep -qE "^### Phase $n — " "$sp" 2>/dev/null \
-     && ! grep -A2 -E "^### Phase $n — " "$sp" 2>/dev/null | grep -q 'TODO(after sign-off)'; then
-    grep -E "^### Phase $n — " "$sp" | head -1
+  if phase_in_super_plan "$n"; then
+    grep -E "^### Phase $n — " "$REPO_ROOT/docs/super-plan.md" | head -1
     return 0
   fi
-  grep -E "^\| \*\*$n — " "$tl" 2>/dev/null | head -1
+  grep -E "^\| \*\*$n — " "$REPO_ROOT/docs/time_line.md" 2>/dev/null | head -1
 }
 
-phase_exit_criterion() { # the binary test that closes the current phase
-  local row; row="$(phase_row "${1:-}")" || return 1
+# The binary test that closes the phase. In super-plan.md that is the `**Exit:**` line
+# under the heading -- NOT the heading itself, which names the phase rather than the test.
+# In retired time_line.md it is column 4 of the phase table.
+phase_exit_criterion() {
+  local n="${1:-$(current_phase)}"
+  [[ -z "$n" ]] && return 1
+  if phase_in_super_plan "$n"; then
+    local line
+    line="$(awk -v n="$n" '
+      $0 ~ "^### Phase " n " \xe2\x80\x94 " { f = 1; next }
+      f && /^\*\*Exit:\*\*/ { sub(/^\*\*Exit:\*\*[[:space:]]*/, ""); print; exit }
+      f && /^### / { exit }
+    ' "$REPO_ROOT/docs/super-plan.md")"
+    [[ -n "$line" ]] && { printf '%s' "$line"; return 0; }
+  fi
+  local row; row="$(phase_row "$n")" || return 1
   [[ -z "$row" ]] && return 1
-  case "$row" in
-    '### '*) printf '%s' "${row#\#\#\# }" ;;
-    *)       printf '%s' "$row" | awk -F'|' '{print $4}' | sed 's/^ *//;s/ *$//' ;;
-  esac
+  printf '%s' "$row" | awk -F'|' '{print $4}' | sed 's/^ *//;s/ *$//'
 }
 
 # --- active task -------------------------------------------------------------

@@ -5,11 +5,11 @@ argument-hint: [phase number, defaults to current]
 
 Prove the phase's exit criterion — **do not self-report it.** Run the actual checks.
 
-The criterion is a **binary test**, not a judgement (`time_line.md` Ground Rules 5). A phase is
+The criterion is a **binary test**, not a judgement (`super-plan.md` item template). A phase is
 not finished because its time is spent, and it is not finished because the work feels done.
 
 1. **Read the exit criterion** for the phase from the phase plan — `docs/super-plan.md` once #3
-   is filled, `docs/time_line.md` until then. **Quote it verbatim.** If the phase is unset, stop
+   `docs/super-plan.md` — the `**Exit:**` line under its heading. **Quote it verbatim.** If the phase is unset, stop
    and say so; `/phase <n>` sets it.
 
 2. **Decompose it into independently checkable criteria and run each one.** The criteria are

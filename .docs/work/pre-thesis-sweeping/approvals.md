@@ -28,11 +28,15 @@ which is `Pre-thesis_Sweeping.md` §0 — the blocking finding that everything e
 yet edited** to match — the same lag that ADR-032 left behind and that `two-lane-cache`'s trail had
 to record as "still owed". Tracked here so it is not rediscovered:
 
-- [ ] `interfaces.md` → **v0.9**: §B `texts` (ADR-037), §H refusal cause code and the removal of
-      `similarity_only_decision` (ADR-035, ADR-036), plus the version bump and Versioning section.
-- [ ] `contracts/rag/v1/rag.proto`: `repeated string texts` on `RetrieveResponse` (ADR-037).
-- [ ] `experiment-protocol.md`: *decisions changed by provenance* as a cross-configuration join on
-      the static-cache arm; configuration 4 as two arms; drop order corrected (ADR-035, ADR-036).
+- [x] `interfaces.md` → **v0.9** — done 2026-09-21: §B `texts`, §H `refusal_cause` +
+      `support_lex` + `support_numeric_ok`, `similarity_only_decision` retired, version bump and
+      Versioning section. ⚠️ **Contract only — no code implements any of it.**
+- [x] `contracts/rag/v1/rag.proto`: `repeated string texts` on `RetrieveResponse` — done
+      2026-09-21, stubs regenerated. ⚠️ **Neither side populates or reads it**
+      (`server.py`, `ragclient/retrieve.go`) — `super-plan.md` item 1.4.
+- [x] `experiment-protocol.md` — done 2026-09-21: *decisions changed by provenance* as a
+      cross-configuration join valid only on the static-cache arm, `support_gate` in the run
+      manifest, the support-gate refusal metric, the second pre-registered null, and RQ2a.
 - [x] `data-card.md`: §7 gate becomes **five** criteria (G5 structural, stage 1) — done 2026-09-21.
       §2 recording condition-splitting as a property of the authored policy docs is still open.
 - [x] `CLAUDE.md`: interfaces reference now reads v0.9 — done 2026-09-21, together with the C1
@@ -71,6 +75,18 @@ twice.
 | **4** harness | ✅ done — weeks removed, gate by scope, four openers + `design-reviewer`, `journal.md` (§4.7) |
 | **2** refactor | 🟡 deletes + permission prune + drift + tracking done; §2.2 archive and §2.4 reclassify remain |
 | **1** prose | 🟡 C1 alignment done 2026-09-15; §4.2 unblocked by ADR-039, §5.1 waits on #3 |
+
+## Phase plan redesigned, 2026-09-21
+
+`docs/time_line.md` is **retired** into `docs/super-plan.md`, which now carries **eight** phases
+re-derived from the critical path rather than the seven that predated the code. The driver was
+the author's objective — *minimise false hits and serve as many requests as possible* — and the
+finding that on this envelope those are **one** frontier, not two: `μ_gen` is frozen, so `h` is
+the only free variable in `λ_max`, and `h ≤ ρ` for any cache that serves no false hit.
+
+Confirmed by the author the same day: **no second machine for off-box load generation exists or
+is dated**. That is handled explicitly in `super-plan.md` "Measuring without a second machine"
+and needs **ADR-040** amending ADR-012, rather than a silent deviation from a frozen decision.
 
 ## Open, and not this task's to decide
 
