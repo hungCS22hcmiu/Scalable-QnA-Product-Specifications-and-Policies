@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Quick, self-verification-only check of the admission-control claims on slide 5 of
-# .docs/work/mvp-advisor-demo/slides.md: permit pool bound + 503 shed, and singleflight
+# .docs/work/archive/mvp-advisor-demo/slides.md: permit pool bound + 503 shed, and singleflight
 # coalescing. Not a rehearsed live-demo script and not a measurement run -- it fires real
 # generations against a real running gateway, so it costs real memory/time. Numbers here are
 # NOT citable; they only exist so you can eyeball "does the mechanism actually behave as

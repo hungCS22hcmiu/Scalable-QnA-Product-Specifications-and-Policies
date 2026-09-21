@@ -16,7 +16,7 @@ it is a proposal waiting for an ADR.
 | :---: | :--- | :--- | :--- |
 | **0** | **`docs/` does not know about the approved pivot** | 🟢 **done 2026-09-21** — ADR-035…038 written, and carried into `interfaces.md` (v0.9), `experiment-protocol.md`, `data-card.md` (G5), `CLAUDE.md` | — |
 | 1 | Rewrite `Pre-Thesis_Report_Full.md` (+ `Final_Proposal.md`) | 🟡 C1 alignment done 2026-09-15 | §4.2 waits on #5 · §5.1 waits on #3 |
-| 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟡 §2.3 done (deletes **and** `settings.local.json` pruned 52 → 24); §2.6 drift done; §4.5 tracking resolved; §2.5 additions exist | §2.2 archive and §2.4 reclassify remain |
+| 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟢 **done 2026-09-21** — §2.2 archived, §2.3 deleted + permissions pruned 52 → 24, §2.4 reclassified, §2.5 added, §2.6 drift fixed, §4.5 tracking resolved | — |
 | 3 | Super plan + FR/NFR/RR | 🟡 **shape signed off 2026-09-21; both files created empty** (`docs/requirements.md`, `docs/super-plan.md`) | filling them — and `time_line.md`'s retirement waits on #4 |
 | 4 | Harness re-engineering (scope-based, week-free) | 🟢 **done 2026-09-21 (§4.7)** — weeks removed from all 11 files; gate calibrates by **scope L/M/S**; `/phase` `/feature` `/bugfix` `/refactor` `/investigate` added; `design-reviewer` (opus) added; worklog → `journal.md` | — |
 | 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🟢 **done 2026-09-21** — probe run (§5.6), adopted by **ADR-039**, `data-card.md` §1/§3 rewritten. Redistribution stays **closed**: build script + hash manifest | — |
@@ -25,7 +25,7 @@ it is a proposal waiting for an ADR.
 
 ## 0. The blocking finding
 
-The advisor approved the pivot in `.docs/work/mvp-advisor-demo/Recommended_system.md` §5–§6, but the
+The advisor approved the pivot in `.docs/work/archive/mvp-advisor-demo/Recommended_system.md` §5–§6, but the
 **decision log has no record of it.** ADRs stop at **ADR-034**. Nothing exists for the support gates,
 the retirement of the unfiltered similarity-only phase, the retrieval contract change, or
 condition-splitting.
@@ -115,8 +115,11 @@ sources: **[26]** Proof-Carrying Numbers, **[27]** The Semantic Illusion.
 
 ### 2.2 Archive, do **not** delete
 
-The four pre-thesis task trails (`w5-feasibility-spike`, `w5-corpus-pipeline`,
-`w6-rag-gateway-skeleton`, `proposal-research-spine`) and `worklog/W05|W06|W08.md`.
+✅ **Done 2026-09-21.** The four pre-thesis task trails (`w5-feasibility-spike`,
+`w5-corpus-pipeline`, `w6-rag-gateway-skeleton`, `proposal-research-spine`) — plus
+`mvp-advisor-demo` from §2.4 — moved to **`.docs/work/archive/`** with a README stating what each
+holds and what still cites it. `worklog/W05|W06|W08.md` stay exactly where they are; the worklog
+README now explains why they are not migrated into `journal.md`.
 
 Reason, not sentiment: `.docs/README.md` and `worklog/README.md` both state these exist to write the
 **design chapter and the evaluation chapter** — "what did I do, in what order, and why", a question
@@ -132,8 +135,14 @@ Still to do: prune `.claude/settings.local.json` (**41 allow entries**, many one
 
 ### 2.4 Reclassify
 
-`.docs/work/mvp-advisor-demo/` is filed as a *task trail* but now holds **approved decisions**. Split
-it: the decisions become ADRs in `docs/` (§0.1), the rest archives.
+✅ **Done 2026-09-21.** The decisions became **ADR-035…038** (§0.1) and the rest archived to
+`.docs/work/archive/mvp-advisor-demo/`. The archive README records the split, because a decision
+that lives only in a task trail is invisible to everyone who reads `docs/` as the source of truth.
+
+⚠️ **`Recommended_system.md` is still live reading, not history** — its §4/§8 are the build order
+for what those ADRs decided, and its §4 ranks **F1** first. `docs/super-plan.md` cites it as the
+build order until #3 is filled. Two live source files referenced the old path and were updated
+(`fetch_corpus_v1.py`, `verify_admission.sh`).
 
 ### 2.5 Add
 
@@ -465,7 +474,7 @@ All three want an ADR once decided — this file records a proposal, not a decis
 
 ## Suggested order
 
-**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0, 4 and 5 are done. 3's shape is signed off and its two files exist, empty by design.** Next: the remainder of **2** (§2.2 archive, §2.4 reclassify), then **1**. Both are now unblocked.
+**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0, 2, 4 and 5 are done. 3's shape is signed off and its two files exist, empty by design.** Only **1(remainder)** is left, and it is prose: see §1.2, now unblocked on both counts (§4.2 by ADR-039, §5.1 by #3's existence).
 
 ADRs first, because everything else cites them. Dataset next, because it decides the content of report
 §4.2 and unblocks the `v1` freeze that Phase 1's exit criterion depends on. Then requirements, then the

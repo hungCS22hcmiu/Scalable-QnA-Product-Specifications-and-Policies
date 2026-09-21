@@ -2,7 +2,7 @@
 staged for `v1` corpus review -- this is NOT the frozen `data/v1/` corpus.
 
 ⚠️ Output goes to `data/v1-draft/`, deliberately separate from `data/v1/` (`data-card.md`
-§1 `TODO(W8)`). The author's own plan (`.docs/work/mvp-advisor-demo/Recommended_system.md`
+§1 `TODO(W8)`). The author's own plan (`.docs/work/archive/mvp-advisor-demo/Recommended_system.md`
 §4/§7) is to decide condition-tagging with the advisor before committing to the real `v1`
 corpus -- this script produces a subset to LOOK AT before that decision, not the frozen
 snapshot. Nothing here is hashed or versioned; `make gate-corpus` is not run against it.

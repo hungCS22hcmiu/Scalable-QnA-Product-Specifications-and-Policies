@@ -2,6 +2,10 @@
 
 **This directory is the AI workflow's task trail and rules layer. It is committed.**
 
+> True in fact only since **2026-09-21**. Until then `.gitignore` excluded `.docs/` entirely while
+> this line claimed otherwise, so the trail below had no version history and no remote copy —
+> `Pre-thesis_Sweeping.md` §4.5.
+
 ## Relationship to `docs/`
 
 | | `docs/` | `.docs/` |
@@ -25,16 +29,25 @@ place to update.
     review-checklist.md         what the review subagents check
     frozen-values.txt           regex patterns the frozen-guard hook enforces
   work/<task-slug>/
-    spec.md                     what and why
-    impact.md                   what it touches; frozen artifacts; runs invalidated
-    plan.md                     ordered steps, checked off as work proceeds
-    review.md                   AI-review findings and resolutions
+    SCOPE                       one letter, L|M|S — decides how much of the below is required
+    spec.md                     what and why                          (every scope)
+    impact.md                   what it touches; frozen artifacts; runs invalidated   (L, M)
+    design.md                   diagrams, contracts, failure modes, unknowns          (L)
+    review.md                   design-reviewer findings, then AI-review findings     (L)
+    plan.md                     ordered steps, checked off as work proceeds           (L, M)
     approvals.md                the ledger — who approved which phase, when, citing which ADR
-    READY_TO_IMPLEMENT          marker written only by `/approve implementation`
+    READY_TO_IMPLEMENT          marker written only by `/approve implementation`      (every scope)
+  work/archive/                 closed pre-thesis trails — read-only, see its README
 ```
+
+**Scope decides the trail, not the calendar** (changed 2026-09-21, `Pre-thesis_Sweeping.md` #4).
+`L` is anything touching a frozen document, `interfaces.md`, the `.proto`, `reuse/`, or something
+measured. `M` is ordinary code. `S` is tests, docs and one-liners. Every scope still ends at
+`/approve implementation`, and an **unset** `SCOPE` blocks rather than defaulting to `S`.
 
 ## Why the trail exists
 
-Beyond process hygiene: **W20–W22 must write an evaluation chapter and a design chapter.** "What did I
-actually do, in what order, and why" is a question the write-up will ask and memory will not answer.
-The trail is the raw material for that, and it is why `.docs/` is committed rather than ignored.
+Beyond process hygiene: **the write-up must produce an evaluation chapter and a design chapter.**
+"What did I actually do, in what order, and why" is a question the write-up will ask and memory will
+not answer. The trail is the raw material for that, and it is why `.docs/` is committed rather than
+ignored. A closed trail is therefore **archived, never deleted** — see `work/archive/README.md`.
