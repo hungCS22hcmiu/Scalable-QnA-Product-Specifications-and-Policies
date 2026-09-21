@@ -58,3 +58,46 @@ source of.
 
 **Next.** Finish sweep #2 and #1, then either close `two-lane-cache` or abandon it explicitly,
 then F1.
+
+---
+
+## 2026-09-21 (second entry) · Phase 1 · <hours>h
+
+A second entry for the same day rather than an edit to the one above, which was written while
+#2 and #1 were still open. Append-only means the first entry stays as the record of what was
+true when it was written (`README.md`).
+
+**Did.** Finished the sweep. **#2**: archived five closed pre-thesis trails to
+`.docs/work/archive/` with a README, reclassified `mvp-advisor-demo` (its approved decisions had
+already become ADR-035…038), pruned `settings.local.json` 52 → 24. **#1**: rewrote the dataset
+sections of the report and proposal to PQA, verified the last unverified matrix row and both
+carried numbers.
+
+**Found.** Verification changed two claims rather than confirming them.
+
+- **The GroundedCache ablation figure was wrong as carried.** It is **+0.125 / +0.118** across the
+  two datasets, not "+0.12–0.13". Read from the abstract originally; the full text is specific.
+- **The speedup claim was incomplete in a way that mattered.** Both documents carried
+  1.95× → 1.04× as the price of full gating. The full text has an intermediate row the abstract
+  does not: the **no-support** variant at **1.48× at USR 0.125**. So the other three gates account
+  for 1.95× → 1.48×, and the adopted support gate accounts for **1.48× → 1.04×**. This study
+  already holds analogues of the other three (ADR-026), so the smaller figure is the one that
+  transfers. The claim got weaker in one direction and more defensible in the other.
+- **`τ_s = 0.6` is genuinely the paper's published default**, and its formula matches ADR-035
+  verbatim. The pin cites a real default rather than an inference.
+- **FreshCache verified, and it strengthened the positioning rather than collapsing it.** Its rule
+  is a fitted exponential-decay model plus a **learned MLP** against per-tier error budgets — a
+  learned model on the reuse decision, which is the line ADR-016 does not cross. Unlike ADR-026,
+  where verification collapsed a novelty claim, this one sharpened a distinction.
+
+**Decisions.** None new. ADR-035 amended in place with the verified figures.
+
+**Blocked.** One item of the sweep is left and it is blocked on a decision, not on work: report
+§5.1 and proposal §11 restate a plan `super-plan.md` replaces, and that file is empty by design
+pending sign-off on content. **F1 still outranks everything.** `two-lane-cache` still needs an
+explicit close or abandon.
+
+**Exit test.** Not run — Phase 1 needs `v1`, whose source ADR-039 has only just settled.
+
+**Next.** Fill the super plan and requirements, or resolve F1. F1 is the one that threatens an
+already-measured contribution.
