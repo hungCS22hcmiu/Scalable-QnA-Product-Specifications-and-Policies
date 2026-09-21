@@ -19,8 +19,13 @@ type RetrieveResult struct {
 // Retrieve runs the retrieval-only RPC. Pass topK = 0 so the RAG service resolves it from
 // rag/src/rag/config.py's TOP_K -- the same single-source-of-truth reasoning as
 // httpapi.topKServerDefault. A literal here would drift the day ADR-014 changes.
-func (c *Client) Retrieve(ctx context.Context, query string, topK uint32) (*RetrieveResult, error) {
-	resp, err := c.rpc.Retrieve(ctx, &ragpb.RetrieveRequest{Query: query, TopK: topK})
+//
+// productID is optional (ADR-034, interfaces.md B v0.8): when non-empty, the RAG service scopes
+// its search to that product's own chunk plus every policy chunk, instead of searching the whole
+// corpus unscoped. This never changes the reuse decision -- reuse/lane.go and reuse/rule.go still
+// decide purely from the chunks that come back, exactly as before.
+func (c *Client) Retrieve(ctx context.Context, query string, topK uint32, productID string) (*RetrieveResult, error) {
+	resp, err := c.rpc.Retrieve(ctx, &ragpb.RetrieveRequest{Query: query, TopK: topK, ProductId: productID})
 	if err != nil {
 		return nil, err
 	}

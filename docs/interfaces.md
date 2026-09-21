@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.5 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-09-02 (ADR-027, ADR-028, ADR-029)
+**Status:** Draft v0.8 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-09-10 (ADR-034)
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `defense_demo.md` (§2 `/ask` contract), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -11,6 +11,44 @@
 > 1. **Eviction policy (§D).** `allkeys-lru` can evict `dep:{chunk_id}` sets, orphaning the entries they point to. Dependency state now lives under **`noeviction`**, separate from the LRU-managed cache.
 > 2. **`t1_key` (§D).** The dependency map stored only `entry_id`, from which the Tier-1 hash key is *not computable* — so Tier-1 entries survived purges. The Tier-2 record now carries `t1_key`.
 > 3. **`dataset_epoch` (§B, §E).** A generation in flight during an edit wrote back *after* the purge, resurrecting stale data. Retrieval now stamps an epoch; write-back discards if it has advanced.
+
+> **v0.6 changes (ADR-030, ADR-031, ADR-032).** Three seam changes the two-lane reuse rule forced,
+> each with a measured failure behind it rather than a preference:
+> 1. **`product_id` on `/ask` (§A).** Optional. A spec-lane namespace derived from the *rank-1 product
+>    document* is unstable: measured 2026-09-06, one run produced **one false hit and one false miss**
+>    from that instability alone, both corrected by sending `product_id`. It is a **stabiliser, not a
+>    cache key** — ADR-028's rejection of `product_id` as a key stands untouched.
+> 2. **Doc-id kind prefix is now required (§C).** `reuse.Classify` reads the document kind from the
+>    `policy-` / `product-` prefix. It was enforced only in the ingester, so a corpus built without it
+>    would classify every question `SPEC` **silently**, with the lane machinery reporting plausible
+>    values throughout.
+> 3. **Eviction moves into the gateway (§D).** `maxmemory-policy` is server-global rather than
+>    per-logical-DB, so v0.3's two-region split was not achievable on one server; and ADR-027's
+>    capacity is a **count** of entries, which a byte budget cannot express.
+
+> **v0.7 changes (ADR-033).** `AnswerRequest` gains `retrieved_chunk_ids` (§B). Every Tier-1 miss
+> already retrieved once before reaching `Answer`, which then retrieved again; the duplicated work
+> is the **query embedding**, not the vector search. Additive — an empty field preserves the old
+> behaviour exactly.
+
+> **v0.8 changes (ADR-034).** `RetrieveRequest` and `AnswerRequest` gain `product_id` (§B). When
+> set, retrieval runs its normal unscoped search first, then drops any chunk belonging to a
+> *different* product and, if `product_id`'s own chunk did not naturally rank, splices in exactly
+> that one chunk — a post-filter on real ranking, never a pre-filter that forces content in.
+> Unscoped retrieval over a flat, one-chunk-per-document corpus returns whichever chunk contains
+> the query's literal words, regardless of product; reproduced 2026-09-10 by asking a generic
+> "power rating" question against three different products and retrieving the same five
+> kitchen-appliance chunks for all three. A first implementation pre-filtered candidates to
+> `doc_id == product_id OR kind == "policy"` before ranking, which regressed measurably on this
+> corpus (only four policy docs, one chunk per product): the eligible pool shrank to near `top_k`,
+> so `PolicyFraction` (§B's own reuse machinery, `reuse/lane.go`) saturated toward ~0.8 for almost
+> any product-scoped question, collapsing unrelated products into the same policy-dominated
+> namespace — confirmed live serving one product's cached answer to a different, unrelated
+> product's question. The post-filter design closes that: policy content only ever reaches the
+> result when it genuinely ranks, never by construction of a too-small eligible pool. Additive — an
+> empty `product_id` preserves the old, unscoped behaviour exactly, and the reuse-decision
+> machinery (ADR-028, ADR-030) is untouched: this only narrows what retrieval may consider, never
+> how a retrieved candidate is judged for reuse.
 
 > Conventions: `snake_case` field names on the wire; timestamps are RFC 3339 UTC; vectors are `float32`. "Entry" = a cached Q&A record; "chunk" = a retrieved source fragment.
 
@@ -44,8 +82,19 @@ Every request also appends one (H) evaluation-log record to results/{run_id}/raw
 Request:
 
 ```json
-{ "question": "Can I return this laptop after 30 days?" }
+{ "question": "Can I return this laptop after 30 days?",
+  "product_id": "product-laptops-01" }
 ```
+
+| Field | Type | Notes |
+| :--- | :--- | :--- |
+| `question` | string | Required. |
+| `product_id` | string\|null | **Optional (v0.6, ADR-032).** The product the question was asked about — the page a production assistant is embedded in already knows it. Read **only** by the spec lane, to pin which product that lane's namespace names; the policy lane ignores it, because scoping a policy answer by product spends capacity on one answer per product. Absent, the namespace falls back to the rank-1 product document, which is correct but less stable. It is **not** part of the reuse decision and **not** a cache key (ADR-028). |
+
+> ⚠️ **`stratum` is deliberately not a request field.** The evaluation log (§H) carries it, but it is a
+> property of the *workload*, not of a client request. The measurement harness may send it as an
+> optional `X-Thesis-Stratum` header; absent that, the label joins offline on `query_normalized`,
+> which ADR-028's Tier-1 collision invariant makes exact.
 
 Success response (`200 application/json`) — **superset of `defense_demo.md` §2**; the six fields there are required, the rest optional:
 
@@ -122,6 +171,7 @@ service RagService {
 message RetrieveRequest {
   string query = 1;
   uint32 top_k = 2;          // default 5; pinned per run and reported
+  string product_id = 3;     // optional; scopes the search (v0.8, ADR-034) — see below
 }
 
 message RetrieveResponse {
@@ -135,7 +185,59 @@ message AnswerRequest {
   uint32 top_k = 2;
   bool   stream = 3;         // defaults FALSE in scope (SSE dropped — ADR-016):
                              // a single terminal AnswerChunk is returned
+  repeated string retrieved_chunk_ids = 4;  // v0.7, ADR-033 — see below
+  string product_id = 5;                    // optional; scopes Answer's OWN fallback
+                                             // retrieval when retrieved_chunk_ids is
+                                             // empty (v0.8, ADR-034) — see below
 }
+
+// **`product_id` (v0.8, ADR-034).** Optional, on both `RetrieveRequest` and `AnswerRequest`. When
+// non-empty, the service runs its normal unscoped top_k search FIRST -- ranking is untouched --
+// then POST-filters: drops any chunk belonging to a different product, and if product_id's own
+// chunk did not naturally rank, fetches it with one small product-scoped search and splices it
+// in (dropping the lowest-ranked survivor to stay within top_k). Empty/absent is bit-for-bit
+// today's unscoped search.
+//
+// Why it exists: unscoped retrieval over a flat, one-chunk-per-document corpus has almost no
+// signal to prefer the asked-about product for a generic question — a literal word shared with an
+// unrelated product's chunk can win outright. Reproduced 2026-09-10: the same generic "power
+// rating" question retrieved identical unrelated chunks across three different products.
+//
+// ⚠️ Post-filter, not pre-filter -- the first implementation regressed. Pre-filtering candidates
+// to `doc_id == product_id OR kind == "policy"` before ranking shrank the eligible pool to near
+// top_k on this corpus (four policy docs, one chunk per product), so nearly every candidate
+// came back regardless of relevance: PolicyFraction (reuse/lane.go) saturated toward ~0.8 for
+// almost any product-scoped question, collapsing unrelated products into the same
+// policy-dominated namespace. Confirmed live: product-kitchen-05 (a genuine 1800W power spec)
+// was served product-laptops-02's cached "no power info" answer this way. Filtering AFTER
+// ranking means policy content only ever appears because it genuinely ranked -- the MIXED lane's
+// reason to exist (ADR-030) is unaffected, but it can no longer be forced in by construction of
+// a too-small eligible pool.
+//
+// This does not touch the reuse decision. `product_id` here decides what a single retrieval call
+// may search over, never whether a retrieved candidate should be reused — `reuse/lane.go`,
+// `reuse/rule.go`, and the cache-key functions are unaffected and still derive their partition
+// from post-retrieval evidence (ADR-028's boundary, unchanged).
+
+// **`retrieved_chunk_ids` (v0.7, ADR-033).** Chunk IDs the caller already retrieved for this
+// query. When non-empty the service **skips its own retrieval** and grounds generation on exactly
+// these chunks; when empty it retrieves as before, so the field is additive.
+//
+// Why it exists: every Tier-1 miss retrieves at least once — above τ in the cascade, below it
+// inside `Answer` — and since the gateway issues its retrieval concurrently with the embedding,
+// every miss reached `Answer` having already retrieved, whereupon `Answer` retrieved again. The
+// duplicated work is the **query embedding**, not the vector search.
+//
+// Three obligations on the service, each closing a silent failure:
+//
+// 1. **Return the ids it was given** in `source_chunk_ids`. Provenance is C1's input and C2's
+//    dependency key, so an entry written under a set that differs from the one its answer was
+//    generated over corrupts both contributions with no error (rules.md #6).
+// 2. **Preserve rank order.** Generation is order-sensitive, and the reuse rule's namespace comes
+//    from the rank-1 document *of each kind* (ADR-030) — reordering would repartition the cache.
+// 3. **Drop a missing id, never substitute.** A fabricated chunk puts text into an answer that no
+//    provenance record accounts for; a short context is visible in the answer, an invented one is
+//    not.
 
 message AnswerChunk {
   string text = 1;                 // token / span for streaming
@@ -155,7 +257,7 @@ Transport: gRPC over a pooled channel (proposal §6.1). Proto lives at `contract
 Both provenance (C1) and source-aware invalidation (C2) key on chunk IDs, so the scheme must be **stable across re-chunking** (timeline **W5** implements it, W9–W11 depend on it). It must survive the `dev-v0` → `v1` corpus change (ADR-020): the chunking config is frozen in W5, so `v1` is a content expansion under a new `dataset_version`, not a re-chunk.
 
 - **Format:** `{doc_id}#chunk-{ordinal}` — e.g. `policy-returns#chunk-2` (this exact example is the one in `defense_demo.md` §2).
-- **`doc_id`:** stable slug of the source document (`policy-returns`, `product-B08XYZ`), assigned at ingestion and never reused for a different document.
+- **`doc_id`:** stable slug of the source document, assigned at ingestion and never reused for a different document. ⚠️ **It MUST begin with `policy-` or `product-` (v0.6, ADR-032)** — e.g. `policy-returns-electronics`, `product-laptops-01`. The prefix is the only place the document *kind* is recorded, and the reuse rule reads the lane from it (ADR-030). A corpus built without it classifies every question into the spec lane **silently**, with the lane machinery reporting plausible values throughout, so `data-card.md` §7 checks the prefix at corpus-freeze time alongside G1–G3. Enforced at ingestion in `rag/src/rag/ingest.py:record_kind()`, which raises on any other prefix.
 - **`ordinal`:** 0-based position of the chunk within the document under the **frozen chunking config** (size/overlap recorded in `decisions.md`).
 - **Re-chunking rule:** if the chunking config changes, IDs are *not* silently reassigned — a re-chunk is a new dataset version (`data-card.md`) and forces a full cache rebuild, so a given `{doc_id}#chunk-{ordinal}` always denotes the same span within one dataset version. This keeps completeness/precision measurable (proposal §5 C2).
 - **Uniqueness:** `(dataset_version, chunk_id)` is unique; `chunk_id` is unique within a dataset version.
@@ -168,10 +270,25 @@ Bounded, LRU (proposal §6.3). **Capacity is `round(0.25 × K)`**, where `K` is 
 
 > ⚠️ **Eviction policy is a correctness constraint, not a tuning knob.** `allkeys-lru` evicts *any* key under pressure — **including the `dep:{chunk_id}` sets of §E**. An evicted dependency record makes its entries permanently unpurgeable, so invalidation completeness fails silently and non-reproducibly. Therefore:
 >
-> - Cache entries (`t1:*`, `t2:*`) live in a **logical DB / instance with `allkeys-lru`** at the stated capacity.
-> - Dependency state (`dep:*`, `entry:*`) lives in a **separate logical DB / instance with `noeviction`**.
+> **v0.6 (ADR-031) — the gateway evicts; Redis evicts nothing.** The v0.3 split above prescribed two
+> regions with different eviction settings. That is **not achievable on one server**: the eviction
+> setting is server-global rather than per logical DB, so any `allkeys-*` value can reach `dep:*`. It
+> also cannot express ADR-027's capacity, which is a **count** of entries while `allkeys-lru` evicts by
+> **bytes**. Therefore:
 >
-> At this corpus size the dependency map is a few megabytes, so the no-eviction region costs nothing. Equivalent alternative: one instance under `volatile-lru` with TTLs set **only** on cache entries. Whichever is chosen is recorded per run — a run whose dependency region evicted anything is **invalid** and repeated.
+> - **Redis is configured to evict nothing at all**, and no byte budget is set. `make redis-check`
+>   verifies this and fails the run otherwise.
+> - **The gateway enforces the count.** A sorted set `lru:entries` holds `entry_id` scored by last
+>   access; after each write-back the gateway trims to `round(0.25 × K)` entries.
+> - **Both tiers of a victim are deleted together**, the Tier-1 record found through the `t1_key`
+>   stored on the Tier-2 record. Dropping only `t2:` would leave Tier 1 serving the same answer from a
+>   bare hash lookup that runs no reuse rule — so the entry would still be served while absent from the
+>   cache the experiment believes it is bounding, and the capacity sweep would measure nothing.
+>
+> This is **stronger** than the v0.3 split, not a relaxation: the dependency region is now safe by
+> construction rather than by a configuration a later `CONFIG SET` could silently undo. The capacity
+> in force is recorded per run; a run whose dependency region lost anything remains **invalid** and is
+> repeated.
 
 **Tier 1 — exact match.** O(1) hash lookup, no vector:
 
@@ -301,7 +418,7 @@ Four metrics in `experiment-protocol.md` §4 are **not computable without this r
   "cache": "TIER2_HIT",                 // TIER1_HIT | TIER2_HIT | MISS
   "similarity": 0.91,
   "source_overlap": 0.80,               // null when the cascade short-circuited
-  "entered_band": true,                 // paid for retrieval — the rule's cost driver
+  "entered_band": true,                 // consulted provenance — see the field note, v0.6
   "similarity_only_decision": "HIT",    // ⚠️ counterfactual, see below
 
   "retrieved_chunk_ids": ["policy-warranty-electronics#chunk-1"],
@@ -337,7 +454,7 @@ Field notes:
 | :--- | :--- |
 | `stratum` | Carried from the workload record (`data-card.md` §2). Enables the frontier to be reported per sub-stratum, which is what answers the product-ID objection (ADR-028) |
 | `t1_key` | Recording it lets the Tier-1 collision invariant (ADR-028) be re-verified from run output, not only at corpus-freeze time |
-| `entered_band` | Distinguishes short-circuit hits from cascade-band hits. `experiment-protocol.md` §4 requires their latencies reported separately |
+| `entered_band` | Distinguishes short-circuit hits from cascade-band hits; `experiment-protocol.md` §4 requires their latencies reported separately. ⚠️ **v0.6 (ADR-030) restates what this measures.** It was *"paid for retrieval — the rule's cost driver"*. Since the gateway issues retrieval **concurrently with the embedding**, every Tier-1 miss pays for retrieval whether or not it enters the band, so this now records **how often the rule consulted provenance** and no longer bounds what the rule costs. Read `t_overlap_ms` for the cost, and note it is wall-clock-concurrent with `t_embed_ms` |
 | `t_*_ms` | Null where the stage did not run. Sum need not equal `t_total_ms` — the difference is gateway overhead and is reported as such |
 | `writeback_discarded` | A nonzero count under load is evidence the epoch guard is working, not a bug (§E) |
 
@@ -347,6 +464,6 @@ Field notes:
 
 ## Versioning
 
-These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, or the Redis schema is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12). Current version: **v0.5** (2026-09-02, ADR-029 adds §H; ADR-027 makes cache capacity a ratio of workload size).
+These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, or the Redis schema is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12). Current version: **v0.8** (2026-09-10 — ADR-034 adds the optional `product_id` of §B, scoping `Retrieve`/`Answer`'s own corpus search to the asked-about product plus all policy content, closing a cross-product grounding failure unscoped search could not avoid on a flat corpus — never a reuse-decision signal, ADR-028's boundary is untouched; ADR-033 lets `Answer` accept pre-retrieved chunks in §B, so a request retrieves once rather than twice; ADR-032 adds the optional `product_id` of §A and the doc-id kind prefix of §C; ADR-031 moves eviction into the gateway in §D; ADR-030's reuse rule v2 restates what `entered_band` in §H measures).
 
-**Frozen study-wide, from measurement or by policy — changing any of these mid-study invalidates every comparison:** the generation LLM, Qwen 3.5 2B `q4_K_M` with `think: false` (ADR-021) · the embedding model and `DIM` (ADR-003) · `top_k` · the **FLAT (exact) vector index** — no mid-study HNSW upgrade, since approximate retrieval would inject overlap noise indistinguishable from C1's signal · `num_ctx = 8192` and `OLLAMA_NUM_PARALLEL = 4` (ADR-017, from the feasibility spike) · the **cache-capacity ratio `C/K = 0.25`** and the two-region eviction policy (§D, ADR-027).
+**Frozen study-wide, from measurement or by policy — changing any of these mid-study invalidates every comparison:** the generation LLM, Qwen 3.5 2B `q4_K_M` with `think: false` (ADR-021) · the embedding model and `DIM` (ADR-003) · `top_k` · the **FLAT (exact) vector index** — no mid-study HNSW upgrade, since approximate retrieval would inject overlap noise indistinguishable from C1's signal · `num_ctx = 8192` and `OLLAMA_NUM_PARALLEL = 4` (ADR-017, from the feasibility spike) · the **cache-capacity ratio `C/K = 0.25`** (ADR-027) and the rule that **Redis evicts nothing while the gateway enforces the entry count** (§D, ADR-031 — this supersedes the two-region split frozen at v0.3) · the **`policy-` / `product-` doc-id kind prefix** (§C, ADR-032), on which the reuse rule's lane selection depends.

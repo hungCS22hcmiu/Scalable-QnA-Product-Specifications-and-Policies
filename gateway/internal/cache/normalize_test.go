@@ -86,21 +86,22 @@ func TestNormalizeDoesNotStemOrDropStopwords(t *testing.T) {
 	}
 }
 
-// interfaces.md §D: KEY t1:{sha256(normalized_query)}.
+// interfaces.md §D: KEY t1:{sha256(normalized_query "\x00" product_id)}. ⚠️ BYPASS 2026-09-09,
+// reverses ADR-028's "product_id in the Tier-1 key -- Rejected" -- see cache.Key.
 func TestKey(t *testing.T) {
 	const q = "how long is the warranty"
 
-	got := Key(q)
+	got := Key(q, "")
 	if want := 3 + 64; len(got) != want {
-		t.Errorf("Key(%q) = %q, want %d chars (t1: + 64 hex)", q, got, want)
+		t.Errorf("Key(%q,\"\") = %q, want %d chars (t1: + 64 hex)", q, got, want)
 	}
 	if got[:3] != "t1:" {
-		t.Errorf("Key(%q) = %q, want the t1: prefix", q, got)
+		t.Errorf("Key(%q,\"\") = %q, want the t1: prefix", q, got)
 	}
-	if again := Key(q); again != got {
+	if again := Key(q, ""); again != got {
 		t.Errorf("Key is not deterministic: %q then %q", got, again)
 	}
-	if other := Key("how long is the return window"); other == got {
+	if other := Key("how long is the return window", ""); other == got {
 		t.Error("distinct normalized queries produced the same Tier-1 key")
 	}
 }
@@ -108,9 +109,10 @@ func TestKey(t *testing.T) {
 // The read/write-path invariant of ADR-015, stated end to end: spellings that differ only in
 // case, spacing or punctuation must reach the same Redis key, or the Tier-1 hit rate is
 // understated and configuration 2's "literal-repeat share" measurement (proposal §2b row 7)
-// is wrong.
+// is wrong. Fixed at one product_id, so this also asserts stability holds WITHIN a product.
 func TestKeyIsStableAcrossTrivialSpellingVariants(t *testing.T) {
-	want := Key(Normalize("how long is the warranty"))
+	const productID = "product-headphones-03"
+	want := Key(Normalize("how long is the warranty"), productID)
 
 	for _, variant := range []string{
 		"How long is the warranty?",
@@ -118,8 +120,34 @@ func TestKeyIsStableAcrossTrivialSpellingVariants(t *testing.T) {
 		"  how   long is the warranty  ",
 		"how long is the warranty.",
 	} {
-		if got := Key(Normalize(variant)); got != want {
-			t.Errorf("Key(Normalize(%q)) = %q, want %q", variant, got, want)
+		if got := Key(Normalize(variant), productID); got != want {
+			t.Errorf("Key(Normalize(%q), %q) = %q, want %q", variant, productID, got, want)
 		}
+	}
+}
+
+// TestKeyIsScopedByProductID is the bug this bypass fixes: two literally identical questions
+// asked about different products must NOT collide -- see the conversation in
+// .docs/work/two-lane-cache/approvals.md and ADR-028's now-reversed rejection.
+func TestKeyIsScopedByProductID(t *testing.T) {
+	const q = "how long is the battery life"
+
+	a := Key(q, "product-headphones-03")
+	b := Key(q, "product-headphones-04")
+	if a == b {
+		t.Errorf("Key(%q, product-03) == Key(%q, product-04) = %q -- different products collided", q, q, a)
+	}
+
+	empty := Key(q, "")
+	if empty == a || empty == b {
+		t.Errorf("Key(%q, \"\") collided with a product-scoped key -- empty product_id must be its own partition, not a wildcard", q)
+	}
+}
+
+// TestKeySeparatorIsUnambiguous pins the "\x00" separator: without it, Key("ab","c") and
+// Key("a","bc") would hash identically.
+func TestKeySeparatorIsUnambiguous(t *testing.T) {
+	if Key("ab", "c") == Key("a", "bc") {
+		t.Error(`Key("ab","c") == Key("a","bc") -- the normalized/product_id separator is ambiguous`)
 	}
 }

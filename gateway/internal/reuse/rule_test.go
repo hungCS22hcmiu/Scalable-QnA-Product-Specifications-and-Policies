@@ -1,6 +1,9 @@
 package reuse
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // These tests are a thesis artifact, not coverage. Each one pins a property that, if it drifted,
 // would change what the rule measures while leaving it looking like it still worked.
@@ -127,5 +130,85 @@ func TestSimilarityOnlyIsTheBaselineCounterfactual(t *testing.T) {
 	}
 	if !d.SimilarityOnly {
 		t.Error("similarity-only baseline should have reused — this disagreement is the signal C1 measures")
+	}
+}
+
+// Jaccard exists as the robustness check Pre-Thesis §3.2.2/§3.2.3 require reported alongside
+// containment, and as the direct comparison against GroundedCache, which gates on it. These pin
+// the cases where the two formulations DISAGREE -- if they ever agree everywhere, the robustness
+// check has stopped checking anything.
+func TestJaccardDisagreesWithContainmentWhereItMatters(t *testing.T) {
+	// The asymmetry that makes containment the right rule: an entry's sources fully contained in
+	// a larger retrieval is safe to serve, and containment says so. Jaccard penalises the extra
+	// chunks and would refuse it.
+	entry := []string{"policy-warranty#chunk-0", "policy-warranty#chunk-1"}
+	retrieved := []string{
+		"policy-warranty#chunk-0", "policy-warranty#chunk-1",
+		"product-headphones-03#chunk-0", "product-headphones-04#chunk-0",
+	}
+	if got := Overlap(retrieved, entry); got != 1.0 {
+		t.Fatalf("containment = %v, want 1.0 -- the entry's evidence is fully re-retrieved", got)
+	}
+	if got := Jaccard(retrieved, entry); got != 0.5 {
+		t.Fatalf("Jaccard = %v, want 0.5 -- it must penalise the extra chunks", got)
+	}
+
+	// And the direction that makes the denominator choice load-bearing: swap the arguments and
+	// containment changes while Jaccard cannot.
+	if Overlap(entry, retrieved) == Overlap(retrieved, entry) {
+		t.Fatal("containment became symmetric -- the denominator is no longer the entry's sources")
+	}
+	if Jaccard(entry, retrieved) != Jaccard(retrieved, entry) {
+		t.Fatal("Jaccard is not symmetric; it is defined to be")
+	}
+}
+
+// Two empty sets must not read as perfect agreement. A vacuous 1.0 would be indistinguishable in
+// the reported figures from genuine agreement between two well-grounded answers, and Overlap
+// already scores a provenance-less entry 0 for the same reason.
+func TestJaccardOfTwoEmptySetsIsZeroNotOne(t *testing.T) {
+	if got := Jaccard(nil, nil); got != 0 {
+		t.Fatalf("Jaccard(nil, nil) = %v, want 0", got)
+	}
+	if got := Jaccard([]string{"a"}, nil); got != 0 {
+		t.Fatalf("Jaccard with one empty side = %v, want 0", got)
+	}
+}
+
+// TauHigh must default to disabled. A short-circuit serves on similarity alone with the
+// provenance rule never running, so a default that fires would silently turn config 4 into
+// config 3 for part of the traffic -- and the resulting false hits would be charged to a rule
+// that did not make them.
+func TestTauHighDefaultIsDisabled(t *testing.T) {
+	// This mirrors cmd/gateway/main.go's default. Cosine similarity reaches 1.0 only on an
+	// identical vector, so the branch is unreachable in practice.
+	th := Thresholds{Tau: 0.85, Theta: 0.60, TauHigh: 1.0}
+	for _, sim := range []float64{0.86, 0.95, 0.9899, 0.99999} {
+		if sim >= th.TauHigh {
+			t.Fatalf("similarity %v would short-circuit at the default tau_high=%v", sim, th.TauHigh)
+		}
+	}
+	// The measured worst trap on dev-v0. Any tau_high at or below it serves a lookalike on
+	// similarity alone.
+	const worstTrap = 0.9685
+	if worstTrap >= th.TauHigh {
+		t.Fatal("the default tau_high would short-circuit the measured worst trap")
+	}
+}
+
+// Regression for a live false hit found 2026-09-09: asking the byte-identical question about
+// two different products embeds to the same vector both times, so similarity is exactly 1.0 --
+// not merely close to it. A TauHigh of exactly 1.0 (the old default) treated that as
+// "unreachable in practice" and was wrong; cascade.go's short-circuit fired, serving one
+// product's cached answer for a different product's question with no namespace check. The
+// default must be unreachable BY CONSTRUCTION, not by assumption -- so it must reject a
+// similarity of exactly 1.0, the actual ceiling of cosine similarity, not just values below it.
+func TestTauHighDefaultSurvivesIdenticalVector(t *testing.T) {
+	th := Thresholds{Tau: 0.85, Theta: 0.60, TauHigh: math.Inf(1)}
+	const identicalVectorSimilarity = 1.0
+	if identicalVectorSimilarity >= th.TauHigh {
+		t.Fatalf("similarity %v (an identical vector, e.g. the same question text asked about "+
+			"two different products) would short-circuit at tau_high=%v -- this is the exact bug "+
+			"found live 2026-09-09 with the old default of 1.0", identicalVectorSimilarity, th.TauHigh)
 	}
 }

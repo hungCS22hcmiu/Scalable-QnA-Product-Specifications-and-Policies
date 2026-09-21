@@ -40,7 +40,8 @@ type Tier2Entry struct {
 	SourceChunkIDs []string
 
 	// T1Key is the Tier-1 key this entry was co-written with. It is REQUIRED and is not
-	// reconstructible later: Tier 1 is keyed by sha256(normalized_query), which cannot be
+	// reconstructible later: Tier 1 is keyed by sha256(normalized_query "\x00" product_id)
+	// (⚠️ product_id joined the key 2026-09-09, bypass -- see cache.Key), which cannot be
 	// computed from an entry_id. Without it the Phase-2 invalidator purges the t2 record and
 	// leaves the t1 copy serving stale content -- a completeness hole no Tier-2 test reveals
 	// (interfaces.md D).
@@ -50,6 +51,13 @@ type Tier2Entry struct {
 	SourceOverlap float64
 	HitCount      int64
 	CreatedAt     time.Time
+
+	// Namespace and Lane are the two-lane experiment's partition (.docs/work/two-lane-cache).
+	// Stored, never interpreted here: cache/ must not make a reuse decision
+	// (architecture.md 2), so it carries the partition the way it carries source_chunk_ids --
+	// as recorded provenance for reuse/ to judge.
+	Namespace string
+	Lane      string
 }
 
 // Candidate is a nearest-neighbour result: what was stored, plus how close the query was.
@@ -80,6 +88,11 @@ func (s *Store) EnsureCacheIndex(ctx context.Context) error {
 		&redis.FieldSchema{FieldName: "query_text", FieldType: redis.SearchFieldTypeText},
 		&redis.FieldSchema{FieldName: "t1_key", FieldType: redis.SearchFieldTypeTag},
 		&redis.FieldSchema{FieldName: "dataset_epoch", FieldType: redis.SearchFieldTypeNumeric},
+		// TAG rather than TEXT: a namespace is an identifier compared for equality, never
+		// tokenised. TEXT would stem `policy-returns-electronics` and make two distinct
+		// namespaces collide silently.
+		&redis.FieldSchema{FieldName: "namespace", FieldType: redis.SearchFieldTypeTag},
+		&redis.FieldSchema{FieldName: "lane", FieldType: redis.SearchFieldTypeTag},
 	).Err()
 
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "already exists") {
@@ -112,13 +125,57 @@ func (s *Store) PutTier2(ctx context.Context, e Tier2Entry, vec []float32) error
 		"source_overlap":   e.SourceOverlap,
 		"hit_count":        e.HitCount,
 		"created_at":       e.CreatedAt.Format(time.RFC3339),
+		"namespace":        e.Namespace,
+		"lane":             e.Lane,
 	}).Err()
 }
 
-// NearestTier2 returns the k nearest entries by cosine similarity.
+// NearestTier2 returns the k nearest entries by cosine similarity, over the whole cache.
 func (s *Store) NearestTier2(ctx context.Context, vec []float32, k int) ([]Candidate, error) {
+	return s.nearest(ctx, "*", vec, k)
+}
+
+// NearestTier2InNamespace returns the k nearest entries WITHIN one namespace, as a RediSearch
+// hybrid query (`(@namespace:{ns})=>[KNN k ...]`) rather than an over-fetch filtered in Go.
+//
+// This is an optimisation, NOT the rule. reuse.DecideLane still re-checks namespace equality on
+// whatever comes back, so the invariant is enforced in reuse/ where architecture.md 2 requires it
+// and cache/ still "must not make a reuse decision" -- if this filter were ever wrong, the Go
+// check would refuse anyway and the test suite says so.
+//
+// It replaces a fan-out that was both wasteful and WRONG. Fetching the k nearest overall and
+// discarding the ones in other namespaces means that when the k nearest all belong elsewhere, a
+// perfectly good in-namespace entry sitting at rank k+1 is never seen -- a false miss that gets
+// steadily worse as the cache fills, and that would read as an eviction effect in a load test
+// while having nothing to do with eviction. Asking Redis for the nearest IN the namespace has no
+// such horizon.
+func (s *Store) NearestTier2InNamespace(ctx context.Context, vec []float32, namespace string, k int) ([]Candidate, error) {
+	if namespace == "" {
+		// An empty namespace is UNMATCHABLE, never a wildcard (reuse.MatchNamespace). Returning
+		// the whole cache here would invert that into "matches everything".
+		return nil, nil
+	}
+	return s.nearest(ctx, "(@namespace:{"+escapeTag(namespace)+"})", vec, k)
+}
+
+// escapeTag escapes a TAG value for a RediSearch query. Namespaces are doc_ids joined by "|",
+// and both "-" and "|" are query syntax: unescaped, `product-headphones-03` parses as a negation
+// and matches nothing, silently, with every lookup becoming a miss and no error anywhere.
+func escapeTag(v string) string {
+	var b strings.Builder
+	b.Grow(len(v) * 2)
+	for _, r := range v {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_') {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func (s *Store) nearest(ctx context.Context, filter string, vec []float32, k int) ([]Candidate, error) {
 	res, err := s.rdb.FTSearchWithArgs(ctx, CacheIndexName,
-		fmt.Sprintf("*=>[KNN %d @%s $vec AS %s]", k, vectorFieldName, distanceAlias),
+		fmt.Sprintf("%s=>[KNN %d @%s $vec AS %s]", filter, k, vectorFieldName, distanceAlias),
 		&redis.FTSearchOptions{
 			Params:         map[string]any{"vec": encodeVector(vec)},
 			DialectVersion: 2,
@@ -137,6 +194,8 @@ func (s *Store) NearestTier2(ctx context.Context, vec []float32, k int) ([]Candi
 				{FieldName: "source_overlap"},
 				{FieldName: "hit_count"},
 				{FieldName: "created_at"},
+				{FieldName: "namespace"},
+				{FieldName: "lane"},
 			},
 		}).Result()
 	if err != nil {
@@ -150,6 +209,8 @@ func (s *Store) NearestTier2(ctx context.Context, vec []float32, k int) ([]Candi
 			QueryText: d.Fields["query_text"],
 			Answer:    d.Fields["answer"],
 			T1Key:     d.Fields["t1_key"],
+			Namespace: d.Fields["namespace"],
+			Lane:      d.Fields["lane"],
 		}
 		if raw := d.Fields["source_chunk_ids"]; raw != "" {
 			if err := json.Unmarshal([]byte(raw), &e.SourceChunkIDs); err != nil {

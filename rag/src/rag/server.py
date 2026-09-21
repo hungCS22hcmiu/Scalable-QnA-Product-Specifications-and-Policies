@@ -14,7 +14,7 @@ from rag.pb.rag.v1 import rag_pb2, rag_pb2_grpc
 class RagServicer(rag_pb2_grpc.RagServiceServicer):
     def Retrieve(self, request, context):
         top_k = request.top_k or config.TOP_K
-        chunks, epoch = retrieve.retrieve(request.query, top_k=top_k)
+        chunks, epoch = retrieve.retrieve(request.query, top_k=top_k, product_id=request.product_id)
         return rag_pb2.RetrieveResponse(
             chunk_ids=[c.chunk_id for c in chunks],
             scores=[c.score for c in chunks],
@@ -23,7 +23,16 @@ class RagServicer(rag_pb2_grpc.RagServiceServicer):
 
     def Answer(self, request, context):
         top_k = request.top_k or config.TOP_K
-        chunks, epoch = retrieve.retrieve(request.query, top_k=top_k)
+        # ADR-033: when the caller has already retrieved for this query, ground on exactly its
+        # chunks instead of retrieving again. The gateway runs its retrieval concurrently with the
+        # embedding, so a banded miss would otherwise retrieve twice -- and the second one re-embeds
+        # the query, which is the expensive half.
+        if request.retrieved_chunk_ids:
+            chunks, epoch = retrieve.fetch_by_ids(list(request.retrieved_chunk_ids))
+        else:
+            chunks, epoch = retrieve.retrieve(
+                request.query, top_k=top_k, product_id=request.product_id
+            )
         text = generate.generate(request.query, chunks)
         # stream=false is the only path in scope (SSE dropped, ADR-016) -- exactly one
         # terminal chunk, never per-token emission.

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)", "Bash(go test:*)", "Bash(go run:*)", "Bash(go vet:*)",
+      "Bash(go mod:*)", "Bash(go doc:*)", "Bash(gofmt:*)",
+      "Bash(python3:*)", "Bash(pip3 install:*)", "Bash(pip3 list:*)", "Bash(pytest:*)",
+      "Bash(ruff:*)", "Bash(make:*)", "Bash(protoc:*)", "Bash(buf:*)",
+      "Bash(ollama list:*)", "Bash(ollama ps:*)", "Bash(ollama show:*)", "Bash(ollama pull:*)",
+      "Bash(redis-cli:*)", "Bash(redis-server --version)",
+      "Bash(k6 version)", "Bash(k6 run:*)",
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git add:*)",
+      "Bash(git show:*)", "Bash(git ls-files:*)", "Bash(git branch:*)",
+      "Bash(rg:*)", "Bash(jq:*)", "Bash(wc:*)", "Bash(ls:*)", "Bash(find:*)",
+      "Bash(head:*)", "Bash(tail:*)", "Bash(sort:*)", "Bash(uniq:*)", "Bash(file:*)",
+      "Bash(vm_stat)", "Bash(sysctl vm.swapusage)", "Bash(sysctl hw.memsize)",
+      "Bash(memory_pressure:*)", "Bash(top -l 1:*)",
+      "Bash(bash -n:*)", "Bash(chmod +x:*)", "Bash(mkdir:*)", "Bash(touch:*)",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Read(./data/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/frozen-guard.sh" },
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/gate-check.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/format-lint.sh" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/inject-context.sh" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/done-check.sh" }
+        ]
+      }
+    ]
+  }
+}

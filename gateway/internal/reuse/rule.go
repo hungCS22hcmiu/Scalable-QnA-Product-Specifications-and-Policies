@@ -43,11 +43,73 @@ func Overlap(retrieved, entrySources []string) float64 {
 	return float64(hits) / float64(len(sources))
 }
 
+// Jaccard is the SYMMETRIC overlap of two chunk sets: |A n B| / |A u B|.
+//
+// It is never the reuse rule -- Overlap is (see above for why the denominator must be the entry's
+// own provenance). It exists because Pre-Thesis 3.2.2/3.2.3 require it reported alongside
+// containment as a robustness check, with no conclusion allowed to depend on which formulation is
+// used, and because GroundedCache gates on symmetric Jaccard over chunk hashes, so this is the
+// direct comparison against published practice.
+//
+// It costs NOTHING on the hit path and must stay that way: interfaces.md H already logs both
+// retrieved_chunk_ids and entry_sources, so the run-level figure is derived exactly, offline, from
+// the evaluation log. Nothing calls this per request.
+//
+// Two empty sets score 0, not 1. A vacuous "perfect agreement" between two answers with no
+// recorded provenance would be indistinguishable in the numbers from genuine agreement, and
+// Overlap already scores an entry with no provenance 0 for the same reason.
+func Jaccard(a, b []string) float64 {
+	setA := make(map[string]struct{}, len(a))
+	for _, id := range a {
+		setA[id] = struct{}{}
+	}
+	setB := make(map[string]struct{}, len(b))
+	for _, id := range b {
+		setB[id] = struct{}{}
+	}
+	if len(setA) == 0 && len(setB) == 0 {
+		return 0
+	}
+	inter := 0
+	for id := range setA {
+		if _, ok := setB[id]; ok {
+			inter++
+		}
+	}
+	return float64(inter) / float64(len(setA)+len(setB)-inter)
+}
+
 // Thresholds are the rule's two knobs. Both are DEMO VALUES here and are swept, never hand-set,
 // for anything reported (proposal 9.4, rules.md #10).
 type Thresholds struct {
 	Tau   float64 // similarity floor
 	Theta float64 // overlap floor
+
+	// TauHigh is the short-circuit ceiling of Pre-Thesis 3.2.3 Figure 3.2: at or above it the
+	// cascade serves on similarity ALONE, consulting no provenance -- it runs in cascade.go
+	// BEFORE Classify/Namespace, so a fired short-circuit bypasses the lane rule entirely, not
+	// just the containment counterfactual.
+	//
+	// It ships DISABLED (+Inf, cascade.go's default) and the default is pinned by a test, for
+	// three measured reasons:
+	//
+	//  1. There is no safe window on dev-v0. Across 17 labelled probes the traps and the
+	//     legitimate hits INTERLEAVE: the worst trap scored 0.9685 while only one of seven
+	//     correct reuses (0.9899) sat above it. Any TauHigh low enough to short-circuit an
+	//     appreciable share of hits also serves lookalikes, on similarity alone, with the
+	//     provenance rule never running.
+	//  2. Since the gateway began retrieving concurrently with embedding, a short-circuit saves
+	//     no latency anyway -- retrieval has already completed by the time this gate is reached.
+	//     What was an optimisation is now purely a rule variant, and it is kept only so the
+	//     frontier has the point.
+	//  3. The default used to be 1.0 on the theory that cosine similarity "reaches it only on an
+	//     identical vector" and that was an unreachable edge case. Discovered live 2026-09-09:
+	//     it is not unreachable -- asking the byte-identical question about two different
+	//     products embeds to the same vector both times, similarity is exactly 1.0, and the old
+	//     default fired, serving one product's cached answer for a different product's question
+	//     with no namespace check. +Inf is unreachable by construction (cosine is capped at 1.0);
+	//     1.0 was only unreachable by assumption.
+	TauHigh float64
 }
 
 // Decision records what the rule concluded and enough to reconstruct why.

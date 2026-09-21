@@ -1,6 +1,6 @@
 // Go<->Python seam. THE single definition — both sides generate from this file.
 //
-// Frozen: docs/interfaces.md §B (v0.3). Any change to a wire shape requires an ADR in
+// Frozen: docs/interfaces.md §B (v0.8). Any change to a wire shape requires an ADR in
 // docs/decisions.md and a version bump in interfaces.md. Never hand-edit generated stubs
 // on either side (.docs/ai/rules.md #4).
 //
@@ -25,6 +25,12 @@ service RagService {
 message RetrieveRequest {
   string query = 1;
   uint32 top_k = 2;                    // pinned per run and reported (ADR-014)
+
+  // Optional; post-filters the normal unscoped ranking to drop other products' chunks and
+  // ensure this product's own chunk is present (ADR-034, interfaces.md §B v0.8) -- never a
+  // pre-filter, which regressed by starving PolicyFraction of real signal. Empty preserves
+  // today's unscoped search exactly.
+  string product_id = 3;
 }
 
 message RetrieveResponse {
@@ -37,6 +43,22 @@ message AnswerRequest {
   string query  = 1;
   uint32 top_k  = 2;
   bool   stream = 3;                   // defaults false in scope (SSE dropped — ADR-016)
+
+  // Chunk IDs the CALLER already retrieved for this query (ADR-033, interfaces.md §B v0.7).
+  //
+  // When non-empty the service SKIPS its own retrieval and grounds generation on exactly these
+  // chunks. Every Tier-1 miss already retrieves once — in the cascade above tau, inside Answer
+  // below it — so without this a banded miss retrieves TWICE, and the second retrieval re-embeds
+  // the query, which is the expensive half.
+  //
+  // ⚠️ The service must return these same ids in source_chunk_ids. Provenance is the reuse rule's
+  // input and the dependency map's key, so an entry written under a set that differs from the one
+  // the answer was generated over corrupts both contributions with no error (rules.md #6).
+  repeated string retrieved_chunk_ids = 4;
+
+  // Optional; scopes Answer's OWN fallback retrieval (used when retrieved_chunk_ids is empty)
+  // the same way RetrieveRequest.product_id does (ADR-034, interfaces.md §B v0.8).
+  string product_id = 5;
 }
 
 message AnswerChunk {

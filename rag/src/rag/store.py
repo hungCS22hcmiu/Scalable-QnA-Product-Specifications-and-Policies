@@ -9,6 +9,7 @@ Vector field algorithm is "flat" — frozen study-wide, never HNSW (interfaces.m
 Redis & LlamaIndex require id/doc_id/text/vector as the base fields; the rest are ours.
 """
 
+import redis
 from llama_index.vector_stores.redis import RedisVectorStore
 from redisvl.schema import IndexSchema
 
@@ -53,3 +54,14 @@ def get_vector_store(overwrite: bool) -> RedisVectorStore:
         redis_url=config.REDIS_URL,
         overwrite=overwrite,
     )
+
+
+def get_redis_client() -> redis.Redis:
+    """Plain client for reads that do not need the vector store.
+
+    ⚠️ Corpus keys carry a DOUBLE colon -- `corpus::{chunk_id}` -- because LlamaIndex appends its
+    own separator to the configured prefix. Building the key with a single colon finds nothing,
+    silently, with every lookup simply returning empty. The Go side documents the same quirk in
+    cache/tier2.go for the mirror-image reason.
+    """
+    return redis.from_url(config.REDIS_URL)

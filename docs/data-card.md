@@ -133,26 +133,57 @@ C1 can only produce a signal where queries are **similar but ground differently*
 
 **Procedure (~30 lines, W8):** embed all workload queries with the frozen embedding model; compute pairwise similarity; retrieve top-k for each; then count pairs satisfying **`sim ≥ 0.85` AND `J ≤ 0.2`**.
 
+> **Implemented and runnable (2026-09-06):** `experiments/scripts/corpus_gate.py`, via `make gate-corpus`.
+> It computes every statistic listed below and **refuses to print a snapshot hash unless all four
+> criteria pass**, so "frozen" cannot happen by accident.
+>
+> **The workload file must live OUTSIDE `data/{version}/`** — `rag.ingest` globs that directory and
+> asserts `doc_id == filename`, so a workload dropped in it breaks ingestion. Convention:
+> `data/workload-{version}.json`, passed as `make gate-corpus WORKLOAD=…`.
+>
+> **Two stages, which resolves an apparent contradiction in the outcome table below.** A failure is
+> said to mean *"do not proceed to ingestion"*, yet G1/G2 are defined over `retrieve(q)` and so need
+> an ingested index. They split by what they need: **G3 and G4 are structural** — corpus files and
+> the workload file only, and `make gate-corpus STRUCTURAL=1` runs them alone, which is the loop to
+> run while authoring. **G1 and G2 need the frozen retrieval path.** Stage 1 failing aborts before
+> stage 2, so a mis-slugged corpus is never embedded.
+>
+> **G3's normalization is a second implementation of a Go function** and the Go one is what actually
+> runs on the hit path. A looser mirror lets the gate pass a corpus that collides in production; a
+> tighter one rejects a corpus Tier 1 would have handled — both silent. The two are pinned to shared
+> golden vectors in `contracts/normalize/cases.json`, asserted from both languages.
+>
+> **Shakedown against `dev-v0` (2026-09-06, not a gate result — `dev-v0` is not gated, ADR-020).**
+> 24 questions, 44 documents: G3 and G4 pass; **G1 = 0 pairs** and **G2 = 0 B-within**. Across the
+> 16 high-similarity pairs the mean Jaccard is **0.68** and *no pair at all* falls below the 0.2
+> ceiling — the lowest occupied histogram bucket is 0.2–0.3. This is ADR-024 requirement 3 measured
+> rather than predicted: 44 documents ingesting to 44 chunks gives every question a near-identical
+> retrieval set, so the corpus cannot express the phenomenon C1 studies. It is the concrete target
+> `v1` has to clear.
+
 > ⚠️ **Which overlap — the gate's is not the rule's (ADR-024).** The rule's overlap is `|A ∩ B| / |B|`, between a query's retrieval and a *cached entry's* provenance — **asymmetric, and therefore not well-defined for a query–query pair**, which is what this gate counts. The gate uses symmetric Jaccard `J(A,B) = |A ∩ B| / |A ∪ B|` over the two top-k retrieval sets. At equal `top_k` this is monotone in `|A ∩ B|` and orders pairs identically to `|A ∩ B| / k`; at `top_k = 5`, `J ≤ 0.2` admits **at most one shared chunk**. The gate statistic is a **corpus property**, never the rule's operating metric, and the two are reported separately so they cannot be conflated.
 
-**Three criteria, all of which must pass before the snapshot is hashed.**
+**Four criteria, all of which must pass before the snapshot is hashed.**
 
 | # | Criterion | On failure |
 | :---: | :--- | :--- |
 | **G1** | High-similarity / low-overlap pairs **≥ ~50** | **Fix the corpus, not the rule** — add categories, differentiate policy windows per category, re-run |
 | **G2** | **`B-within` > 0** (ADR-028) | Rebuild. A corpus of only cross-product traps is defeated by a one-line change to the cache key, and C1 would be redundant by construction |
 | **G3** | **Zero Tier-1 collisions** (ADR-028) | Disambiguate the offending query text. Do not proceed to ingestion |
+| **G4** | **Every `doc_id` begins with `policy-` or `product-`** (ADR-032, `interfaces.md` §C v0.6) | Re-slug the offending documents before ingestion |
 
 **G2 — the within/cross split.** Every pair counted by G1 is additionally labelled `B-within` (same product, different grounding) or `B-cross` (different product). The gate reports both counts. **No numeric floor above zero is set**: there is no evidence yet from which to derive one, and an invented threshold is less defensible than a stated gap. The first gate run on `v1` supplies the number, and it is recorded below as a frozen corpus statistic.
+
+**G4 — the doc-id kind prefix.** The reuse rule reads a question's lane from the *prefix* of the documents its retrieval returned (ADR-030), so the prefix is the only place a document's kind is recorded. A corpus that omits it does not fail loudly: every question classifies into the spec lane, the lane machinery reports plausible values throughout, and the mixed lane never fires — a null result produced by the corpus rather than by the rule. It is a one-line check over the ingested doc-ids and runs alongside G1. Ingestion enforces the same rule (`rag/src/rag/ingest.py:record_kind()`), so G4 is a check that ingestion was actually the path taken.
 
 **G3 — the Tier-1 collision check.** Tier 1 is a bare hash lookup that runs **no reuse rule** (`interfaces.md` §D), so a collision is unguarded and silent. Procedure: group all workload queries by `normalize(q)` using the ADR-015 function, and fail any group whose members disagree on `doc_ids` or `reference_answer`. Note that stripping punctuation collapses `Model A-1` and `Model A1`. The check is ~30 lines and runs alongside G1.
 
 | Outcome | Action |
 | :--- | :--- |
-| G1 ∧ G2 ∧ G3 all pass | Freeze and hash the corpus. Record the statistics below |
-| Any criterion fails | Fix the corpus, re-run all three. Do not proceed to ingestion |
+| G1 ∧ G2 ∧ G3 ∧ G4 all pass | Freeze and hash the corpus. Record the statistics below |
+| Any criterion fails | Fix the corpus, re-run all four. Do not proceed to ingestion |
 
-**Recorded as frozen corpus statistics** (they are also what make a null C1 interpretable rather than merely disappointing — proposal §5 C1 fallback):
+**Recorded as frozen corpus statistics** (they are also what make a null C1 interpretable rather than merely disappointing — proposal §5 C1 fallback). Every one of them is printed by `make gate-corpus`, and `REPORT=<path>` additionally writes them as JSON so the freeze record is machine-readable rather than transcribed by hand:
 
 - `TODO(W8): count of high-similarity / low-overlap pairs (G1).`
 - `TODO(W8): B-within and B-cross counts and their ratio (G2).`
