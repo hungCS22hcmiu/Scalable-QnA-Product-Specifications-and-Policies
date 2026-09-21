@@ -17,9 +17,9 @@ it is a proposal waiting for an ADR.
 | **0** | **`docs/` does not know about the approved pivot** | 🟢 **done 2026-09-21** — ADR-035…038 written, and carried into `interfaces.md` (v0.9), `experiment-protocol.md`, `data-card.md` (G5), `CLAUDE.md` | — |
 | 1 | Rewrite `Pre-Thesis_Report_Full.md` (+ `Final_Proposal.md`) | 🟡 C1 alignment done 2026-09-15 | §4.2 waits on #5 · §5.1 waits on #3 |
 | 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟡 §2.3 deletes and §2.6 drift done 2026-09-21; §4.5 tracking resolved (both now tracked) | the rest waits on decisions in #3, #4 |
-| 3 | Super plan + FR/NFR/RR | 🔴 not started | human sign-off on shape |
+| 3 | Super plan + FR/NFR/RR | 🟡 **shape signed off 2026-09-21; both files created empty** (`docs/requirements.md`, `docs/super-plan.md`) | filling them — and `time_line.md`'s retirement waits on #4 |
 | 4 | Harness re-engineering (scope-based, week-free) | 🔴 not started | two open decisions below |
-| 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🟡 **probe run 2026-09-21 (§5.6)** — PQA is thick enough, but the licence finding reverses §5.1 and the chunking claim in §5.2 is wrong | **human call**, on §5.6's three points |
+| 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🟢 **done 2026-09-21** — probe run (§5.6), adopted by **ADR-039**, `data-card.md` §1/§3 rewritten. Redistribution stays **closed**: build script + hash manifest | — |
 
 ---
 
@@ -299,14 +299,20 @@ Script: scratchpad `pqa_probe.py`.
 
 #### ✅ §5.4's question is answered: PQA is **not** thin
 
-| | `inkjet_printers` |
-| :--- | ---: |
-| products (`asin`) | 1,288 |
-| questions | 92,070 |
-| questions per product — mean / median / max | **71.5 / 8 / 5,741** |
-| products with ≥ 2 questions | **82.5 %** |
-| products with ≥ 5 questions | **63.7 %** |
-| answers per question — mean / median | 2.4 / 2 |
+| | `inkjet_printers` | `chairs` |
+| :--- | ---: | ---: |
+| products (`asin`) | 1,288 | **19,193** |
+| questions | 92,070 | 88,268 |
+| questions per product — mean / median / max | **71.5 / 8 / 5,741** | 4.6 / 2 / 367 |
+| products with ≥ 2 questions | **82.5 %** | 58.3 % → **11,190 products** |
+| products with ≥ 5 questions | **63.7 %** | 24.3 % → **4,664 products** |
+| answers per question — mean / median | 2.4 / 2 | 2.1 / 1 |
+
+**The two categories are thick in different ways, and both are usable.** Printers give *deep*
+clusters on few products; chairs give *shallow* clusters on many. Since the workload needs a
+distinct-query count `K` and ADR-027 derives cache capacity from it, either shape reaches `K` —
+they just reach it with a different number of products, which is what the selection strategy has
+to account for.
 
 And they are **genuine paraphrase clusters**, which is what §5.4 actually asked. Across the
 category, **43.6 %** of multi-question products carry at least one near-duplicate question pair
@@ -397,12 +403,16 @@ builder must read the bytes first.
 
 #### Category dependence — select products, do not sample them
 
-`inkjet_printers` has a median of 8 questions per product; `chairs` is far thinner. The distribution
-is also extremely skewed within a category (p99 = 958, max = 5,741 for printers), so the workload
-build must **select into the thick tail**, not sample uniformly. `TODO`: fill the `chairs` row once
-the download completes — the partial read at 58 % of the file gave median 2, ≥5 questions on 24.8 %
-of products, which if it holds means furniture categories are usable but need a bigger product pool
-for the same number of clusters.
+`inkjet_printers` has a median of 8 questions per product against `chairs`' 2 — a **4× difference
+between two categories both named in §5.1's shortlist**. The distribution is also extremely skewed
+*within* a category (printers: p99 = 958, max = 5,741), so the workload build must **select into the
+thick tail**, never sample uniformly: a uniform draw from `chairs` returns mostly single-question
+products, from which no stratum A or C pair can be built at all.
+
+Corollary for ADR-024 requirement 2 (per-category warranty windows): the categories that
+differentiate the policy corpus are chosen for *policy* realism, while product thickness varies
+independently of that. The two constraints have to be satisfied together, and §5.1's shortlist was
+assembled against the first one only.
 
 #### The call this leaves to the human
 
@@ -429,7 +439,7 @@ All three want an ADR once decided — this file records a proposal, not a decis
 
 ## Suggested order
 
-**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0 is done.** **5's probe is run (§5.6)** and waits on the human call. Next: **3**.
+**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0 and 5 are done. 3's shape is signed off and its two files exist, empty by design.** Next: **4** (harness), which also unblocks retiring `time_line.md` and the remainder of **2**.
 
 ADRs first, because everything else cites them. Dataset next, because it decides the content of report
 §4.2 and unblocks the `v1` freeze that Phase 1's exit criterion depends on. Then requirements, then the

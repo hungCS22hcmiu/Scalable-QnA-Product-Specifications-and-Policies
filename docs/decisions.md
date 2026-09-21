@@ -1,6 +1,6 @@
 # Decision Log (ADRs)
 
-**Status:** living document · **Created:** 2026-07-23 · **Last revised:** 2026-09-21 (ADR-035…038)
+**Status:** living document · **Created:** 2026-07-23 · **Last revised:** 2026-09-21 (ADR-035…039)
 **Companion to:** `Final_Proposal.md` (rationale source), `interfaces.md` (schemas these decisions pin), `time_line.md` (decide-by weeks).
 
 > **Read ADR-016 first.** It records the 2026-08-09 scope reduction and supersedes or closes several entries below. Section references in older entries point at the archived proposal; the mapping to current sections is in ADR-016.
@@ -47,6 +47,7 @@
 | **ADR-036** | **Retire the unfiltered similarity-only phase, `tau_high`, and the inline counterfactual** | **Decided (method)** | — |
 | **ADR-037** | **`Retrieve` returns chunk text — `interfaces.md` v0.9** | **Decided (frozen)** | — |
 | **ADR-038** | **Condition-splitting is a `v1` corpus requirement** | **Decided (data)** | — |
+| **ADR-039** | **`v1` corpus source: Amazon-PQA; redistribution stays closed** | **Decided (data)** | — |
 
 ---
 
@@ -714,3 +715,39 @@ The cascade's unfiltered Phase-1 Tier-2 search and its `tau_high` short-circuit 
   - `experiments/scripts/corpus_gate.py` gains the G5 check; the stage-1/stage-2 split of `data-card.md` §7 is unchanged in shape.
 - **Falsification / revisit trigger:** if G5 passes on `v1` and RQ2a still measures a material residual, the split was not the binding constraint and the explicit tag — or a finer authoring rule — returns to the table with evidence behind it.
 - **Invalidates:** none — `experiments/results/` holds no run directories (verified 2026-09-21), and `v1` is not yet frozen. This requirement is **only** actionable before that freeze.
+---
+
+### ADR-039 — `v1` corpus source is Amazon-PQA, and redistribution stays closed
+**Decided (data)** · 2026-09-21 · *supersedes the `Amazon-Reviews-2023 × AmazonQA` plan of `data-card.md` §1/§3; ADR-013, ADR-020, ADR-024, ADR-027, ADR-028, ADR-035, ADR-038.*
+
+`v1`'s product and question halves come from **Amazon-PQA** (`s3://amazon-pqa`, AWS Open Data, one JSON-lines file per category), replacing the planned join of `Amazon-Reviews-2023` metadata with `AmazonQA`. Each PQA record carries the question **and** the product content, so the join does not have to be performed and `asin`-against-`parent_asin` stops being a risk to measure. The policy corpus, the update set and the strata labels stay **self-authored**, unchanged. **Redistribution remains closed**: `data/v1/` stays gitignored and ships as a download-and-build script plus a hash manifest, which is `data-card.md` §1's stated fallback and ADR-013's path.
+
+- **Rationale — the join problem is deleted rather than reduced.** `data-card.md` §1 and §3 planned two datasets joined on a product identifier whose semantics the source's own documentation warns about ("the `asin` in previous Amazon datasets is actually parent ID"). An unverified join rate sat under the corpus plan as an unquantified risk. PQA removes the second dataset entirely.
+- **Rationale — measured, not assumed (probe, 2026-09-21).** Two complete category files were read, and the question this decision turned on was whether PQA is thick enough per product to seat strata **A** and **C** naturally.
+
+  | | `inkjet_printers` | `chairs` |
+  | :--- | ---: | ---: |
+  | products | 1,288 | 19,193 |
+  | questions | 92,070 | 88,268 |
+  | questions per product, median | **8** | 2 |
+  | products with ≥ 5 questions | **63.7 %** | 24.3 % (**4,664 products**) |
+
+  Across `inkjet_printers`, **43.6 %** of multi-question products carry at least one genuine near-duplicate question pair (content-word Jaccard 0.45–0.99, exact repeats excluded) — e.g. *"can it print address labels?"* against *"Does it print labels?"*. Strata A and C can therefore be **sampled** rather than authored, which is the advantage the switch was proposed for.
+- **Rationale — an argument that did not exist when the switch was proposed: PQA supplies B-within traps naturally.** The same clustering surfaces same-product pairs that read as paraphrases and have **different answers** — *"Does printer work with windows 10?"* against *"Will this unit work with Windows 7?"*; *"will it work with an IPAD 2?"* against *"Does this printer work with an iPad and an iPhone?"*. That is exactly ADR-028's `B-within` stratum and exactly ADR-035's residual, occurring in natural traffic. The C1 result's standing limitation is that the measured residual is *"partly a property of how carefully the author split conditions across chunks"* (ADR-038); traps the author did not construct weaken that objection in a way an authored corpus cannot.
+- **⚠️ Redistribution is NOT settled by the licence, and the earlier reading of it was wrong.** The AWS Open Data Registry entry records `License: https://cdla.dev/permissive-1-0/`, which would permit redistribution with attribution. The dataset's **own `readme.txt`** — named as `Documentation:` by that same registry entry — instead carries the ACM personal/classroom notice: *"Permission to make digital or hard copies … for personal or classroom use … provided that copies are not made or distributed for profit or commercial advantage … For all other uses, contact the owner/author(s). Copyright held by the owner/author(s)."* The string "CDLA" does not appear in it. **Where two sources conflict, this study takes the more restrictive one**, because the cost of being wrong is asymmetric and falls on a public repository. Consequence: using PQA for the thesis is the granted case, **publishing a derived corpus is not**, and `data-card.md` §1's `TODO(W8)` is answered *"no, ship the build script"* rather than closed as permitted. The required citation is Rozen et al., NAACL 2021, supplied by the readme.
+- **⚠️ The switch does not help ADR-024 requirement 3, and the claim that it does is withdrawn.** It was argued that free-text `bullet_points` would chunk past `chunk_size` more readily than a spec table. Measured: median product prose is **504 characters** (≈ 126 tokens at the frozen `chunk_size = 256`), `product_description` is frequently empty, and only **1.6 %** of products would yield ≥ 3 chunks. PQA products ingest at roughly **one chunk each**. Requirement 3 rests entirely on the **authored policy** half, exactly as it did before. What *does* improve is corpus **diversity**: `dev-v0`'s G1 failure came from 44 chunks in total, where one PQA category alone supplies over a thousand.
+- **⚠️ The dataset's documentation does not match its data.** `readme.txt` describes `asin_id`, `bullet_points`, `is_yes-no_question`, `yes-no_answer`, `answer_text`. The bytes carry **`asin`**, **`bullet_point1` … `bullet_point5`**, **`question_type`** (`yes-no` \| `WH`), **`answers`** (a list of objects) and **`answer_aggregated`**. A builder written against the documentation produces empty records with no error — the probe's first run did exactly that. The corpus builder must be written against the bytes and must assert a non-zero parse rate.
+- **Alternatives, and why not:**
+  - **Keep `Amazon-Reviews-2023 × AmazonQA`.** Rejected — it carries an unmeasured join rate, a documented identifier ambiguity, and the same unresolved redistribution question, for no offsetting benefit.
+  - **Author the product catalogue as well, as `dev-v0` did.** Rejected — `dev-v0`'s authored catalogue is precisely what G1 measured at **0 qualifying pairs**, and authored strata A/C paraphrases would make the C1 result a property of the author's paraphrasing rather than of natural traffic. This is the objection natural data exists to answer.
+  - **hetPQA, or Amazon ESCI.** Rejected — hetPQA is also Amazon-sourced with the same licence question and less product content; ESCI was already rejected earlier for lacking questions.
+  - **Treat the registry's CDLA line as authoritative and publish the corpus.** Rejected — see above.
+- **Consequences:**
+  - `data-card.md` §1 and §3 are rewritten to PQA: source, access method (public S3 over plain HTTPS; no credentials and no AWS CLI required), the real field names, the category list, and the selection rule.
+  - **Selection, not sampling.** Questions-per-product is heavily skewed within a category (printers: p99 = 958, max = 5,741) and varies ~4× *between* two categories both on the original shortlist. A uniform draw from a thin category returns mostly single-question products, from which no A or C pair can be built. The builder selects into the thick tail and records the rule it used.
+  - Category choice must now satisfy **two** constraints together — ADR-024 requirement 2 wants categories whose return and warranty windows genuinely differ, and this ADR wants categories thick in questions per product. The earlier shortlist was assembled against the first only.
+  - `experiments/scripts/fetch_corpus_v1.py` is superseded and its output `data/v1-draft/` is discarded; both it and `data/v1/` stay out of git.
+  - `data-card.md` §1's licence row becomes **"academic use granted; redistribution not granted — build script + hash manifest"**, and the per-artifact `TODO(W8)` rows for the product and question halves are answered by this entry rather than by the freeze.
+  - The policy corpus, the update set, ADR-038's G5 condition-splitting and the strata definitions are **untouched** — this ADR changes where product and question text comes from, nothing about the experimental design.
+- **Falsification / revisit trigger:** if the selected categories cannot jointly satisfy requirement 2's policy differentiation and this ADR's thickness requirement, the corpus falls back to PQA products with **authored** A/C paraphrases, and the natural-trap argument above is withdrawn with it — stated here so the fallback is not taken silently.
+- **Invalidates:** none — `experiments/results/` holds no run directories (verified 2026-09-21) and `v1` is not yet frozen. `dev-v0` is unaffected and remains the functional corpus.
