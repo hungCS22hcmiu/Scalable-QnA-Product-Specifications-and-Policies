@@ -15,9 +15,9 @@ it is a proposal waiting for an ADR.
 | # | Concern | State | Blocked on |
 | :---: | :--- | :--- | :--- |
 | **0** | **`docs/` does not know about the approved pivot** | 🟢 **done 2026-09-21** — ADR-035…038 written, and carried into `interfaces.md` (v0.9), `experiment-protocol.md`, `data-card.md` (G5), `CLAUDE.md` | — |
-| 1 | Rewrite `Pre-Thesis_Report_Full.md` (+ `Final_Proposal.md`) | 🟡 C1 alignment done 2026-09-15 | §4.2 waits on #5 · §5.1 waits on #3 |
+| 1 | Rewrite `Pre-Thesis_Report_Full.md` (+ `Final_Proposal.md`) | 🟡 C1 alignment 2026-09-15; **§4.2/§9.3 dataset, §10.1 matrix and both unverified numbers all done 2026-09-21** | only **§5.1 / §11 plan sections**, which wait on #3 being filled |
 | 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟢 **done 2026-09-21** — §2.2 archived, §2.3 deleted + permissions pruned 52 → 24, §2.4 reclassified, §2.5 added, §2.6 drift fixed, §4.5 tracking resolved | — |
-| 3 | Super plan + FR/NFR/RR | 🟡 **shape signed off 2026-09-21; both files created empty** (`docs/requirements.md`, `docs/super-plan.md`) | filling them — and `time_line.md`'s retirement waits on #4 |
+| 3 | Super plan + FR/NFR/RR | 🟡 **shape signed off 2026-09-21; both files created empty** (`docs/requirements.md`, `docs/super-plan.md`) | filling them, which is the only thing left. #4 is done, so `time_line.md`'s retirement now waits only on the super plan carrying real rows — `phase_row()` already switches over automatically |
 | 4 | Harness re-engineering (scope-based, week-free) | 🟢 **done 2026-09-21 (§4.7)** — weeks removed from all 11 files; gate calibrates by **scope L/M/S**; `/phase` `/feature` `/bugfix` `/refactor` `/investigate` added; `design-reviewer` (opus) added; worklog → `journal.md` | — |
 | 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🟢 **done 2026-09-21** — probe run (§5.6), adopted by **ADR-039**, `data-card.md` §1/§3 rewritten. Redistribution stays **closed**: build script + hash manifest | — |
 
@@ -92,17 +92,31 @@ sources: **[26]** Proof-Carrying Numbers, **[27]** The Semantic Illusion.
 
 ### 1.2 Still to rewrite
 
-- **§4.2 / §9.3 dataset sections** — blocked on #5. Currently describe the Amazon-Reviews-2023 ×
-  AmazonQA join and its unverified join rate. If PQA is adopted, that entire risk paragraph is deleted
-  rather than edited.
-- **§5.1 phase plan** (report) and **§11 timeline** (proposal) — blocked on #3. Both currently restate
-  a plan that #3 replaces.
-- **§10.1 verification matrix** — the ⬜ rows (FreshCache, serving-scheduler) are this phase's stated
-  exit criterion and are still unverified.
-- **Two unverified numbers** are carried in both documents with explicit ⚠️ markers and must be
-  checked against the GroundedCache PDF before the thesis document or any slide: the **+0.12–0.13**
-  unsafe-rate increase when the support gate is removed, and the **1.95× → 1.04×** speedup collapse
-  with all gates enabled.
+- ✅ **§4.2 / §9.3 dataset sections — done 2026-09-21.** The join-risk paragraph is deleted rather
+  than edited, as anticipated, and replaced with what the probe measured. Reference **[28]**
+  (Rozen et al., NAACL 2021) added to both documents. Two claims are recorded as **wrong** rather
+  than quietly dropped: the licence does not close the redistribution question, and the switch does
+  not help ADR-024 requirement 3.
+- ✅ **§10.1 verification matrix — cleared 2026-09-21.** The note above was stale: the
+  serving-scheduler row was already ✅, so **FreshCache [12] was the only ⬜ row**. Verified at
+  source. The verified rule is *sharper* than the row recorded — reuse is approved when a fitted
+  exponential-decay model augmented by a **learned MLP** puts staleness probability below a
+  per-tier error budget (ε = 0.10 answers, 0.20 URL lists). A learned model on the reuse decision
+  is precisely the line this thesis does not cross, so verification strengthened the distinction
+  instead of collapsing it. **The matrix now has no unverified data row.**
+- ✅ **Both numbers verified 2026-09-21**, against the arXiv HTML full text of [6] rather than the
+  abstract — and **one was wrong**. The ablation is **+0.125 (HotpotQA) / +0.118 (mtRAG)**, so
+  "+0.12–0.13" overstated the upper end. The speedup figures hold (naive **1.95×** at USR 0.172,
+  fully gated **1.04×** at USR 0.000), but the full text supplies the row that actually matters
+  here and the abstract did not: the **no-support** variant sits at **1.48× at USR 0.125**. So the
+  other three gates account for 1.95× → 1.48× and **the adopted support gate accounts for
+  1.48× → 1.04×**. Since this study already holds analogues of the other three (ADR-026), that is
+  the price actually under consideration — a materially different claim from the one both
+  documents carried. Also confirmed: **`τ_s = 0.6` is the paper's stated default**, and its
+  formula matches ADR-035 verbatim.
+- **§5.1 phase plan** (report) and **§11 timeline** (proposal) — **still blocked on #3**, and this
+  is now the only thing left in the whole sweep. Both restate a plan the super plan replaces, and
+  `docs/super-plan.md` is empty by design pending sign-off on its content.
 
 ---
 
