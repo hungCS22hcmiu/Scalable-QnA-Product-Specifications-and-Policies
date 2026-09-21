@@ -1,8 +1,15 @@
 ---
-description: W5 feasibility spike — measure the memory envelope, freeze it, record μ_gen
+description: Feasibility spike — measure the memory envelope and record mu_gen. SPENT: the envelope is already frozen
 ---
 
-Run the feasibility spike. **This blocks all W5 ingestion** (ADR-017) and must complete before the
+> ⚠️ **This spike has already been run and its result is frozen.** ADR-017 froze `num_ctx = 8192`
+> and `OLLAMA_NUM_PARALLEL = 4` at μ_gen ≈ 28.2 tok/s from the 2026-08-15 run, and ADR-021 replaced
+> the generation model on its evidence. **Re-running it does not re-freeze anything**: a different
+> result is a reason to write an ADR, not a reason to change a value. Kept because the method is
+> what the write-up's design chapter has to describe, and because a hardware change would need it
+> run again — under a new ADR, never silently.
+
+Run the feasibility spike. **This blocks all ingestion** (ADR-017) and must complete before the
 embedding model and chunking config are frozen.
 
 ## Why this exists
@@ -40,6 +47,6 @@ Writing these touches frozen values, so the guard will block until ADR-017 is ci
   reframed around queueing and shedding **before the Aug 31 report**.
 - **Not even `NUM_PARALLEL = 1` green at `num_ctx = 4096`** → the binding constraint is the model, not
   concurrency. Escalate to a smaller quantization or model. That breaks ADR-002's freeze, so it must
-  happen now, in W5, before ingestion.
+  happen before ingestion.
 
 Report the chosen pair, μ_gen, the headroom, and which go/no-go branch was taken.

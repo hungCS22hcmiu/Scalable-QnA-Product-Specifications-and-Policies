@@ -16,9 +16,9 @@ it is a proposal waiting for an ADR.
 | :---: | :--- | :--- | :--- |
 | **0** | **`docs/` does not know about the approved pivot** | 🟢 **done 2026-09-21** — ADR-035…038 written, and carried into `interfaces.md` (v0.9), `experiment-protocol.md`, `data-card.md` (G5), `CLAUDE.md` | — |
 | 1 | Rewrite `Pre-Thesis_Report_Full.md` (+ `Final_Proposal.md`) | 🟡 C1 alignment done 2026-09-15 | §4.2 waits on #5 · §5.1 waits on #3 |
-| 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟡 §2.3 deletes and §2.6 drift done 2026-09-21; §4.5 tracking resolved (both now tracked) | the rest waits on decisions in #3, #4 |
+| 2 | Refactor `docs/` · `.docs/` · `.claude/` | 🟡 §2.3 done (deletes **and** `settings.local.json` pruned 52 → 24); §2.6 drift done; §4.5 tracking resolved; §2.5 additions exist | §2.2 archive and §2.4 reclassify remain |
 | 3 | Super plan + FR/NFR/RR | 🟡 **shape signed off 2026-09-21; both files created empty** (`docs/requirements.md`, `docs/super-plan.md`) | filling them — and `time_line.md`'s retirement waits on #4 |
-| 4 | Harness re-engineering (scope-based, week-free) | 🔴 not started | two open decisions below |
+| 4 | Harness re-engineering (scope-based, week-free) | 🟢 **done 2026-09-21 (§4.7)** — weeks removed from all 11 files; gate calibrates by **scope L/M/S**; `/phase` `/feature` `/bugfix` `/refactor` `/investigate` added; `design-reviewer` (opus) added; worklog → `journal.md` | — |
 | 5 | Dataset: Amazon-Reviews-2023 + AmazonQA → **Amazon-PQA** | 🟢 **done 2026-09-21** — probe run (§5.6), adopted by **ADR-039**, `data-card.md` §1/§3 rewritten. Redistribution stays **closed**: build script + hash manifest | — |
 
 ---
@@ -227,12 +227,38 @@ Consequences:
 - The two READMEs must be corrected, or `.gitignore` changed, or both — but the mismatch cannot stand,
   because someone will rely on one of them.
 
-### 4.6 Two decisions still open
+### 4.6 Two decisions still open — ✅ both decided 2026-09-21
 
-- **Where the task log lives**, given 4.5. Recommendation unchanged in shape (pointer in `.claude/`,
-  durable trail in `.docs/work/`) but it now needs `.docs/` to actually be tracked to mean anything.
-- **What replaces the worklog.** Dropping weeks removes the chronology and the hours, both of which
-  the write-up needs. Proposal: `docs/worklog/journal.md`, append-only, dated, no week structure.
+- ~~**Where the task log lives**~~ — **adopted as recommended**, and the objection in §4.5 is gone:
+  `.docs/` is now tracked, so "pointer in `.claude/state/`, durable trail in `.docs/work/<slug>/`"
+  is a real tracked-versus-untracked distinction rather than two untracked directories.
+- ~~**What replaces the worklog**~~ — **`docs/worklog/journal.md`**, append-only and dated.
+  `W05/W06/W08.md` stay unedited as the pre-thesis record, per §2.2's reasoning.
+- **A third, which §4.4 had left open** (*"which phases exactly"* Medium and Small collapse):
+  **L** = spec → impact → design → opus design-review → plan; **M** = spec → impact → plan;
+  **S** = spec only. **Every scope still ends at `/approve implementation`**, and an **unset scope
+  blocks** rather than defaulting to S — three tiers with a free one is how a gate stops meaning
+  anything. `frozen-guard.sh` is armed at all three, unchanged.
+
+### 4.7 What actually shipped, 2026-09-21
+
+| | |
+| :--- | :--- |
+| Removed | `current_week()`, `in_runway()`, `week_row()`, `WEEK1_START`, `RUNWAY_LAST_WEEK`, and `/week` |
+| Added to `lib.sh` | `current_phase()`, `phase_row()`, `phase_exit_criterion()`, `task_scope()`, `scope_requires()`, `scope_label()` |
+| New state | `.claude/state/phase` · `.docs/work/<slug>/SCOPE` |
+| New commands | `/phase` `/feature` `/bugfix` `/refactor` `/investigate` |
+| Rewritten | `gate-check.sh` (by scope) · `inject-context.sh` · `done-check.sh` · `/log` `/gate` `/task` `/task-status` `/done` `/consistency` |
+| New subagent | `design-reviewer` (opus) — *is this design sound, what is the hidden risk*, silent failure paths ranked first |
+| Marked spent | `/spike` — the envelope is frozen; re-running re-freezes nothing |
+| Unchanged, deliberately | **`frozen-guard.sh`** · `/approve` `/verify` `/ai-review` `/rca` `/adr` · the four existing subagents |
+
+`phase_row()` reads `docs/super-plan.md` **once that file carries real rows** and falls back to
+`docs/time_line.md` until then, so the #3 handover needs no further edit here.
+
+**Not done, deliberately:** `docs/time_line.md` is **not** deleted. Its detail has not been carried
+into `super-plan.md`, which is empty pending sign-off on content. Its week columns are now
+vestigial and the file says so at the point where they appear.
 
 ---
 
@@ -439,7 +465,7 @@ All three want an ADR once decided — this file records a proposal, not a decis
 
 ## Suggested order
 
-**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0 and 5 are done. 3's shape is signed off and its two files exist, empty by design.** Next: **4** (harness), which also unblocks retiring `time_line.md` and the remainder of **2**.
+**0 → 5 → 3 → 4 → 2 → 1(remainder)** — confirmed by the author 2026-09-21. **0, 4 and 5 are done. 3's shape is signed off and its two files exist, empty by design.** Next: the remainder of **2** (§2.2 archive, §2.4 reclassify), then **1**. Both are now unblocked.
 
 ADRs first, because everything else cites them. Dataset next, because it decides the content of report
 §4.2 and unblocks the `v1` freeze that Phase 1's exit criterion depends on. Then requirements, then the

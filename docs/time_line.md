@@ -26,7 +26,7 @@ The exit criterion is the gate. Phases are sequential and a phase does not open 
 | Phase | Focus | Exit criterion |
 | :--- | :--- | :--- |
 | **0 — Runway** ✅ | Working pipeline and the pre-thesis report | **Met.** Envelope frozen from measurement (ADR-017, ADR-021), `rag/` and gateway running, `dev-v0` ingested, report submitted |
-| **1 — Experimental apparatus** | Freeze `v1`. Derive capacity. Probe μ_hit. Stand up off-box load | `v1` frozen + hashed after **all three gate criteria** pass · `K` recorded and capacity derived · **μ_hit probe recorded** · k6 drives the gateway from a second machine |
+| **1 — Experimental apparatus** | Freeze `v1`. Derive capacity. Probe μ_hit. Stand up off-box load | `v1` frozen + hashed after **all five gate criteria** pass (G1…G5 — `data-card.md` §7; it was three, ADR-032 added G4 and ADR-038 added G5) · `K` recorded and capacity derived · **μ_hit probe recorded** · k6 drives the gateway from a second machine |
 | **2 — Invalidation and literature** | Dependency map, epoch guard, purge. Clear the remaining unverified citations | Editing a policy purges exactly its dependents from **both** tiers · an in-flight generation during an edit is **discarded, not written back** · completeness and precision reproducible from one script · every ⬜ row in proposal §10.1 cleared or rewritten |
 | **3 — The rule and the judged set** | Containment rule, cascade, judge harness, labelling ablation | Live gateway decides reuse by the rule, hit-path p95 reported **inclusive** of overlap cost · both agreement numbers recorded · δ finalised |
 | **4 — Correctness evaluation** | Five configurations at `mutation: off`, θ/τ sweeps, isolation controls | **Headline B** exists with its isolation controls, reported on the held-out split with Wilson intervals |
@@ -40,13 +40,18 @@ The exit criterion is the gate. Phases are sequential and a phase does not open 
 
 ## Working Detail
 
-Week numbers are retained **only** as the scheduling handle the `/week` command and the session banner read (`.claude/hooks/lib.sh`). They are a cursor into the phase plan above, not a commitment to a date.
+⚠️ **Week numbers are now vestigial.** They were retained as the handle `/week` and the session
+banner read; the harness stopped reading them on **2026-09-21** (`Pre-thesis_Sweeping.md` #4) and
+now reads the **phase** table above via `.claude/hooks/lib.sh:phase_row()`. `/week` no longer
+exists — `/phase` replaces it. The week columns below are kept only because this file's detail has
+not yet been carried into `docs/super-plan.md`, which owns execution once #3 is filled. **Nothing
+reads them, and nothing should start.**
 
 ### Phase 1 — Experimental apparatus
 
 | Week | Focus | Key tasks | Done when |
 | :--- | :--- | :--- | :--- |
-| **8** | **Freeze the corpus** | Build `v1` to the structural requirements of **ADR-024** and **ADR-028**. Run the gate — procedure and criteria are in `data-card.md` §7, not restated here. Record `K` and derive `cache_capacity = round(0.25 × K)` (**ADR-027**). Run a coarse **μ_hit probe** on the existing gateway: pre-warm, replay cached queries, drive to saturation. Stand up the off-box k6 harness | `v1` frozen + hashed after **G1, G2 and G3 all pass** · `K` and derived capacity recorded in `data-card.md` · **μ_hit recorded** — it decides whether S1's wording stands (ADR-027) · k6 drives the gateway from a second machine |
+| **8** | **Freeze the corpus** | Build `v1` to the structural requirements of **ADR-024** and **ADR-028**. Run the gate — procedure and criteria are in `data-card.md` §7, not restated here. Record `K` and derive `cache_capacity = round(0.25 × K)` (**ADR-027**). Run a coarse **μ_hit probe** on the existing gateway: pre-warm, replay cached queries, drive to saturation. Stand up the off-box k6 harness | `v1` frozen + hashed after **G1…G5 all pass** · `K` and derived capacity recorded in `data-card.md` · **μ_hit recorded** — it decides whether S1's wording stands (ADR-027) · k6 drives the gateway from a second machine |
 
 > **Building `v1` is four jobs, not a download** (`data-card.md` §1–§4). Each has already been
 > flagged as a risk there; they are listed here because any one of them can slip the freeze:

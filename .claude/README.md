@@ -7,20 +7,51 @@ workflow is part of the thesis's reproducibility story, not personal config.
 > whole directory and `.docs/` with it, so this sentence and `.docs/README.md`'s "It is committed" were
 > both false — see `Pre-thesis_Sweeping.md` §4.5.
 
-## The weekly rhythm
+## The rhythm
+
+Weeks were removed **2026-09-21** (`Pre-thesis_Sweeping.md` #4). The schedule is **phases with
+binary exit criteria**, and the amount of process a change must pay is set by **its scope**, not
+by the date. A one-line fix late in the schedule was paying ceremony it never needed; a seam
+change early in the schedule was paying none when it always did.
 
 ```
-Monday      /week          what is due, did last week close, open the worklog
-during      /task <slug>   open a design trail   (W8+: required before source edits)
-            /approve …     human unlock, phase by phase
-            /verify        build + test + lint
-            /ai-review     subagents check the diff against the written rules
-            /rca           only after /verify fails twice
-            /done          close, re-lock
-end of day  /log           hours, what happened, blockers
-Sunday      /gate          run the exit test for real; PASS or FAIL
-anytime     /task-status · /adr · /consistency · /spike (W5)
+starting    /phase          what phase, what closes it, how far off it is
+            /phase <n>      switch — reports whether the phase being left actually closed
+during      /feature <slug> new behaviour            → scope M
+            /bugfix <slug>  something is wrong       → scope S
+            /refactor <slug> same behaviour, better  → scope M
+            /investigate <slug> answer a question, write no code
+            /task <slug> <L|M|S>   when none of those fit
+            /approve …      human unlock, phase by phase — required at EVERY scope
+            /verify         build + test + lint
+            /ai-review      subagents check the diff against the written rules
+            /rca            only after /verify fails twice
+            /done           close, re-lock
+end of day  /log            hours, what happened, blockers → docs/worklog/journal.md
+phase end   /gate           run the exit criterion for real; PASS or FAIL
+anytime     /task-status · /adr · /consistency · /spike (spent — see its header)
 ```
+
+## The scope ladder
+
+Written to `.docs/work/<slug>/SCOPE` by the opener. `gate-check.sh` reads it.
+
+| Scope | Design documents required first | Use when |
+| :---: | :--- | :--- |
+| **L** | spec → impact → **design** → **opus design-review** → plan | A frozen document, `interfaces.md`, the `.proto`, `reuse/`, or anything measured |
+| **M** | spec → impact → plan | Ordinary code: a package, a handler, a script |
+| **S** | spec (one paragraph) | Tests, docs, comments, a one-line fix |
+
+Three things make this a ladder rather than three ways out:
+
+- **Every scope ends at `/approve implementation`.** S is cheap because it needs one document
+  before that approval, not because it skips the human.
+- **An unset scope blocks.** It is not defaulted to S — an unlabelled task would otherwise take
+  the cheapest path automatically, which is the hole three tiers invite.
+- **`frozen-guard.sh` is armed at every scope**, unchanged. It is not part of the ladder.
+
+When you are between two scopes, take the larger. `/done` asks whether the scope was honest, and a
+scope that turned out wrong is a finding about the ladder worth recording.
 
 ## The gate, and why it is aimed where it is
 
@@ -31,10 +62,11 @@ reconcile. So the enforcement is aimed at frozen artifacts first.
 
 | Layer | When | What it does |
 | :--- | :--- | :--- |
-| `frozen-guard.sh` | **always, including the runway** | Blocks edits that *configure* a frozen value, edits to the three frozen docs, and writes to `results/*/raw/`. Releases when the active task's `approvals.md` cites an ADR |
-| `gate-check.sh` | **W8 onward** | Blocks source edits until `/approve implementation` writes `READY_TO_IMPLEMENT`. Lightweight in W5–W7 (ADR-020) |
+| `frozen-guard.sh` | **always, at every scope** | Blocks edits that *configure* a frozen value, edits to the three frozen docs, and writes to `results/*/raw/`. Releases when the active task's `approvals.md` cites an ADR |
+| `gate-check.sh` | **always, calibrated by scope** | Blocks source edits until the task's scope has produced its design documents **and** `/approve implementation` wrote `READY_TO_IMPLEMENT` |
 
-The week is computed from the calendar (W1 Monday = `2026-07-13`), so there is no state to drift.
+The phase is explicit state (`.claude/state/phase`), not computed from the calendar: a phase ends
+when its exit criterion passes, which is a binary test and not a date.
 
 ## Design notes worth knowing before you change a hook
 
@@ -54,19 +86,23 @@ The week is computed from the calendar (W1 Monday = `2026-07-13`), so there is n
 
 | Command | Purpose |
 | :--- | :--- |
-| `/week` | Orient for the current week — restate the target, verify last week closed, open the worklog |
-| `/task <slug>` | Open a task with a durable design trail under `.docs/work/<slug>/` |
+| `/phase [n]` | Orient in the current phase — its exit criterion, how far off it is, what is open. With `n`, switch, reporting first whether the phase being left actually closed |
+| `/feature <slug>` | Open a task for new behaviour — scope M, raised to L at a seam or in `reuse/` |
+| `/bugfix <slug>` | Open a task for something wrong — scope S, and it refuses a fix whose cause is unknown |
+| `/refactor <slug>` | Same behaviour, better structure — scope M; no test may change, golden values must reproduce |
+| `/investigate <slug>` | Answer a question and produce evidence. Writes no source, ever |
+| `/task <slug> <L\|M\|S>` | Open a task with a durable design trail, when none of the four fits |
 | `/approve <phase>` | Human approval of a design phase — only `/approve implementation` unlocks source edits |
 | `/verify` | Build + test + lint; reports SKIPPED for absent tooling, never a vacuous pass |
 | `/ai-review` | Review the working diff against written checklists via the review subagents |
 | `/rca` | Structured root-cause analysis, invoked only after `/verify` fails twice |
 | `/done` | Close the active task, re-lock the gate, record the outcome |
-| `/log [note]` | Append a dated entry to this week's worklog |
-| `/gate [week]` | Run that week's "Done when" exit test concretely — PASS or FAIL |
-| `/task-status` | Report current state compactly — week, active task, gate state, outstanding phases |
+| `/log [note]` | Append a dated entry to `docs/worklog/journal.md` |
+| `/gate [phase]` | Run that phase's exit criterion concretely — PASS or FAIL, never a self-assessment |
+| `/task-status` | Report current state compactly — phase, active task, scope, gate state, outstanding phases |
 | `/adr [title]` | Record an architecturally significant decision in `docs/decisions.md` |
 | `/consistency` | Sweep the frozen documents for drift, stale references, reinstated scope |
-| `/spike` | W5 feasibility spike — measure the memory envelope, freeze it, record μ_gen (blocks W5 ingestion until done) |
+| `/spike` | **Spent.** The envelope is frozen (ADR-017) and re-running it re-freezes nothing. Kept because the method is what the design chapter describes, and a hardware change would need it run again — under a new ADR |
 
 ## Subagents
 
@@ -76,6 +112,7 @@ The week is computed from the calendar (W1 Monday = `2026-07-13`), so there is n
 | `contract-reviewer` | sonnet | Read, Grep, Glob, Bash | Reviews diffs touching the Go↔Python seam, Redis schemas, wire fields, or chunk IDs against `interfaces.md` |
 | `experiment-reviewer` | sonnet | Read, Grep, Glob, Bash | Reviews diffs touching measurement/metrics/judging/thresholds against the frozen experiment protocol, incl. research-integrity check |
 | `rca-analyst` | opus | Read, Grep, Glob, Bash | Structured root-cause analysis after two failed `/verify` attempts; treats tests as immutable unless it can prove staleness |
+| `design-reviewer` | opus | Read, Grep, Glob, Bash | **Scope-L only, before any code.** Is the design sound, and what is the hidden risk — a different question from `impact-analyst`'s blast radius. Ranks silent failure paths first, because this project's characteristic bug raises no error |
 
 ## Escape hatches
 
@@ -88,7 +125,8 @@ The week is computed from the calendar (W1 Monday = `2026-07-13`), so there is n
   jq -nc --arg p "$PWD/rag/x.py" --arg c 'num_ctx = 8192' \
     '{tool_name:"Write",tool_input:{file_path:$p,content:$c}}' | .claude/hooks/frozen-guard.sh; echo $?
   ```
-  Exit 2 = blocked, 0 = allowed. Simulate a later week with `THESIS_RUNWAY_LAST_WEEK=0`.
+  Exit 2 = blocked, 0 = allowed. Test the scope ladder by writing `L`, `M` or `S` to the active
+  task's `SCOPE` file and re-running; `THESIS_PHASE_FILE` points `current_phase()` elsewhere.
 
 ## Where the rules live
 

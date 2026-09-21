@@ -1,34 +1,31 @@
 #!/usr/bin/env bash
 # UserPromptSubmit: stdout is injected into the session context.
-# Keeps every prompt oriented: which week, what is due, what is unlocked.
+# Keeps every prompt oriented: which phase, what closes it, what is unlocked.
+#
+# Weeks were removed 2026-09-21 (Pre-thesis_Sweeping.md #4). A week number told you the
+# date; it did not tell you what you were trying to finish. Phase + exit criterion does.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-week="$(current_week)"
+phase="$(current_phase)"
 task="$(active_task)"
+scope="$(task_scope)"
 
 printf '<thesis-context>\n'
-printf 'Week: W%s' "$week"
 
-if (( week >= 1 && week <= RUNWAY_LAST_WEEK )); then
-  printf '  |  phase: pre-thesis runway (submit Aug 31)  |  gate: LIGHTWEIGHT'
-  printf '  |  frozen-value tripwire: ARMED\n'
-elif (( week >= 8 && week <= 22 )); then
-  printf '  |  phase: thesis (complete Dec 13)  |  gate: FULL RIGOR\n'
+if [[ -n "$phase" ]]; then
+  printf 'Phase: %s' "$phase"
 else
-  printf '  |  phase: outside the planned schedule\n'
+  printf 'Phase: UNSET — run `/phase <n>` to set it'
 fi
+printf '  |  thesis, complete Dec 13  |  gate: BY SCOPE\n'
 
-row="$(week_row "$week")"
-if [[ -n "$row" ]]; then
-  # column 5 of the time_line row is "Done when" (the Dates column was dropped 2026-09-02)
-  done_when="$(printf '%s' "$row" | awk -F'|' '{print $5}' | sed 's/^ *//;s/ *$//')"
-  [[ -n "$done_when" ]] && printf 'Done when: %s\n' "$done_when"
-fi
+crit="$(phase_exit_criterion 2>/dev/null)"
+[[ -n "$crit" ]] && printf 'Exit criterion: %s\n' "$crit"
 
 if [[ -n "$task" ]]; then
-  printf 'Active task: %s' "$task"
-  implementation_unlocked && printf '  (implementation UNLOCKED)\n' || printf '  (implementation LOCKED)\n'
+  printf 'Active task: %s  (scope %s)' "$task" "${scope:-UNSET}"
+  implementation_unlocked && printf '  — implementation UNLOCKED\n' || printf '  — implementation LOCKED\n'
 else
   printf 'Active task: none\n'
 fi

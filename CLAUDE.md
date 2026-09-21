@@ -48,15 +48,28 @@ A **scalable RAG question-answering platform** for e-commerce product specs and 
 
 This repo has an enforced workflow. **Read `.claude/README.md` once before working here.**
 
-- **Weekly:** `/week` (what is due) → work → `/log` (hours, blockers) → `/gate` (run the exit test for
-  real). `/task-status` answers "where am I".
-- **Changes:** `/task <slug>` opens a design trail under `.docs/work/`; `/approve <phase>` is a **human**
-  decision; `/verify` → `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then
-  `/rca` takes over. **Tests are immutable** unless an RCA proves staleness and the human confirms.
+> **Weeks were removed 2026-09-21** (`Pre-thesis_Sweeping.md` #4). The schedule is **phases with
+> binary exit criteria**, and rigor is set by the **scope** of a change, not by the calendar. Any
+> instruction elsewhere that says "from W8" or "this week" is stale — report it rather than acting
+> on it. `/week` is gone; `/phase` replaces it.
+
+- **Orienting:** `/phase` (what phase, what closes it, how far off) → work → `/log` (hours,
+  blockers, into `docs/worklog/journal.md`) → `/gate` (run the exit criterion for real).
+  `/task-status` answers "where am I".
+- **Changes:** open with `/feature` · `/bugfix` · `/refactor` · `/investigate`, or `/task <slug>
+  <L|M|S>` when none fits. Each writes a durable trail under `.docs/work/<slug>/` and a `SCOPE`.
+  `/approve <phase>` is a **human** decision and is required at **every** scope. Then `/verify` →
+  `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then `/rca` takes over.
+  **Tests are immutable** unless an RCA proves staleness and the human confirms.
+- **The scope ladder** — `L` (frozen doc, `interfaces.md`, the `.proto`, `reuse/`, anything
+  measured) needs spec → impact → design → **opus design-review** → plan; `M` (ordinary code)
+  needs spec → impact → plan; `S` (tests, docs, one-liners) needs a one-paragraph spec. **Between
+  two, take the larger.** An unset scope blocks rather than defaulting to `S`.
 - **Commands:** use the **Makefile** (`make help`) — do not invent ad-hoc invocations.
-- **Hooks enforce two things.** `frozen-guard.sh` is armed *always*: it blocks edits that configure a
-  frozen value, edits to the three frozen docs, and writes to `results/*/raw/`. `gate-check.sh` blocks
-  source edits without approval from **W8** onward (lightweight in the W5–W7 runway, ADR-020).
+- **Hooks enforce two things.** `frozen-guard.sh` is armed *always, at every scope*: it blocks
+  edits that configure a frozen value, edits to the three frozen docs, and writes to
+  `results/*/raw/`. `gate-check.sh` blocks source edits until the task's scope has produced its
+  design documents **and** a human ran `/approve implementation`.
 - **The intended path through a frozen change is `/adr`**, then cite the ADR in the task's
   `approvals.md`. Never edit `.docs/ai/frozen-values.txt` to dodge a block.
 
@@ -67,9 +80,9 @@ This repo has an enforced workflow. **Read `.claude/README.md` once before worki
   depend on.
 - **`.docs/ai/rules.md`** — the ten trip-wires this repo actually falls over, each citing its governing
   section. `.docs/` is the AI trail and is separate from human-authored `docs/`.
-- **`docs/worklog/`** — one file per week, append-only. The raw material for the write-up phase.
+- **`docs/worklog/`** — **`journal.md`**, append-only and dated, written by `/log`. `W05/W06/W08.md` are the pre-thesis record and stay unedited — they hold the μ_hit numbers, the G1 = 0 / G2 = 0 shakedown, and the measurements behind ADR-017/021/030…033. The raw material for the write-up phase.
 - **`docs/learning/Final_Proposal.md`** — the source of truth. Defines the three contributions, system architecture, tech stack, research questions, evaluation design, and scope guardrails. Any code written must match the architecture and terminology defined here (§6 Architecture, §7 Technical Stack).
-- **`docs/time_line.md`** — the **phase plan**, replanned 2026-09-02 by phase and **exit criterion** rather than by date. Pre-thesis is closed. Eight phases run to completion in December 2026 at ~15 h/week. Week numbers are retained only as the handle `/week` and the session banner read (`.claude/hooks/lib.sh` greps `| **<week>**`, and "Done when" is **column 5**). Drop order and deliverables are **not** restated there — `Final_Proposal.md` §12 and §13 own them.
+- **`docs/time_line.md`** — the **phase plan**, replanned 2026-09-02 by phase and **exit criterion** rather than by date. Pre-thesis is closed. Eight phases run to completion in December 2026 at ~15 h/week. ⚠️ **Its week numbers are now vestigial** — the harness stopped reading them on 2026-09-21 (`Pre-thesis_Sweeping.md` #4); `.claude/hooks/lib.sh` reads the **phase** table instead, and `docs/super-plan.md` takes the phase plan over once #3 is filled. Until then this file remains authoritative for the phase plan. Drop order and deliverables are **not** restated there — `Final_Proposal.md` §12 and §13 own them.
 - **`docs/requirements.md`** — **skeleton, shape approved 2026-09-21, deliberately unfilled.** Requirements split **three** ways, not two: **FR** (what the system does) · **NFR** (how well) · **RR — Research Requirements** (what makes a measurement admissible). RR exists because most of this project's binding constraints — frozen values, green memory pressure, δ ≤ 5 %, swept-not-hand-set, pre-registered nulls, tune-on-validation/report-on-test — are neither behaviours nor runtime qualities, and filing them under NFR hides the failure mode: violating an NFR makes the system worse *visibly*, violating an RR voids the result *silently*. Do not add rows before sign-off.
 - **`docs/super-plan.md`** — **skeleton, shape approved 2026-09-21, deliberately unfilled.** Will become the single source for **execution**, each item citing the `FR-xx`/`NFR-xx`/`RR-xx` it discharges and its ADR. `Final_Proposal.md` §12 (drop order) and §13 (deliverables) stay where they are and are **never** restated here. `time_line.md` retires into it — **but not until `Pre-thesis_Sweeping.md` #4 lands**, because `.claude/hooks/lib.sh` still reads `time_line.md` for `/week`, `/gate` and the session banner. Until then `time_line.md` remains authoritative for the phase plan.
 - **`docs/defense_demo.md`** — the defense demo script (five live steps + a recorded load clip that is the only demonstration of scalability) and the input/output contract the debug UI must expose. Any UI/API work should conform to this contract, including the **required** counters sidebar.

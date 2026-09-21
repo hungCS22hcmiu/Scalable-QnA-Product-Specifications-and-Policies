@@ -9,11 +9,13 @@ DOCS_AI="$REPO_ROOT/.docs/ai"
 WORK_DIR="$REPO_ROOT/.docs/work"
 STATE_DIR="$REPO_ROOT/.claude/state"
 
-# W1 Monday. Weeks are computed from the calendar so there is no state to drift.
-# Overridable so the boundary can move if the schedule does (it already has once — ADR-020)
-# and so the W8+ path is testable without waiting for the calendar.
-WEEK1_START="${THESIS_WEEK1_START:-2026-07-13}"
-RUNWAY_LAST_WEEK="${THESIS_RUNWAY_LAST_WEEK:-7}"   # lightweight ≤7; full rigor from W8 (ADR-020)
+# Weeks were removed 2026-09-21 (Pre-thesis_Sweeping.md #4). The schedule is now phases
+# with binary exit criteria, and rigor is set by the SCOPE of a change rather than by the
+# calendar: a one-line fix in week 20 does not need the ceremony a seam change needs, and a
+# seam change in week 2 always did. `current_week()`, `in_runway()`, `week_row()`,
+# WEEK1_START and RUNWAY_LAST_WEEK are gone; `current_phase()`, `phase_row()` and
+# `task_scope()` replace them.
+PHASE_FILE="${THESIS_PHASE_FILE:-}"
 
 # --- stdin -------------------------------------------------------------------
 # Read the payload ONCE, at source time, into a plain variable.
@@ -50,21 +52,39 @@ tool_content() {
   printf '%s' "$HOOK_JSON" | jq -r '[.tool_input.edits[]?.new_string] | join("\n")' 2>/dev/null || true
 }
 
-# --- week --------------------------------------------------------------------
-current_week() {
-  local now w1 days
-  now=$(date +%s)
-  w1=$(date -j -f "%Y-%m-%d" "$WEEK1_START" +%s 2>/dev/null) || { echo 0; return; }
-  days=$(( (now - w1) / 86400 ))
-  (( days < 0 )) && { echo 0; return; }
-  echo $(( days / 7 + 1 ))
+# --- phase -------------------------------------------------------------------
+# Explicit state, not derived from the calendar: a phase ends when its exit criterion
+# passes, which is a binary test and not a date (time_line.md "Ground Rules" 5).
+# Unset is a legitimate state and is reported as such rather than guessed at.
+current_phase() {
+  local f="${PHASE_FILE:-$STATE_DIR/phase}"
+  [[ -f "$f" ]] || { printf ''; return; }
+  tr -cd '0-9' < "$f"
 }
 
-in_runway() { local w; w=$(current_week); (( w >= 1 && w <= RUNWAY_LAST_WEEK )); }
+# The phase's row from the phase plan. time_line.md owns it TODAY; super-plan.md takes
+# it over once #3 is filled (super-plan.md "What this document owns"). Reads whichever
+# is authoritative, preferring the super plan once it carries real rows, so the handover
+# needs no edit here.
+phase_row() {
+  local n="${1:-$(current_phase)}"
+  [[ -z "$n" ]] && return 1
+  local sp="$REPO_ROOT/docs/super-plan.md" tl="$REPO_ROOT/docs/time_line.md"
+  if [[ -f "$sp" ]] && grep -qE "^### Phase $n — " "$sp" 2>/dev/null \
+     && ! grep -A2 -E "^### Phase $n — " "$sp" 2>/dev/null | grep -q 'TODO(after sign-off)'; then
+    grep -E "^### Phase $n — " "$sp" | head -1
+    return 0
+  fi
+  grep -E "^\| \*\*$n — " "$tl" 2>/dev/null | head -1
+}
 
-week_row() { # the time_line.md row for a week, trimmed
-  local w="${1:-$(current_week)}"
-  grep -E "^\| \*\*$w\*\*" "$REPO_ROOT/docs/time_line.md" 2>/dev/null | head -1
+phase_exit_criterion() { # the binary test that closes the current phase
+  local row; row="$(phase_row "${1:-}")" || return 1
+  [[ -z "$row" ]] && return 1
+  case "$row" in
+    '### '*) printf '%s' "${row#\#\#\# }" ;;
+    *)       printf '%s' "$row" | awk -F'|' '{print $4}' | sed 's/^ *//;s/ *$//' ;;
+  esac
 }
 
 # --- active task -------------------------------------------------------------
@@ -75,6 +95,36 @@ task_dir() { local t; t="$(active_task)"; [[ -n "$t" ]] && printf '%s/%s' "$WORK
 implementation_unlocked() {
   local d; d="$(task_dir)"
   [[ -n "$d" && -f "$d/READY_TO_IMPLEMENT" ]]
+}
+
+# --- scope -------------------------------------------------------------------
+# L / M / S, written by /task into the trail. Rigor is a property of the CHANGE, not of
+# the date. Unset is NOT defaulted to S: an unlabelled task would otherwise take the
+# cheapest path, which is the failure mode three tiers invite (see gate-check.sh).
+task_scope() {
+  local d; d="$(task_dir)"
+  [[ -n "$d" && -f "$d/SCOPE" ]] || { printf ''; return; }
+  tr -cd 'LMS' < "$d/SCOPE" | head -c 1
+}
+
+# Design documents each scope must have before /approve implementation can run.
+# frozen-guard.sh is armed at EVERY scope and is not listed here — it is not a phase.
+scope_requires() { # scope -> space-separated list of required trail files
+  case "${1:-}" in
+    L) printf 'spec.md impact.md design.md review.md plan.md' ;;
+    M) printf 'spec.md impact.md plan.md' ;;
+    S) printf 'spec.md' ;;
+    *) return 1 ;;
+  esac
+}
+
+scope_label() {
+  case "${1:-}" in
+    L) printf 'LARGE — spec → impact → design → opus design-review → plan' ;;
+    M) printf 'MEDIUM — spec → impact → plan' ;;
+    S) printf 'SMALL — spec only (one paragraph)' ;;
+    *) printf 'UNSET' ;;
+  esac
 }
 
 # An ADR is cited for a frozen change when approvals.md references ADR-NNN.

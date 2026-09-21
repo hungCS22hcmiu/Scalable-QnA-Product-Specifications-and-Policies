@@ -43,15 +43,33 @@ to record as "still owed". Tracked here so it is not rediscovered:
       download-and-build script plus a hash manifest. **Write it against the bytes, not the
       readme** — the dataset's own documentation lists field names the data does not use.
 
+## Scope — L, declared retroactively, and the trail is incomplete on purpose
+
+`SCOPE` reads **L**: this task edits `decisions.md`, `interfaces.md`, `experiment-protocol.md`,
+`data-card.md` and the `.proto`, which is the top of the ladder by definition.
+
+**`design.md` and `review.md` were not produced, and that is recorded rather than papered over.**
+The ladder did not exist when this task opened — this task is what built it (#4). The work it
+covers is documentation and harness, and `gate-check.sh` exempts both (`is_source()` covers
+`gateway/`, `rag/`, `contracts/`, `experiments/scripts/` and `experiments/k6/` only), so the gate
+never fired on any edit made here. Two files outside that were touched before the ladder existed:
+`experiments/scripts/fetch_corpus_v1.py` (a ruff fix) and the `Makefile` (not source by
+`is_source()`).
+
+**Any further source work under this slug must either produce the two missing documents or open a
+new task at the right scope.** Written down because "the rules did not exist yet" is exactly the
+excuse that, left unrecorded, becomes a habit — the same failure `two-lane-cache`'s trail records
+twice.
+
 ## Sweep progress
 
 | # | State |
 | :---: | :--- |
 | **0** ADRs | ✅ done — ADR-035…038, carried into the contracts |
 | **5** dataset | ✅ done — probe run, ADR-039, `data-card.md` rewritten |
-| **3** super plan | 🟡 shape signed off; `requirements.md` and `super-plan.md` exist, empty by design |
-| **4** harness | ⬜ next — two open decisions in `Pre-thesis_Sweeping.md` §4.6 |
-| **2** refactor | 🟡 deletes, drift and tracking done; the rest waits on #3/#4 |
+| **3** super plan | 🟡 shape signed off; `requirements.md` and `super-plan.md` exist, empty by design. `phase_row()` already prefers the super plan once it carries rows |
+| **4** harness | ✅ done — weeks removed, gate by scope, four openers + `design-reviewer`, `journal.md` (§4.7) |
+| **2** refactor | 🟡 deletes + permission prune + drift + tracking done; §2.2 archive and §2.4 reclassify remain |
 | **1** prose | 🟡 C1 alignment done 2026-09-15; §4.2 unblocked by ADR-039, §5.1 waits on #3 |
 
 ## Open, and not this task's to decide

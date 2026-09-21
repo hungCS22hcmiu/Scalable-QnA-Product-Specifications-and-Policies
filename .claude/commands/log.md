@@ -1,34 +1,38 @@
 ---
-description: Append a dated entry to this week's worklog
-argument-hint: [optional note to include]
+description: Append a dated entry to docs/worklog/journal.md
+argument-hint: [what happened]
 ---
 
-Append an entry to `docs/worklog/W<NN>.md` for the current week. Create the file from the template in
-`docs/worklog/README.md` if it does not exist.
+Append to **`docs/worklog/journal.md`** — one append-only journal, not one file per week
+(changed 2026-09-21, `Pre-thesis_Sweeping.md` #4). Dropping weeks would otherwise drop the
+chronology and the hours, and `docs/worklog/README.md` says both are the raw material for the
+design and evaluation chapters. `W05.md`, `W06.md` and `W08.md` stay where they are, unedited.
+
+**Append, never rewrite.** Earlier entries are a record of what was believed at the time. If an
+entry turns out to have been wrong, write a new entry saying so and what replaced it — do not
+edit the old one. That correction trail is itself evidence for the write-up.
 
 Entry format:
 
 ```markdown
-### <YYYY-MM-DD>  ·  <hours>h
+## YYYY-MM-DD · Phase <n> · <hours>h
 
-**Did:** <what actually happened — concrete, not "worked on the gateway">
+**Did.** What actually changed, in the repo, in one or two sentences. Name files or ADRs.
 
-**Decisions:** <any; link the ADR if one was written, or "none">
+**Found.** Anything measured, or any belief that turned out to be wrong. Numbers with their
+conditions attached — corpus, configuration, pressure — or they are not reusable later.
 
-**Blockers:** <what stopped progress, or "none">
+**Blocked.** What stopped, and on what or whom. Say "nothing" rather than omitting it.
 
-**Exit test:** <not attempted | FAIL: reason | PASS>
-
-**Next:** <the single next action>
+**Next.** The single next thing.
 ```
 
 Rules:
 
-- **Ask for the hours** if not supplied. The hour count matters — the whole schedule is built on
-  ~15 h/week and the write-up will want the real distribution.
-- **"Did" must be concrete.** "Built ingest.py; retrieval returns chunk IDs for 8/10 test queries" is
-  useful. "Worked on RAG" is not.
-- **Be honest about failure.** A week that produced nothing should say so. The risk register in
-  `docs/time_line.md` assumes slippage is visible; a log that only records wins is worse than no log.
-- If a decision was made that changes a frozen value or a contract, say so and prompt for `/adr`.
-- Do not rewrite previous entries. The log is append-only — it is an audit trail, not a summary.
+1. **Hours are recorded honestly**, including short days. The budget claim in `time_line.md`
+   is checkable only if the numbers are real.
+2. **A number without its conditions is not a result.** Corpus, configuration, memory pressure,
+   and whether the run is citable at all (`dev-v0` never is — ADR-020).
+3. **If `$ARGUMENTS` is empty**, reconstruct the entry from the session: what was edited, what
+   was verified, what failed. Ask for the hours; do not invent them.
+4. **Do not restate what `docs/` already says.** Cite the ADR or the section.

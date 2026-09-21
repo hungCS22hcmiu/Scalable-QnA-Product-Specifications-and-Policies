@@ -1,29 +1,40 @@
 ---
-description: Run this week's "Done when" exit test concretely and report PASS or FAIL
-argument-hint: [week number, defaults to current]
+description: Run the current phase's exit criterion concretely and report PASS or FAIL
+argument-hint: [phase number, defaults to current]
 ---
 
-Prove the weekly exit test — **do not self-report it.** Run the actual checks.
+Prove the phase's exit criterion — **do not self-report it.** Run the actual checks.
 
-1. Read the **Done when** cell for the week from `docs/time_line.md`. Quote it verbatim.
+The criterion is a **binary test**, not a judgement (`time_line.md` Ground Rules 5). A phase is
+not finished because its time is spent, and it is not finished because the work feels done.
 
-2. **Decompose it into independently checkable criteria** and run each. Examples:
+1. **Read the exit criterion** for the phase from the phase plan — `docs/super-plan.md` once #3
+   is filled, `docs/time_line.md` until then. **Quote it verbatim.** If the phase is unset, stop
+   and say so; `/phase <n>` sets it.
 
-   | Week | Criterion | How to check it for real |
-   | :--- | :--- | :--- |
-   | W5 | envelope frozen at green | `experiment-protocol.md` §1.1 budget table has no `TODO(spike)`; ADR-017 status is Decided |
-   | W5 | retrieval returns chunk IDs | run the retrieval path on 10 test queries; assert every result carries `{doc_id}#chunk-{n}` |
-   | W6 | answer over gRPC with sources | call `Answer`; assert `source_chunk_ids` is non-empty |
-   | W6 | Tier-1 hit under 10 ms | same question twice; assert second is `TIER1_HIT` and `latency_ms < 10` |
-   | W7 | paraphrase hits, unrelated misses | run both; assert `TIER2_HIT` and `MISS` respectively |
-   | W8 | sensitivity gate passes | count pairs with `sim ≥ 0.85 ∧ overlap ≤ 0.2`; assert ≥ ~50 |
+2. **Decompose it into independently checkable criteria and run each one.** The criteria are
+   deliberately written as things that can be executed:
 
-3. **Report a table**: criterion → PASS / FAIL / **NOT RUNNABLE YET** (and why).
+   | Criterion shape | How to check it for real |
+   | :--- | :--- |
+   | "`v1` frozen + hashed after all gate criteria pass" | `make gate-corpus` exits 0 and prints a digest; `data-card.md` §7 has no `TODO(W8)` in the frozen-statistics list |
+   | "`K` recorded and capacity derived" | `data-card.md` carries `K`; `cache_capacity` = `round(0.25 × K)` (ADR-027) |
+   | "μ_hit probe recorded" | a run directory exists holding the probe's output, off-box (ADR-012) |
+   | "editing a policy purges its dependents from both tiers" | run the edit; assert the `t1:` and `t2:` keys are both gone |
+   | "an in-flight generation during an edit is discarded" | force the race; assert `writeback_discarded: true` in the §H log |
+   | "completeness and precision reproducible from one script" | run that one script from a clean checkout |
 
-   A criterion you cannot execute is **not** a pass. Say `NOT RUNNABLE YET` and name what is missing.
-   Vacuous passes are the failure mode this command exists to prevent.
+3. **Report a table**: criterion → PASS / FAIL / **NOT RUNNABLE YET** (and what is missing).
 
-4. **Record the result** in `docs/worklog/W<NN>.md` under `**Exit test:**`.
+   A criterion you cannot execute is **not** a pass. Vacuous passes are the failure mode this
+   command exists to prevent — the same failure `make lint` had until 2026-09-21, where a tool
+   that ran and failed reported "SKIPPED — not installed" and exited 0.
 
-5. If FAIL: state the single smallest thing that would move it to PASS. Per Ground Rule 5 in
-   `docs/time_line.md`, next week starts by closing this gate — not by starting new work.
+4. **Before running anything that loads a model**, check memory pressure — `CLAUDE.md`'s
+   "Commands that work today". A run taken under yellow or red is invalid and must be discarded
+   and repeated (ADR-012).
+
+5. **Record the result** in `docs/worklog/journal.md` as a dated entry with `**Exit test:**`.
+
+6. If FAIL: state the single smallest thing that would move it to PASS. The next phase does not
+   open until this one closes.

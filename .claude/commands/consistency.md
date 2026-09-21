@@ -20,8 +20,12 @@ rg -n 'HNSW' docs/ --glob '!docs/archive/**'
 # 3. Config ladder is 1..5 everywhere, never 1..8
 rg -n 'config_id|eight config|1\.\.8' docs/
 
-# 4. Schedule: no stale weeks or dates after ADR-020
-rg -n 'Sep 13|W5–W9|W10–W22|W9 report|13 weeks' docs/ README.md CLAUDE.md --glob '!docs/archive/**'
+# 4. Schedule: weeks were removed 2026-09-21 — find the ones still being used as a HANDLE
+#    (prose that records WHEN something happened is history and must stay: "W5 spike", "W08.md")
+rg -n 'this week|next week|by W[0-9]+|decide-by W[0-9]+|W[0-9]+ onward' docs/ README.md CLAUDE.md .claude/ .docs/ --glob '!docs/archive/**' --glob '!docs/worklog/W0*.md'
+
+# 4b. The phase plan has ONE owner. Until #3 is filled that is time_line.md; after, super-plan.md
+rg -n 'Exit criterion|Done when' docs/time_line.md docs/super-plan.md
 
 # 5. Every "proposal §N" reference resolves to a heading in Final_Proposal.md
 rg -ho 'proposal §[0-9]+(\.[0-9])?' docs/*.md | sort -u
@@ -39,7 +43,11 @@ git status --short
   same order?
 - Do the frozen-value lists in `interfaces.md`, `experiment-protocol.md` §1, and
   `.docs/ai/frozen-values.txt` cover the same set?
-- Does every **Open** ADR still have a decide-by week that has not already passed?
+- Does every **Open** ADR still have a decide-by that resolves? Decide-by used to be a week
+  number; weeks are gone, so a row still reading "W14" is **stale by construction** — report it,
+  and propose the phase it belongs to rather than reinterpreting it silently.
+- Does `docs/requirements.md` have any requirement no super-plan item cites, or any super-plan
+  item citing no requirement? Both are defects in the plan (`requirements.md` "Traceability").
 
 Report drift with exact replacement wording. Do not fix silently — show the diff you propose, since
 these documents are frozen and changes to three of them require an ADR.
