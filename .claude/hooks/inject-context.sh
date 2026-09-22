@@ -2,8 +2,8 @@
 # UserPromptSubmit: stdout is injected into the session context.
 # Keeps every prompt oriented: which phase, what closes it, what is unlocked.
 #
-# Weeks were removed 2026-09-21 (Pre-thesis_Sweeping.md #4). A week number told you the
-# date; it did not tell you what you were trying to finish. Phase + exit criterion does.
+# Weeks were removed 2026-09-21. A week number told you the date; it did not tell you what
+# you were trying to finish. Phase + exit criterion does.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -18,7 +18,7 @@ if [[ -n "$phase" ]]; then
 else
   printf 'Phase: UNSET — run `/phase <n>` to set it'
 fi
-printf '  |  thesis, complete Dec 13  |  gate: BY SCOPE\n'
+printf '  |  thesis, complete Dec 13\n'
 
 crit="$(phase_exit_criterion 2>/dev/null)"
 [[ -n "$crit" ]] && printf 'Exit criterion: %s\n' "$crit"
@@ -30,6 +30,6 @@ else
   printf 'Active task: none\n'
 fi
 
-printf 'Authority: docs/ is frozen source-of-truth · .docs/ai/rules.md is the trip-wire list\n'
+printf 'Authority: docs/super-plan.md is the plan · docs/contracts/ is the seam\n'
 printf '</thesis-context>\n'
 exit 0

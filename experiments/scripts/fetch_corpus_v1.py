@@ -2,14 +2,14 @@
 staged for `v1` corpus review -- this is NOT the frozen `data/v1/` corpus.
 
 ⚠️ Output goes to `data/v1-draft/`, deliberately separate from `data/v1/` (`data-card.md`
-§1 `TODO(W8)`). The author's own plan (`.docs/work/archive/mvp-advisor-demo/Recommended_system.md`
+§1 `TODO(W8)`). The author's own plan (`the advisor review`
 §4/§7) is to decide condition-tagging with the advisor before committing to the real `v1`
 corpus -- this script produces a subset to LOOK AT before that decision, not the frozen
 snapshot. Nothing here is hashed or versioned; `make gate-corpus` is not run against it.
 
 ⚠️ Source-data license is UNRESOLVED (`data-card.md` line 34: "redistribution TBD"). This
 script does not commit anything to git by itself -- that is a separate, human decision once
-the license question (see Recommended_system.md's checklist) is answered. Do not `git add`
+the license question (see the licence checklist) is answered. Do not `git add`
 `data/v1-draft/` until then.
 
 Streams each category's metadata file (gzip'd JSONL, hosted at mcauleylab.ucsd.edu) and stops
@@ -113,7 +113,7 @@ def qualifies(record: dict) -> bool:
 def to_project_schema(record: dict, category_label: str, doc_id: str) -> dict:
     # Matches rag/src/rag/ingest.py:product_to_text() -- reads record['title'],
     # record['category'], record['specs'] (dict, rendered as "- key: value" bullets).
-    # doc_id carries the "product-" prefix ADR-032/data-card.md §7 G4 require.
+    # doc_id carries the "product-" prefix the doc-id kind prefix/data-card.md §7 G4 require.
     #
     # `specs` folds in FOUR raw-metadata fields, not just `details`, because `details` alone
     # is frequently logistics metadata (dimensions, ship date, manufacturer) rather than the

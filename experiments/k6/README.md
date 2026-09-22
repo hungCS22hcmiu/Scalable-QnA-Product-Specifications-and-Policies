@@ -3,11 +3,11 @@
 | Script | Measures |
 | :--- | :--- |
 | `ask.js` | the mixed workload at a **constant arrival rate** — hit rate, goodput, shed rate |
-| `mu_hit.js` | **μ_hit**, the 100 %-hit service rate — Phase 1's exit criterion (ADR-027) |
+| `mu_hit.js` | **μ_hit**, the 100 %-hit service rate — Phase 1's exit criterion |
 
 ## ⚠️ Run it off-box
 
-ADR-012 and proposal §7: the load generator must not share a host with the system under test. On a
+the off-box measurement rule and proposal §7: the load generator must not share a host with the system under test. On a
 16 GB machine whose whole claim is that generation is memory-bound, a co-hosted k6 competes for the
 envelope it is measuring. A co-hosted run is **invalid**, not merely noisy.
 
@@ -49,7 +49,7 @@ only the SUT's LAN address.
 
 `Final_Proposal.md` §3 and the submitted pre-thesis report both say the load-conversion crossover
 `h* = μ_hit/(μ_gen + μ_hit)` is **computed rather than observed**, on the basis that μ_hit sits far
-above ~16 req/s. ADR-027 makes that falsifiable: **if this probe returns ≤ ~16 req/s the crossover
+above ~16 req/s. the capacity ratio makes that falsifiable: **if this probe returns ≤ ~16 req/s the crossover
 IS reachable, S1's empirical wording is restored, and the proposal, the protocol and the report all
 need revising.** The script evaluates the trigger itself and prints the verdict, so it cannot be
 read past.
@@ -90,16 +90,16 @@ Four things it refuses to do:
 
 `make mu-hit` runs a **co-hosted shakedown** of the same script. It proves the harness works; its
 numbers are not citable, and on this machine it drives memory pressure out of green by itself —
-which is ADR-012 demonstrating its own reason for existing.
+which is the off-box measurement rule demonstrating its own reason for existing.
 
 ## Before a run counts
 
 1. `make measure` — gates the frozen envelope, the eviction state, and green memory pressure.
 2. `RUN_ID` set on the gateway, so `interfaces.md` §H's log is written. Without it four metrics in
    §4 are not computable.
-3. `CACHE_CAPACITY` set to `round(0.25 × K)` (ADR-027). Unbounded is the default and every hit rate
+3. `CACHE_CAPACITY` set to `round(0.25 × K)`. Unbounded is the default and every hit rate
    it produces is an upper bound no deployment reaches.
 4. `manifest.yaml` written next to the raw output. **A run is invalid without a complete manifest**
-   (experiment-protocol.md §2); the script prints the fields it can supply.
+   (the evaluation); the script prints the fields it can supply.
 5. Record `memory_pressure.min_zone` on the SUT. A run that left green is discarded and repeated at
    lower load whatever the throughput says.

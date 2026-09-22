@@ -1,6 +1,6 @@
-// Package telemetry writes the per-request evaluation log of interfaces.md H (ADR-029).
+// Package telemetry writes the per-request evaluation log of interfaces.md H.
 //
-// Four metrics in experiment-protocol.md 4 are NOT COMPUTABLE without this record: decisions
+// Four metrics in the evaluation are NOT COMPUTABLE without this record: decisions
 // changed by provenance, % entering the cascade band, false hits by cause, and the hit-path
 // latency decomposition. Two of its fields cannot be reconstructed after the fact at all --
 // similarity_only_decision (it would need replaying against cache state that no longer exists)
@@ -66,9 +66,9 @@ type Record struct {
 	// provenance rule that never ran.
 	ReuseRule string `json:"reuse_rule,omitempty"`
 	// ProductID records the request's product scope now that it is part of the Tier-1 key
-	// (⚠️ BYPASS 2026-09-09, reverses ADR-028's rejection -- cache.Key). Required, not optional,
+	// (⚠️ BYPASS 2026-09-09, reverses the rejection -- cache.Key). Required, not optional,
 	// because handler.go's offline stratum join on query_normalized was exact only under
-	// ADR-028's one-stratum-per-normalised-form guarantee, which a product-scoped Tier-1 key
+	// the one-stratum-per-normalised-form guarantee, which a product-scoped Tier-1 key
 	// relaxes; t1_key alone cannot recover which product a record belongs to.
 	ProductID string `json:"product_id,omitempty"`
 }
@@ -92,7 +92,7 @@ const bufferSize = 4096
 
 // Open creates results/{runID}/raw/requests.jsonl and starts the writer.
 //
-// ⚠️ O_EXCL, never append. experiment-protocol.md 3 and rules.md #3 make raw/ WRITE-ONCE: if a run
+// ⚠️ O_EXCL, never append. raw/ is WRITE-ONCE: if a run
 // id is reused, the correct action is a new run id, never adding rows to a finished run's file.
 // Refusing to start is the loud version of that rule.
 //
@@ -143,7 +143,7 @@ func (l *Logger) Log(r Record) {
 }
 
 // Dropped reports records lost to a full buffer. A run with a nonzero count is missing rows from
-// experiment-protocol.md 4's denominators and should be repeated, so this belongs in the manifest.
+// the evaluation's denominators and should be repeated, so this belongs in the manifest.
 func (l *Logger) Dropped() int64 {
 	if l == nil {
 		return 0

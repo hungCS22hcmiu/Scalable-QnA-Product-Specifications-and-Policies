@@ -1,21 +1,21 @@
-"""Frozen constants for the RAG service. One place for ADR-003/ADR-014's values.
+"""Frozen constants for the RAG service. One place for the values.
 
 Changing any of these mid-study invalidates cross-configuration comparisons
-(decisions.md ADR-003, ADR-014) and requires a new ADR + a new dataset_version.
+(the decision record) and requires a new ADR + a new dataset_version.
 """
 
 import os
 
-# --- ADR-003: embedding model ---
+# --- embedding model ---
 EMBEDDING_MODEL = "nomic-embed-text"
 EMBEDDING_DIM = 768
 
-# --- ADR-014: chunking + retrieval ---
+# --- chunking + retrieval ---
 CHUNK_SIZE = 256
 CHUNK_OVERLAP = 40
 TOP_K = 5
 
-# --- ADR-020/ADR-008: dataset version, bump for v1, never re-chunk in place ---
+# --- dataset version, bump for v1, never re-chunk in place ---
 DATASET_VERSION = "dev-v0"
 
 # --- Connections ---
@@ -33,14 +33,14 @@ CORPUS_KEY_PREFIX = "corpus:"
 # retrieve() returns this constant until then.
 DATASET_EPOCH_STUB = 0
 
-# --- ADR-021: generation LLM ---
+# --- generation LLM ---
 LLM_MODEL = "qwen3.5:2b-q4_K_M"    # Ollama tag actually invoked
 LLM_MODEL_ID = "qwen3.5-2b"        # wire `model_used` id (interfaces.md §A's frozen example
                                     # string) -- do not conflate with the Ollama tag above
 LLM_THINK = False                  # mandatory on every call -- hidden CoT mode inflates
-                                    # latency ~5x with no observed quality benefit (ADR-021)
+                                    # latency ~5x with no observed quality benefit
 
-# --- ADR-017: envelope ---
+# --- envelope ---
 LLM_NUM_CTX = 8192
 
 # --- gRPC server (this service) ---

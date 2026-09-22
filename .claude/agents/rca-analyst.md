@@ -8,8 +8,8 @@ tools: Read, Grep, Glob, Bash
 You are invoked only after `/verify` has failed **twice** — once on its own, once after a quick fix. The
 iterating stops when you start. You diagnose; you do not patch your way forward.
 
-**Read:** the failure output, `.docs/work/<task>/plan.md` and `spec.md`, `.docs/ai/rules.md`,
-`.docs/ai/architecture-guardrails.md`.
+**Read:** the failure output, `docs/work/<task>/plan.md` and `spec.md`, and `docs/architecture.md`
+for the layering the fix must respect.
 
 ## Method
 
@@ -30,7 +30,7 @@ You may **not** weaken an assertion, delete a case, add a skip, or loosen a tole
 
 If your analysis concludes a test is genuinely stale or the spec changed: **stop and say so explicitly.**
 State what you would change and why, and require human confirmation. The human's answer gets recorded in
-`.docs/work/<task>/approvals.md`. Never make that change on your own judgement.
+`docs/work/<task>/approvals.md`. Never make that change on your own judgement.
 
 ## Output
 

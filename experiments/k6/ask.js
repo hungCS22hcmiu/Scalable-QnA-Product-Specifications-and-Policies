@@ -1,6 +1,6 @@
 // k6 load scenario for POST /ask.
 //
-// ⚠️ RUN THIS OFF-BOX. ADR-012 and proposal §7: the load generator must not be co-hosted with the
+// ⚠️ RUN THIS OFF-BOX. the off-box measurement rule and proposal §7: the load generator must not be co-hosted with the
 // system under test. On a 16 GB machine whose thesis is that generation is memory-bound, a k6
 // process on the same host competes for the envelope it is measuring, and a run taken that way is
 // invalid rather than merely noisy.
@@ -10,12 +10,12 @@
 // What this script is careful about, in order of how badly getting it wrong would hurt:
 //
 //   1. A 503 is NOT a failure. interfaces.md §A's shed is a graceful-degradation event and
-//      experiment-protocol.md §4 counts it separately from goodput. If k6's default checks marked
+//      the evaluation counts it separately from goodput. If k6's default checks marked
 //      it failed, an overloaded run would report an error rate instead of a shed rate -- and
 //      proposal §3's S2 would look violated exactly where the gateway behaved correctly.
 //   2. Goodput excludes sheds. Throughput here counts only answered requests, because otherwise
 //      S2 (stability) is satisfiable at S1's (capacity) expense by shedding everything.
-//   3. The workload's REDUNDANCY is the independent variable (proposal §9.1, ADR-027), so query
+//   3. The workload's REDUNDANCY is the independent variable (proposal §9.1), so query
 //      selection is Zipf with a swept skew -- never uniform, which would make the cache look
 //      useless, and never a fixed cycle, which would make it look perfect.
 
@@ -77,7 +77,7 @@ function sampleZipf() {
 }
 
 // --- Metrics -----------------------------------------------------------------------------------
-// Reported per experiment-protocol.md §4. Sheds and goodput are separate by construction.
+// Reported per the evaluation. Sheds and goodput are separate by construction.
 const goodput = new Counter('goodput_requests');       // answered; excludes sheds
 const shedRate = new Rate('shed_rate');                // 503 / all admitted attempts
 const errorRate = new Rate('error_rate');              // genuine failures only -- never a 503
@@ -114,7 +114,7 @@ export default function () {
 
   const headers = { 'Content-Type': 'application/json' };
   // interfaces.md §H carries `stratum`; §A deliberately does not, so it travels as a header
-  // (ADR-032). Absent, the label joins offline on query_normalized.
+  //. Absent, the label joins offline on query_normalized.
   if (q.stratum) headers['X-Thesis-Stratum'] = q.stratum;
 
   const res = http.post(`${GATEWAY}/ask`, JSON.stringify(payload), {
@@ -154,7 +154,7 @@ export default function () {
 
 export function handleSummary(data) {
   // Printed so the operator can paste the numbers straight into manifest.yaml. The manifest is
-  // required and a run without one is invalid (experiment-protocol.md §2).
+  // required and a run without one is invalid (the evaluation).
   const m = data.metrics;
   const val = (name, field) => (m[name] && m[name].values ? m[name].values[field] : 0);
   const answered = val('goodput_requests', 'count');
@@ -165,11 +165,11 @@ export function handleSummary(data) {
 
   const lines = [
     '',
-    '=== for manifest.yaml (experiment-protocol.md §2) ===',
+    '=== for manifest.yaml (the evaluation) ===',
     `  zipf_skew: ${ZIPF_SKEW}`,
     `  k6_scenario: { vus: ${VUS}, rate_rps: ${RATE_RPS}, duration: "${DURATION}" }`,
     '',
-    '=== outcomes (experiment-protocol.md §4) ===',
+    '=== outcomes (the evaluation) ===',
     `  goodput (answered)      ${answered}`,
     `  shed rate               ${(val('shed_rate', 'rate') * 100).toFixed(2)} %   <- graceful degradation, NOT errors`,
     `  error rate              ${(val('error_rate', 'rate') * 100).toFixed(2)} %`,

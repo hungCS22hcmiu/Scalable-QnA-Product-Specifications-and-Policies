@@ -92,7 +92,7 @@ func main() {
 		log.Fatalf("gateway: creating %s: %v", cache.CacheIndexName, err)
 	}
 
-	// nomic-embed-text, 768-dim (ADR-003) -- frozen, and must match the dim idx:cache declares.
+	// nomic-embed-text, 768-dim -- frozen, and must match the dim idx:cache declares.
 	embedder := embed.New(ollamaURL, embed.Model)
 
 	// tau and theta are DEMO VALUES, not frozen. Read from env so "what about tau = 0.86?" is a
@@ -114,7 +114,7 @@ func main() {
 		TauHigh: getenvFloat("REUSE_TAU_HIGH", math.Inf(1)),
 	}
 	// The lane band is the two-lane experiment's selector, same DEMO-value status as tau/theta
-	// (.docs/work/two-lane-cache). LANE_SIGMA = 0.2 sits in the gap measured on dev-v0
+	//. LANE_SIGMA = 0.2 sits in the gap measured on dev-v0
 	// 2026-09-06: spec questions scored 0.00 and policy questions 0.40-0.80, nothing in between.
 	//
 	// LANE_SIGMA_HI defaults to LANE_SIGMA, which COLLAPSES the band and disables the MIXED lane
@@ -124,7 +124,7 @@ func main() {
 	//  1. Turning it on is a RULE CHANGE and must be pre-registered before any reported run
 	//     (approvals.md). A rule that enables itself by default cannot be pre-registered.
 	//  2. Stratum D is "impossible in dev-v0" per data-card.md 2 -- it needs the product<->policy
-	//     join key of ADR-024 requirement 1, which lands with v1. The operating point belongs to
+	//     join key of the v1 corpus model requirement 1, which lands with v1. The operating point belongs to
 	//     the sweep on that corpus, not to a demo default chosen from this one.
 	//
 	// [0.20, 0.60) is the MEASURED candidate, not a guess: on dev-v0 2026-09-06, policy_frac was
@@ -152,7 +152,7 @@ func main() {
 		thresholds.Tau, thresholds.Theta, thresholds.TauHigh, band.Lo, band.Hi, embed.Dim,
 		cache.CacheIndexName, mixedLane, shortCircuit)
 
-	// Admission control. The permit count comes from OLLAMA_NUM_PARALLEL, frozen at 4 by ADR-017
+	// Admission control. The permit count comes from OLLAMA_NUM_PARALLEL, frozen at 4 by the frozen envelope
 	// and pinned in the environment that `make env-check` verifies -- read here rather than
 	// re-declared, so the gateway can never bound concurrency to a different number than the one
 	// Ollama was started with and the run reports.
@@ -167,24 +167,24 @@ func main() {
 	// once the permits are gone. A DEMO value, swept like the rest.
 	queueBudget := getenvInt("GEN_QUEUE_BUDGET", 2*permits)
 	pool := admission.New(permits, queueBudget)
-	log.Printf("gateway: admission permits=%d queue_budget=%d  (permits from OLLAMA_NUM_PARALLEL, ADR-017;\n"+
+	log.Printf("gateway: admission permits=%d queue_budget=%d  (permits from OLLAMA_NUM_PARALLEL, the frozen envelope;\n"+
 		"         see env-check F1 -- ollama may serve -np 1 regardless, in which case surplus\n"+
 		"         permits queue inside ollama and this gateway cannot shed them)",
 		permits, queueBudget)
 
-	// Bounded cache. ADR-027 fixes capacity at round(0.25 * K) ENTRIES, where K is the frozen
+	// Bounded cache. the capacity ratio fixes capacity at round(0.25 * K) ENTRIES, where K is the frozen
 	// workload's distinct-query count -- so the absolute number is not knowable until the corpus
 	// is frozen, and 0 (unbounded) is the honest default until then. It is logged either way:
 	// an unbounded run is a valid thing to measure and never a thing to measure by accident,
 	// because every hit rate it produces is an upper bound no deployment reaches.
 	capacity := getenvInt("CACHE_CAPACITY", 0)
-	capacityNote := "UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen (ADR-027)"
+	capacityNote := "UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen"
 	if capacity > 0 {
 		capacityNote = "entries, LRU, enforced by the gateway (see cache/capacity.go)"
 	}
 	log.Printf("gateway: cache_capacity=%d  %s", capacity, capacityNote)
 
-	// Per-request evaluation log (interfaces.md H, ADR-029). RUN_ID empty disables it, which is
+	// Per-request evaluation log (interfaces.md H). RUN_ID empty disables it, which is
 	// what `make dev` runs with: a functional run must not leave a file that looks like a
 	// measurement. raw/ is write-once, so a reused RUN_ID refuses to start rather than appending
 	// to a finished run.
@@ -210,7 +210,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ask", handler.Ask)
 
-	// Demo UI support (docs/defense_demo.md §3). Neither endpoint is on a measured path, and
+	// Demo UI support (the demo UI contract). Neither endpoint is on a measured path, and
 	// /stats is explicitly not the measurement channel -- that is the evaluation log.
 	mux.HandleFunc("/products", handler.Products)
 	mux.HandleFunc("/stats", handler.Stats)

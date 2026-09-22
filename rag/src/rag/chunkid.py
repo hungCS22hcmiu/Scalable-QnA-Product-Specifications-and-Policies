@@ -1,6 +1,6 @@
 """Stable chunk-ID scheme — interfaces.md §C, reuse-critical for C1/C2.
 
-Format: {doc_id}#chunk-{ordinal}. Must survive the dev-v0 -> v1 corpus change (ADR-020):
+Format: {doc_id}#chunk-{ordinal}. Must survive the dev-v0 -> v1 corpus change:
 a re-chunk is a new dataset_version, never a silent ID reassignment.
 """
 

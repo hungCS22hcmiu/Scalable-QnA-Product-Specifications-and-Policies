@@ -1,4 +1,5 @@
-"""ADR-034 (corrected): Retrieve/Answer gain product_id, scoping the corpus search to that
+"""Product-scoped retrieval (corrected): Retrieve/Answer gain product_id, scoping
+the corpus search to that
 product's own chunk. Implemented as a POST-filter on the natural, unscoped ranking (drop other
 products' chunks, then splice this product's own chunk in only if it didn't naturally rank) --
 not a pre-filter that would force every policy chunk into the candidate pool and saturate

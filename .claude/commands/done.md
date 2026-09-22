@@ -14,26 +14,25 @@ Close the active task. Refuse to close if any check below fails — say which an
      scope that was wrong is a finding about the ladder, and the ladder is only as good as this
      check.
 
-2. **Record the outcome** in `.docs/work/<task>/plan.md`: what shipped, what was deferred, and any
+2. **Record the outcome** in `docs/work/<task>/plan.md`: what shipped, what was deferred, and any
    follow-up worth a new task.
 
-3. **Did this change a frozen value or a contract?** If yes, confirm the ADR exists in
-   `docs/decisions.md`, that `interfaces.md` was version-bumped, and that the ADR names **which
-   prior runs are invalidated** — that sentence is the whole point of the record.
+3. **Did this change a frozen value or a contract?** If yes, confirm `docs/contracts/interfaces.md`
+   was version-bumped, and that `approvals.md` names **which prior runs are invalidated** — that
+   sentence is the whole point of the record, and nothing else captures it.
 
-4. **Append to `docs/worklog/journal.md`** (`/log`): what happened, decisions, blockers, hours.
-
-5. **Re-lock:** delete `.docs/work/<task>/READY_TO_IMPLEMENT` and clear `.claude/state/active-task`.
+4. **Re-lock:** delete `docs/work/<task>/READY_TO_IMPLEMENT` and clear `.claude/state/active-task`.
    Leave `SCOPE` in place — the trail should keep saying what rigor this change was held to.
    The gate returns to blocking source edits immediately.
 
-6. **Suggest a commit** — do not run it unless asked:
+5. **Suggest a commit** — do not run it unless asked:
    ```
    <what changed>
 
    <why, one or two lines>
-   Task: .docs/work/<task>/  (scope <L|M|S>)
+   Task: docs/work/<task>/  (scope <L|M|S>)
    ```
 
-7. **Check the phase exit criterion.** If this task completed it, say so and suggest `/gate` to
-   verify it concretely rather than asserting it.
+6. **Check the phase exit criterion.** If this task completed it, say so — and run the
+   `**Exit:**` line from `docs/super-plan.md` concretely rather than asserting it. There is no
+   command for this since 2026-09-22; the criterion names a command or an artefact, so run that.

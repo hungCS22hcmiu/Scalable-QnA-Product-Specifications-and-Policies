@@ -10,7 +10,7 @@ import (
 )
 
 // fakeAnswerStream yields exactly one terminal AnswerChunk, matching what the real server sends
-// (stream=false only, ADR-016). Embeds grpc.ClientStream (nil) since Answer() only calls Recv().
+// (stream=false only). Embeds grpc.ClientStream (nil) since Answer() only calls Recv().
 type fakeAnswerStream struct {
 	grpc.ClientStream
 	sent bool
@@ -34,7 +34,7 @@ func (f *fakeAnswerClient) Answer(_ context.Context, in *ragpb.AnswerRequest, _ 
 	return &fakeAnswerStream{}, nil
 }
 
-// TestAnswerPassesProductID pins ADR-034: product_id must reach the wire request unchanged, so
+// TestAnswerPassesProductID pins product-scoped retrieval: product_id must reach the wire request unchanged, so
 // the RAG service's own fallback retrieval (used when retrievedChunkIDs is empty) can scope its
 // search the same way Retrieve's does.
 func TestAnswerPassesProductID(t *testing.T) {

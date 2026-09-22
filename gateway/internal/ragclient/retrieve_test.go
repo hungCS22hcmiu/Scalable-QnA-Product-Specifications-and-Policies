@@ -21,7 +21,7 @@ func (f *fakeRagServiceClient) Retrieve(_ context.Context, in *ragpb.RetrieveReq
 	return &ragpb.RetrieveResponse{}, nil
 }
 
-// TestRetrievePassesProductID pins ADR-034: product_id must reach the wire request unchanged,
+// TestRetrievePassesProductID pins product-scoped retrieval: product_id must reach the wire request unchanged,
 // so the RAG service can scope its search to that product.
 func TestRetrievePassesProductID(t *testing.T) {
 	fake := &fakeRagServiceClient{}
@@ -37,7 +37,7 @@ func TestRetrievePassesProductID(t *testing.T) {
 
 // TestRetrieveEmptyProductIDIsZeroValue pins the backward-compatible case: a caller that
 // supplies no product_id must produce the same empty-string request field as before this
-// change, so unscoped retrieval keeps behaving exactly as it did pre-ADR-034.
+// change, so unscoped retrieval keeps behaving exactly as it did pre.
 func TestRetrieveEmptyProductIDIsZeroValue(t *testing.T) {
 	fake := &fakeRagServiceClient{}
 	c := &Client{rpc: fake}

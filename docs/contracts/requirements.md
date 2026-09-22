@@ -1,6 +1,6 @@
 # Requirements — FR · NFR · RR
 
-**Status:** skeleton · **Created:** 2026-09-21 · **Shape approved:** 2026-09-21 (`Pre-thesis_Sweeping.md` §3)
+**Status:** skeleton · **Created:** 2026-09-21 · **Shape approved:** 2026-09-21
 **Companion to:** `learning/Final_Proposal.md` (why), `design/architecture.md` (where), `interfaces.md` (contracts), `decisions.md` (what was decided), `super-plan.md` (when, and by whom, in what order).
 
 > ⚠️ **This document is deliberately empty of requirements.** The agreed sequence is *create the
@@ -79,9 +79,9 @@ not a requirement — it is a wish.*
 
 | ID | Requirement | Source | Verified by | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| *NFR-00* | *(example, not a requirement) Under overload the gateway sheds with `503` + `Retry-After` rather than admitting work that swaps; memory pressure stays green at full admission.* | *ADR-022, proposal §7* | *`make load-*` run at saturation with pressure sampled throughout* | *example* |
+| *NFR-00* | *(example, not a requirement) Under overload the gateway sheds with `503` + `Retry-After` rather than admitting work that swaps; memory pressure stays green at full admission.* | admission control, proposal §7* | *`make load-*` run at saturation with pressure sampled throughout* | *example* |
 
-`TODO(after sign-off): fill from Final_Proposal.md §7/§9, ADR-017, ADR-022, ADR-027.`
+`TODO(after sign-off): fill from Final_Proposal.md §7/§9, the memory envelope, admission control, the capacity ratio.`
 
 ---
 
@@ -92,10 +92,9 @@ measurement, usually without any error being raised.*
 
 | ID | Requirement | Source | Verified by | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| *RR-00* | *(example, not a requirement) Every threshold the reuse rule exposes is swept; none is hand-set. `tau_s` is the one pinned value and is pinned at its published default, reported as an on/off arm.* | *ADR-035, proposal §9.2* | *Run manifests covering the sweep grid; `support_gate` recorded per run* | *example* |
+| *RR-00* | *(example, not a requirement) Every threshold the reuse rule exposes is swept; none is hand-set. `tau_s` is the one pinned value and is pinned at its published default, reported as an on/off arm.* | the support gate, proposal §9.2* | *Run manifests covering the sweep grid; `support_gate` recorded per run* | *example* |
 
-`TODO(after sign-off): fill from experiment-protocol.md §1/§3/§5/§6, data-card.md §7, ADR-006,
-ADR-012, ADR-017, ADR-019, ADR-023, ADR-027, ADR-028, ADR-029, ADR-035, ADR-036, ADR-038, ADR-039.`
+`TODO(after sign-off): fill from Final_Proposal.md §7/§9/§10, data-card.md §7, and decisions.md (inherited state).`
 
 ---
 

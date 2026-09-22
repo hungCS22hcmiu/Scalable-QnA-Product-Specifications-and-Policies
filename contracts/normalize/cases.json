@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Golden vectors for ADR-015's Tier-1 query normalization. This file is a CONTRACT, not a",
+    "Golden vectors for Tier-1 query normalization. This file is a CONTRACT, not a",
     "fixture: two languages implement the same function and nothing else forces them to agree.",
     "",
     "Go  (authoritative, runs on the hit path): gateway/internal/cache/normalize.go",
@@ -14,9 +14,9 @@
     "is silent, so both sides assert against this file rather than against their own expectations.",
     "",
     "Adding a case is cheap and is the right response to any normalization question. Changing an",
-    "existing `out` is an ADR-015 change and needs an ADR."
+    "existing `out` changes the frozen normalization and needs a numbered decision."
   ],
-  "adr": "ADR-015",
+  "contract": "tier1-query-normalization",
   "cases": [
     { "name": "lowercase",                        "in": "How Long Is The WARRANTY",   "out": "how long is the warranty" },
     { "name": "collapse runs of spaces",          "in": "how  long   is",             "out": "how long is" },

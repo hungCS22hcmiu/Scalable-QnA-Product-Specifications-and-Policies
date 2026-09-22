@@ -126,7 +126,7 @@ func TestZeroCapacityEvictsNothing(t *testing.T) {
 }
 
 // Eviction must never touch the dependency region. An evicted dep record makes its entries
-// permanently unpurgeable and breaks C2 completeness silently (rules.md #5, ADR-005).
+// permanently unpurgeable and breaks C2 completeness silently.
 func TestEvictionLeavesDependencyRecordsAlone(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()

@@ -396,7 +396,7 @@ func TestMixedLaneReusesWhenGroundingIsGenuinelyTheSame(t *testing.T) {
 
 func TestDecideLaneRecordsWhichTermDecided(t *testing.T) {
 	// Without this the fallback's contribution to the false-hit rate cannot be attributed, which
-	// would put it outside experiment-protocol.md §4's two-cause split.
+	// would put it outside the evaluation's two-cause split.
 	th := Thresholds{Tau: 0.85, Theta: 0.60}
 	ns := "policy-warranty"
 

@@ -9,19 +9,19 @@ import (
 
 // Bounded cache with LRU eviction, enforced HERE rather than by Redis.
 //
-// This is what interfaces.md D prescribes as of v0.6 (ADR-031). It replaced the v0.3 two-region
-// split, which could not express what ADR-027 requires:
+// This is what interfaces.md D prescribes as of v0.6. It replaced the v0.3 two-region
+// split, which could not express what the capacity ratio requires:
 //
-//   - ADR-027 fixes capacity at `round(0.25 * K)` **entries** -- a COUNT.
+// fixes capacity at `round(0.25 * K)` **entries** -- a COUNT.
 //   - §D prescribes a "logical DB with allkeys-lru", which evicts by **bytes**, and cannot be
 //     told to hold N entries.
 //   - `maxmemory-policy` is **server-global**, not per logical DB, so the two-region split §D
 //     describes is not actually achievable on one redis-stack-server. Any allkeys-* setting can
 //     evict the `dep:*` records of §E, which makes their entries permanently unpurgeable and
-//     breaks C2's completeness with no error at all (rules.md #5).
+//     breaks C2's completeness with no error at all.
 //
 // `make redis-check` already refused a byte budget for exactly the first reason. Enforcing the
-// count here satisfies ADR-027 exactly and leaves Redis evicting nothing at all -- so the
+// count here satisfies the capacity ratio exactly and leaves Redis evicting nothing at all -- so the
 // dependency region is safe BY CONSTRUCTION rather than by a configuration a later CONFIG SET
 // could silently undo, which is stronger than the v0.3 split asked for.
 

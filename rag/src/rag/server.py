@@ -23,7 +23,8 @@ class RagServicer(rag_pb2_grpc.RagServiceServicer):
 
     def Answer(self, request, context):
         top_k = request.top_k or config.TOP_K
-        # ADR-033: when the caller has already retrieved for this query, ground on exactly its
+        # Single retrieval: when the caller has already retrieved for this query,
+        # ground on exactly its
         # chunks instead of retrieving again. The gateway runs its retrieval concurrently with the
         # embedding, so a banded miss would otherwise retrieve twice -- and the second one re-embeds
         # the query, which is the expensive half.
@@ -34,7 +35,7 @@ class RagServicer(rag_pb2_grpc.RagServiceServicer):
                 request.query, top_k=top_k, product_id=request.product_id
             )
         text = generate.generate(request.query, chunks)
-        # stream=false is the only path in scope (SSE dropped, ADR-016) -- exactly one
+        # stream=false is the only path in scope (SSE dropped) -- exactly one
         # terminal chunk, never per-token emission.
         yield rag_pb2.AnswerChunk(
             text=text,

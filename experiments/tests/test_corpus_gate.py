@@ -38,7 +38,7 @@ CONTRACT = REPO_ROOT / "contracts" / "normalize" / "cases.json"
 # =================================================================================================
 def _contract_cases():
     contract = json.loads(CONTRACT.read_text())
-    assert contract["adr"] == "ADR-015"
+    assert contract["contract"] == "tier1-query-normalization"
     assert contract["cases"], "an empty contract would pass vacuously on both sides"
     return [(c["name"], c["in"], c["out"]) for c in contract["cases"]]
 
@@ -77,7 +77,7 @@ def test_g4_reports_every_offender_not_just_the_first():
 
 def test_g4_rejects_a_prefixless_corpus_rather_than_defaulting_it():
     """The failure this criterion exists for: without a prefix the lane rule reads every question
-    as SPEC (ADR-030), the mixed lane never fires, and nothing errors — a null result produced by
+    as SPEC, the mixed lane never fires, and nothing errors — a null result produced by
     the corpus rather than by the rule."""
     assert not check_g4(["b08xyz", "returns-electronics"]).passed
 
@@ -141,7 +141,7 @@ def test_g3_passes_a_clean_workload():
 
 
 def test_g3_different_product_id_no_longer_collides():
-    """⚠️ BYPASS 2026-09-09: the Tier-1 key gained product_id (cache.Key), reversing ADR-028's
+    """⚠️ BYPASS 2026-09-09: the Tier-1 key gained product_id (cache.Key), reversing the
     "product_id in the Tier-1 key -- Rejected". The same literal question, disagreeing doc_ids,
     asked about two DIFFERENT products, is no longer a Tier-1 collision -- it hashes to two
     different Redis keys and can no longer be served wrongly from one write."""
@@ -171,7 +171,7 @@ def test_g3_same_product_id_still_collides():
 
 
 # =================================================================================================
-# The gate's overlap -- Jaccard, not the rule's containment (ADR-024)
+# The gate's overlap -- Jaccard, not the rule's containment
 # =================================================================================================
 def test_jaccard_is_symmetric_unlike_the_rule():
     a, b = ("c1", "c2"), ("c1", "c2", "c3", "c4", "c5")
@@ -208,7 +208,7 @@ def test_g1_needs_the_floor():
 
 
 def test_g2_fails_a_corpus_whose_traps_are_all_cross_product():
-    """ADR-028's whole reason for splitting stratum B: if every trap is cross-product, adding
+    """the whole reason for splitting stratum B: if every trap is cross-product, adding
     `product_id` to the cache key reproduces C1's benefit at zero cost and C1 is redundant by
     construction of the corpus."""
     from corpus_gate import Pair
@@ -265,7 +265,7 @@ def test_cosine_of_a_zero_vector_is_zero_not_nan():
 # Capacity and the freeze record
 # =================================================================================================
 def test_capacity_is_a_quarter_of_k_rounded():
-    """ADR-027. A COUNT of entries, never a byte budget — ADR-031 puts enforcement in the gateway
+    """the capacity ratio. A COUNT of entries, never a byte budget puts enforcement in the gateway
     for exactly that reason."""
     assert derive_capacity(240) == 60
     assert derive_capacity(1) == 0  # round(0.25) == 0 under banker's rounding; K this small is not
@@ -293,7 +293,7 @@ def test_snapshot_digest_changes_when_a_file_changes(tmp_path):
 def test_snapshot_digest_is_order_independent_but_rename_sensitive(tmp_path):
     """The digest hashes a sorted (path, file-hash) manifest, so directory iteration order cannot
     change it, but a rename — which reassigns chunk IDs and therefore breaks every cached
-    provenance record (ADR-008) — must."""
+    provenance record — must."""
     a, b = tmp_path / "product-1.json", tmp_path / "product-2.json"
     a.write_text("{}")
     b.write_text("{}")

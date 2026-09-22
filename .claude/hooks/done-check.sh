@@ -1,24 +1,15 @@
 #!/usr/bin/env bash
 # Stop: fires when the assistant finishes a turn.
-# Reminds about the journal and the open task. Never blocks (exit 0 always).
+# Reminds about the open task. Never blocks (exit 0 always).
 #
-# Weeks were removed 2026-09-21 (Pre-thesis_Sweeping.md #4). The worklog was one file per
-# week; it is now one append-only journal, because dropping weeks would otherwise drop the
-# chronology and the hours, and the write-up needs both (docs/worklog/README.md).
+# The journal reminder was removed 2026-09-22 together with /log and /gate: nagging for a
+# daily entry would ask for a file nothing writes. What remains here is task state.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-journal="$REPO_ROOT/docs/worklog/journal.md"
-today="$(date +%Y-%m-%d)"
 msgs=()
 
-if [[ ! -f "$journal" ]]; then
-  msgs+=("· No docs/worklog/journal.md — run \`/log\` to start it.")
-elif ! grep -q "$today" "$journal" 2>/dev/null; then
-  msgs+=("· No journal entry for $today — run \`/log\` before you stop.")
-fi
-
-[[ -z "$(current_phase)" ]] && msgs+=("· Phase is UNSET — \`/phase <n>\` so the banner and \`/gate\` know what to test.")
+[[ -z "$(current_phase)" ]] && msgs+=("· Phase is UNSET — \`/phase <n>\` so the banner knows which exit criterion to print.")
 
 task="$(active_task)"
 if [[ -n "$task" ]]; then

@@ -23,8 +23,8 @@ import (
 )
 
 // topKServerDefault is deliberately 0, not 5. The proto makes Go the sender of top_k, but Go
-// has no config pinned to ADR-014, so a literal here would keep sending the old value the day
-// ADR-014 changes -- silently, since both sides would still work. Sending 0 makes the RAG
+// has no config pinned to the frozen chunking, so a literal here would keep sending the old value the day
+// the frozen chunking changes -- silently, since both sides would still work. Sending 0 makes the RAG
 // service resolve it from rag/src/rag/config.py's TOP_K, leaving exactly one source of truth
 // for the frozen value (impact.md lead risk; interfaces.md B: "default 5; pinned per run").
 const topKServerDefault = 0
@@ -32,12 +32,12 @@ const topKServerDefault = 0
 // modelUsedConstant mirrors rag/src/rag/config.py's LLM_MODEL_ID.
 //
 // It is a Go-side literal rather than a stored field because interfaces.md A defines model_used
-// as "Constant (qwen3.5-2b, ADR-021) — retained for forward compatibility with routing (future
+// as "Constant (qwen3.5-2b) — retained for forward compatibility with routing (future
 // work)", and the D Tier-2 schema has no model_used field to read it from. The alternatives were
 // both worse: adding a field to a frozen schema needs an ADR, and fetching the co-written Tier-1
 // record on every Tier-2 hit puts an extra Redis round-trip on the path that bounds mu_hit.
 //
-// The drift risk is real but bounded: routing was rejected (ADR-011), so this changes only if the
+// The drift risk is real but bounded: routing was rejected, so this changes only if the
 // generation model itself changes -- which already requires an ADR that would touch both sides.
 const modelUsedConstant = "qwen3.5-2b"
 
@@ -53,7 +53,7 @@ const bumpTimeout = 2 * time.Second
 //
 // The cascade is orchestrated HERE rather than inside cache/ or reuse/. httpapi is the leftmost
 // package and may import rightward; putting it here is what keeps reuse/ free of Redis, gRPC and
-// HTTP so C1 stays falsifiable in isolation (docs/design/architecture.md 2).
+// HTTP so C1 stays falsifiable in isolation (docs/architecture.md 2).
 type Handler struct {
 	Cache      *cache.Store
 	RAG        *ragclient.Client
@@ -76,12 +76,12 @@ type Handler struct {
 	ConfigID int
 	Mutation string
 
-	// Capacity is the bounded cache's size in ENTRIES, round(0.25 * K) per ADR-027. Zero means
+	// Capacity is the bounded cache's size in ENTRIES, round(0.25 * K) per the capacity ratio. Zero means
 	// unbounded, which is a valid thing to measure but never a thing to measure by accident --
 	// main.go logs which one is in force at startup.
 	Capacity int
 
-	// LaneBand is the two-lane experiment's lane selector (.docs/work/two-lane-cache), widened
+	// LaneBand is the two-lane experiment's lane selector, widened
 	// from one sigma to two bounds so stratum D has a lane. DEMO values like Tau and Theta:
 	// swept, never hand-set for anything reported. A collapsed band (Lo == Hi) is the
 	// pre-registered baseline and reproduces the original two-lane rule exactly.
@@ -146,7 +146,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	// abandonment alike. A deferred emit is what guarantees "every", because a return added later
 	// cannot forget it.
 	normalized := cache.Normalize(req.Question)
-	// ⚠️ BYPASS 2026-09-09 (reverses ADR-028's "product_id in Tier-1 key -- Rejected"; see
+	// ⚠️ BYPASS 2026-09-09 (reverses the "product_id in Tier-1 key -- Rejected"; see
 	// cache.Key). Computed ONCE and reused everywhere below, so the formula cannot drift between
 	// the eval-log record, the Tier-1 lookup, the coalescing key and Tier-2's t1_key -- a
 	// four-way duplication this replaces (approvals.md).
@@ -234,7 +234,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			// Degrade to MISS rather than fail. A Tier-2 outage should cost hit rate, not
 			// availability, and a 500 here is an outcome that fits none of the categories
-			// experiment-protocol.md 4 counts.
+			// the evaluation counts.
 			log.Printf("gateway: request_id=%s embed failed, degrading to MISS: %v", requestID, err)
 			return
 		}
@@ -285,19 +285,19 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	if t2.EnteredBand {
 		// ⚠️ Recorded AT DECISION TIME because it cannot be reconstructed later against cache
 		// state that no longer exists -- interfaces.md H, and the metric that makes the
-		// pre-registered null of experiment-protocol.md 6 interpretable.
+		// pre-registered null of the evaluation interpretable.
 		rec.SimilarityOnlyDecision = hitOrMiss(t2.Decision.SimilarityOnly)
 	}
 
 	// The two-lane rule decides. Containment is computed but not consulted -- it is the
-	// baseline being measured against (.docs/work/two-lane-cache).
+	// baseline being measured against.
 	if t2.NSDecision.Reuse {
 		modelUsed := modelUsedConstant
 		rec.Cache, rec.EntryID = cacheTier2Hit, t2.Candidate.Entry.EntryID
 		rec.EntrySources = t2.Candidate.Entry.SourceChunkIDs
 		rec.AnswerSHA256 = sha256Hex(t2.Candidate.Entry.Answer)
 		// Fire-and-forget, and it must actually BE that. Awaiting it put a Redis round-trip on
-		// the hit path -- inside mu_hit, the quantity ADR-027's S1 turns on -- to update a
+		// the hit path -- inside mu_hit, the quantity the S1 turns on -- to update a
 		// counter no caller reads. Detached from the request context so the write is not
 		// cancelled the moment the response is flushed.
 		go func(entryID string) {
@@ -319,9 +319,9 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		// entry's ORIGINAL Tier-1 key at MISS time. This promoted key is a second, untracked
 		// Tier-1 pointer at the same entry_id -- harmless today (cache_capacity defaults
 		// UNBOUNDED, so TrimToCapacity never evicts anything, and C2/invalidation is 0% built,
-		// ADR-034's approvals.md), but once either lands, this key will not be found and
+		// the approvals.md), but once either lands, this key will not be found and
 		// cleaned up alongside its entry, and could go stale/orphaned. Revisit before capacity
-		// is bounded (ADR-027) or C2 ships: either track multiple t1_keys per entry, or decide
+		// is bounded or C2 ships: either track multiple t1_keys per entry, or decide
 		// promotion should not persist across an eviction/purge cycle.
 		go func(entryID, question, productID, answer, modelUsed string, sources []string) {
 			putCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bumpTimeout)
@@ -387,7 +387,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 
 		genStart := time.Now()
 		// Hand the service the chunks already retrieved above, so it does not retrieve a second
-		// time (ADR-033). retrievedIDs is nil when retrieval failed, in which case the service
+		// time. retrievedIDs is nil when retrieval failed, in which case the service
 		// falls back to retrieving for itself rather than generating over nothing.
 		result, err := h.RAG.Answer(ctx, req.Question, topKServerDefault, retrievedIDs, req.ProductID)
 		generateMS = msPtr(time.Since(genStart))
@@ -412,7 +412,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		// is the most expensive resource in the system -- discarding it because a cache write
 		// failed spends it for nothing, which is backwards on this thesis's own premise. It also
 		// produces a served-request outcome that is none of TIER1_HIT | TIER2_HIT | MISS | BYPASS
-		// | 503-shed, the only categories experiment-protocol.md 4's goodput/shed split accounts
+		// | 503-shed, the only categories the evaluation's goodput/shed split accounts
 		// for, so a nonzero rate of it would leak out of both the goodput numerator and the shed
 		// denominator. Serve the answer, count it as the MISS it was, and surface the failure on
 		// its own channel.
@@ -566,7 +566,7 @@ func sha256Hex(answer string) string {
 // ⚠️ A HEADER, not a body field: interfaces.md A is frozen at v0.5 and does not carry a stratum,
 // and this is a measurement-harness affordance rather than part of the client contract. If it is
 // absent the field is null and the analysis joins the label offline on query_normalized, which is
-// exact -- ADR-028's Tier-1 collision invariant guarantees one stratum per normalised form.
+// exact -- the Tier-1 collision invariant guarantees one stratum per normalised form.
 func stratumHeader(r *http.Request) *string {
 	if v := r.Header.Get("X-Thesis-Stratum"); v != "" {
 		return &v

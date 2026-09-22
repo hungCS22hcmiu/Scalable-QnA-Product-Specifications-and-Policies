@@ -15,7 +15,7 @@ type Client struct {
 	rpc  ragpb.RagServiceClient
 }
 
-// New dials target (host:port) once. No TLS in scope -- single-machine envelope (ADR-009).
+// New dials target (host:port) once. No TLS in scope -- single-machine envelope.
 func New(target string) (*Client, error) {
 	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

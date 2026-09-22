@@ -1,8 +1,8 @@
 # System Architecture & Repository Structure
 
 **Status:** authority for folder structure and module boundaries · **Created:** 2026-08-09
-**Companion to:** `Final_Proposal.md` §6 (architecture), `interfaces.md` (frozen contracts),
-`time_line.md` (build order)
+**Companion to:** `Final_Proposal.md` §6 (architecture), `contracts/interfaces.md` (frozen
+contracts), `super-plan.md` (build order)
 
 This document is the **baseline** the codebase is built against. `Final_Proposal.md` §6 says *what* the
 system does; this says *where each part lives and what it may depend on*. Where they disagree, the
@@ -21,41 +21,36 @@ thesis/
 ├── README.md                     landing page + document index
 ├── Makefile                      the single command surface — see §4
 │
-├── docs/                         HUMAN-AUTHORED source of truth (frozen)
-│   ├── Final_Proposal.md           scope, claims, RQs, evaluation
-│   ├── design/architecture.md      ← this file
-│   ├── interfaces.md               frozen wire contracts (v0.3)
-│   ├── experiment-protocol.md      measurement spec, run manifests, statistics
-│   ├── decisions.md                ADR log (ADR-001…020)
-│   ├── data-card.md                corpus provenance, licensing, the W8 gate
-│   ├── time_line.md                week plan, exit tests, risk register
-│   ├── defense_demo.md             demo script + debug-UI contract
-│   ├── worklog/W05.md … W22.md     weekly work log
-│   └── archive/                    superseded documents, retained
-│
-├── .docs/                        AI WORKFLOW trail — see .docs/README.md
-│   ├── ai/{rules,architecture-guardrails,review-checklist,frozen-values}
-│   └── work/<task-slug>/          spec · impact · plan · review · approvals
+├── docs/                         SOURCE OF TRUTH — flattened 2026-09-22
+│   ├── super-plan.md               the eight phases and their exit criteria
+│   ├── Final_Proposal.md           scope, claims, RQs, evaluation  (gitignored)
+│   ├── architecture.md             ← this file
+│   ├── data-card.md                corpus provenance, licensing, the G1–G5 gate
+│   ├── contracts/
+│   │   ├── interfaces.md           frozen wire contracts (v0.9)
+│   │   └── requirements.md         FR / NFR / RR — skeleton, unfilled
+│   ├── work/<task-slug>/           spec · impact · design · review · plan · approvals
+│   └── learning/                   submitted prose + study notes  (gitignored)
 │
 ├── .claude/                      workflow automation (hooks, commands, agents)
 │
 ├── contracts/
-│   └── rag/v1/rag.proto          THE seam definition        → interfaces.md §B
+│   └── rag/v1/rag.proto          THE seam definition        → contracts/interfaces.md §B
 │
 ├── gateway/                      Go — THE CONTRIBUTION
 │   ├── go.mod
 │   ├── cmd/gateway/main.go         wiring + config only, no logic
 │   └── internal/
-│       ├── httpapi/                POST /ask, 503 shedding  → interfaces.md §A
-│       ├── cache/                  tier1, tier2, key norm   → interfaces.md §D, ADR-015
+│       ├── httpapi/                POST /ask, 503 shedding  → contracts/interfaces.md §A
+│       ├── cache/                  tier1, tier2, key norm   → contracts/interfaces.md §D, the key-normalisation function
 │       ├── reuse/                  overlap rule + cascade   → proposal §5 C1   [C1]
 │       ├── deps/                   dependency map, COW, writer goroutine
-│       │                                                    → interfaces.md §E  [C2]
+│       │                                                    → contracts/interfaces.md §E  [C2]
 │       ├── admission/              permit pool, queue, shed → proposal §6.1
-│       ├── ragclient/              pooled gRPC + epoch      → interfaces.md §B
-│       ├── embed/                  embedding endpoint       → interfaces.md §F
-│       ├── catalog/                read-only corpus view, demo UI ONLY → defense_demo.md §3
-│       └── telemetry/              counters, latency split  → experiment-protocol.md §4
+│       ├── ragclient/              pooled gRPC + epoch      → contracts/interfaces.md §B
+│       ├── embed/                  embedding endpoint       → contracts/interfaces.md §F
+│       ├── catalog/                read-only corpus view, demo UI ONLY
+│       └── telemetry/              counters, latency split
 │
 ├── rag/                          Python — INFRASTRUCTURE (not a contribution)
 │   ├── pyproject.toml
@@ -64,28 +59,28 @@ thesis/
 │       ├── ingest.py               chunk → embed → index    → data-card.md
 │       ├── retrieve.py             top-k, FLAT, frozen
 │       ├── generate.py             Ollama call
-│       └── chunkid.py              {doc_id}#chunk-{ordinal} → interfaces.md §C
+│       └── chunkid.py              {doc_id}#chunk-{ordinal} → contracts/interfaces.md §C
 │
 ├── experiments/
 │   ├── scripts/                    workload gen, replay, judge, figures
 │   ├── k6/                         load scenarios (W8+)
 │   └── results/{run_id}/
 │       ├── manifest.yaml           required; a run without one is invalid
-│       ├── raw/                    WRITE-ONCE                → experiment-protocol.md §3
+│       ├── raw/                    WRITE-ONCE
 │       └── figures/                regenerated, gitignored
 │
-├── ui/                           demo debug view (React + Vite) → defense_demo.md §3
+├── ui/                           demo debug view (React + Vite)
 │   ├── src/                        built to ui/dist, SERVED BY THE GATEWAY
 │   └── dist/                       generated by `make ui`, gitignored
 │
 └── data/
-    ├── dev-v0/                     W5 throwaway, not citable → ADR-020
+    ├── dev-v0/                     W5 throwaway, not citable → the `dev-v0` rule
     └── v1/                         W8 frozen experimental    → data-card.md §7
 ```
 
 **`ui/` is build-time Node only.** The bundle is served by the Go gateway (`spaHandler` in
 `cmd/gateway/main.go`), so no dev server runs during a demo or a measured run and nothing competes
-with the model for the memory envelope (ADR-017). `catalog/` exists solely to render its product
+with the model for the memory envelope. `catalog/` exists solely to render its product
 list: read-only, never on the hit path, and it reads the *corpus* index that `rag/` owns — a
 deliberate cross-boundary read, justified only by being demo-only.
 
@@ -106,7 +101,7 @@ defect even if the compiler accepts it.
 | `reuse/` | The C1 decision: two chunk-ID sets + similarity → reuse or not | Touch Redis, gRPC, or HTTP. It stays infrastructure-free so C1 is falsifiable in isolation |
 | `deps/` | The **only** writer to the no-eviction region, serialized through one goroutine | Be written from a request goroutine; hold a lock across a Redis round-trip |
 | `admission/` | The **sole** acquire/release point for a generation permit | Be bypassed by any miss path — one chokepoint or the memory guarantee is void |
-| `cache/` | Key normalization (ADR-015) and both tiers | Make a reuse decision — that is `reuse/` |
+| `cache/` | Key normalization and both tiers | Make a reuse decision — that is `reuse/` |
 | `ragclient/` | Pooled gRPC channel; stamps `dataset_epoch` at retrieval | Be constructed per request |
 | `telemetry/` | Counters and latency decomposition | Import anything from this repo |
 | `catalog/` | A read-only product list for the demo UI | Be reached from `/ask`, hold state, or make any decision |
@@ -128,15 +123,14 @@ write-back) · resource governance → `admission/` · the measurement protocol 
 ## 4. Command surface
 
 Use `make`; do not invent ad-hoc invocations. Targets: `spike` · `ingest` · `dev` · `ask` ·
-`demo-reset` (promised in `defense_demo.md` §4) · `proto` · `test` · `lint` · `verify` · `figures` ·
+`demo-reset` · `proto` · `test` · `lint` · `verify` · `figures` ·
 `check`.
 
 ## 5. Build order
 
 The tree above is the target. What is real at any moment follows **`docs/super-plan.md`**.
 
-> ⚠️ **The week-based table that stood here was retired on 2026-09-21** along with
-> `time_line.md`. It had become misleading in both directions: it scheduled
+> ⚠️ **The week-based table that stood here was retired on 2026-09-21.** It had become misleading in both directions: it scheduled
 > `gateway/internal/{admission,telemetry}` for "W16–W17" when both were built and tested, and it
 > gave `gateway/internal/deps/` a slot it never occupied — that package is still a six-line
 > `doc.go`. A build order that disagrees with the tree teaches you to stop trusting it.
@@ -147,14 +141,17 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 | :--- | :--- |
 | **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, embed}` |
 | **Built, no tests** | `gateway/internal/{httpapi, catalog}` · `cmd/gateway` — `httpapi` is the cascade, and closing that gap is `super-plan.md` item 1.2 |
-| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the answer–evidence support gate (ADR-035) · `data/v1/` · the judge harness, workload generator and figure generators |
+| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the answer–evidence support gate · `data/v1/` · the judge harness, workload generator and figure generators |
 
 ## 6. Invariants that fail silently
 
 Each of these produces **no error** when violated — which is why they are invariants rather than
-guidelines. Full statements in `.docs/ai/rules.md`.
+guidelines, and since 2026-09-22 **no hook enforces any of them** — the guard that did was
+removed when the files it read were deleted.
 
-1. Frozen values change only via ADR, and the ADR states **which prior runs it invalidates**.
+1. A frozen value changes only deliberately, and the change record states **which prior runs it
+   invalidates**. That sentence is now written by hand into the task's `approvals.md` or it is
+   written nowhere.
 2. Dependency state lives under `noeviction`; only cache entries are LRU.
 3. `t1_key` is written with every Tier-2 record, or Tier-1 survives invalidation.
 4. `dataset_epoch` is stamped at retrieval and **compared at write-back**.

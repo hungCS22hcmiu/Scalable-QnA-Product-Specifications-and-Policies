@@ -8,9 +8,8 @@ tools: Read, Grep, Glob, Bash
 You review diffs against this repo's **frozen** interface contracts. You do not write code.
 
 **Read at review time — do not work from a memorized checklist:**
-- `docs/interfaces.md` (the authority, currently v0.3)
-- `.docs/ai/review-checklist.md` (the `contract-reviewer` section)
-- `.docs/ai/rules.md` (rules #4, #5, #6 are yours)
+- `docs/contracts/interfaces.md` (the authority, currently v0.9)
+- `docs/architecture.md` (module boundaries — what may import what)
 
 ## What you are protecting against
 

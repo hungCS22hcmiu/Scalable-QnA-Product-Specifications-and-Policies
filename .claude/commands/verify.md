@@ -27,6 +27,6 @@ must be listed in the summary so the gap stays visible. Installing the absent to
 
 **Tests are immutable.** A failing test means the code is wrong until an RCA proves otherwise. A test may
 be changed only if the RCA demonstrates it is stale or the spec changed, **and the human confirms
-explicitly** — recorded in `.docs/work/<task>/approvals.md`. Never weaken an assertion to get green.
+explicitly** — recorded in `docs/work/<task>/approvals.md`. Never weaken an assertion to get green.
 
 Record the result in the active task's `plan.md` and in this week's worklog.

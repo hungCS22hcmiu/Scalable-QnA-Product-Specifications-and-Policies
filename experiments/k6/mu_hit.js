@@ -1,6 +1,6 @@
-// The μ_hit probe — Phase 1 exit criterion (ADR-027, time_line.md W8).
+// The μ_hit probe — Phase 1 exit criterion.
 //
-// ⚠️ RUN THIS OFF-BOX, like every other load scenario (ADR-012, proposal §7). A co-hosted
+// ⚠️ RUN THIS OFF-BOX, like every other load scenario (proposal §7). A co-hosted
 // generator competes for the envelope it is measuring.
 //
 //   k6 run -e GATEWAY_URL=http://<sut-ip>:8080 -e WORKLOAD=workload.json experiments/k6/mu_hit.js
@@ -10,7 +10,7 @@
 // The load-conversion crossover is `h* = μ_hit / (μ_gen + μ_hit)`. `Final_Proposal.md` §3 and the
 // submitted pre-thesis report both state the crossover is **computed rather than observed**, on
 // the basis that μ_hit sits far above ~16 req/s. If this probe returns **≤ ~16 req/s** that
-// reasoning inverts and S1's empirical wording is restored (ADR-027's falsification trigger).
+// reasoning inverts and S1's empirical wording is restored (the falsification trigger).
 // So this is measured before anything else depends on it.
 //
 // ## What makes it a μ_hit measurement rather than a fast load test
@@ -193,7 +193,7 @@ export default function () {
 
   if (res.status === 503) {
     // A shed on the HIT path would be surprising: hits never acquire a generation permit
-    // (ADR-022), and that asymmetry is what lets hit throughput exceed the generation ceiling.
+    //, and that asymmetry is what lets hit throughput exceed the generation ceiling.
     // Recorded rather than ignored, because if it happens it falsifies that claim.
     shedRate.add(true);
     errorRate.add(false);
@@ -245,19 +245,19 @@ export function handleSummary(data) {
       : `LOWER BOUND ${muHit.toFixed(1)} req/s -- nothing dropped, nothing shed, so the offered ` +
         `rate of ${RATE_RPS}/s never reached the ceiling. Re-run with a higher RATE_RPS.`;
 
-  // ADR-027's falsification trigger, evaluated here so it cannot be forgotten later.
+  // the falsification trigger, evaluated here so it cannot be forgotten later.
   const trigger = !saturated
     ? '  (undetermined -- the probe did not saturate)'
     : muHit <= 16
       ? '  ⚠️ mu_hit <= ~16 req/s: the crossover IS reachable in a non-degenerate sweep.\n' +
-        '     ADR-027 requires S1\'s EMPIRICAL wording to be restored, and Final_Proposal.md §3 /\n' +
-        '     experiment-protocol.md §6 to be revised before anything further depends on them.'
-      : '  mu_hit > ~16 req/s: ADR-027\'s restated S1 stands -- the crossover is computed rather\n' +
+        '     the capacity ratio requires S1\'s EMPIRICAL wording to be restored, and Final_Proposal.md §3 /\n' +
+        '     the evaluation to be revised before anything further depends on them.'
+      : '  mu_hit > ~16 req/s: the capacity ratio\'s restated S1 stands -- the crossover is computed rather\n' +
         '     than observed, and the finding is "generation-bound throughout the operating range".';
 
   const lines = [
     '',
-    `=== mu_hit probe, MODE=${MODE} (ADR-027, time_line.md W8) ===`,
+    `=== mu_hit probe, MODE=${MODE} ===`,
     `  ${verdict}`,
     MODE === 'tier1'
       ? '  NOTE: this is the TIER-1 ceiling -- a hash lookup, no embedding call. The tiered\n' +
@@ -270,10 +270,10 @@ export function handleSummary(data) {
     `  TIER1 / TIER2           ${val('cache_tier1_hit', 'count')} / ${val('cache_tier2_hit', 'count')}`,
     `  TIER1 p95 / TIER2 p95   ${val('tier1_latency_ms', 'p(95)').toFixed(1)} / ${val('tier2_latency_ms', 'p(95)').toFixed(1)} ms`,
     `  dropped iterations      ${dropped}   <- offered-minus-served; >0 means the target saturated`,
-    `  sheds                   ${shed}   <- should be 0: hits take no generation permit (ADR-022)`,
+    `  sheds                   ${shed}   <- should be 0: hits take no generation permit`,
     `  unexpected misses       ${val('unexpected_miss', 'count')}   <- any non-zero INVALIDATES the probe`,
     '',
-    '=== ADR-027 falsification trigger ===',
+    '=== the capacity ratio falsification trigger ===',
     trigger,
     '',
     '=== for manifest.yaml ===',

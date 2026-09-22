@@ -1,18 +1,21 @@
 # `.claude/` — workflow automation
 
-Tooling is **tracked**; only `settings.local.json`, `state/` and `scheduled_tasks.lock` are ignored. The
-workflow is part of the thesis's reproducibility story, not personal config.
+Tooling is **tracked**; only `settings.local.json`, `state/` and `scheduled_tasks.lock` are ignored.
+The workflow is part of the thesis's reproducibility story, not personal config.
 
-> Tracked in fact as well as in claim only since **2026-09-21**. Until then `.gitignore` ignored this
-> whole directory and `.docs/` with it, so this sentence and `.docs/README.md`'s "It is committed" were
-> both false — see `Pre-thesis_Sweeping.md` §4.5.
+> **Consolidated 2026-09-22.** Task trails live in `docs/work/<slug>/`. The two blocking hooks —
+> `frozen-guard.sh` and `gate-check.sh` — were removed in the same pass, because both read files
+> that no longer exist and a guard that fails open silently is worse than no guard: it still reads
+> as protection. **Rigor is now a convention these commands describe, not a
+> mechanism anything enforces.** Nothing will stop you changing a frozen value; writing down what
+> a change invalidates is therefore more important than it was, not less.
 
 ## The rhythm
 
-Weeks were removed **2026-09-21** (`Pre-thesis_Sweeping.md` #4). The schedule is **phases with
-binary exit criteria**, and the amount of process a change must pay is set by **its scope**, not
-by the date. A one-line fix late in the schedule was paying ceremony it never needed; a seam
-change early in the schedule was paying none when it always did.
+Weeks were removed **2026-09-21**. The schedule is **phases with binary exit criteria**, and the
+amount of process a change pays is set by **its scope**, not by the date. A one-line fix late in
+the schedule was paying ceremony it never needed; a seam change early was paying none when it
+always did.
 
 ```
 starting    /phase          what phase, what closes it, how far off it is
@@ -22,65 +25,55 @@ during      /feature <slug> new behaviour            → scope M
             /refactor <slug> same behaviour, better  → scope M
             /investigate <slug> answer a question, write no code
             /task <slug> <L|M|S>   when none of those fit
-            /approve …      human unlock, phase by phase — required at EVERY scope
+            /approve …      human sign-off, phase by phase — expected at EVERY scope
             /verify         build + test + lint
             /ai-review      subagents check the diff against the written rules
             /rca            only after /verify fails twice
-            /done           close, re-lock
-end of day  /log            hours, what happened, blockers → docs/worklog/journal.md
-phase end   /gate           run the exit criterion for real; PASS or FAIL
-anytime     /task-status · /adr · /consistency · /spike (spent — see its header)
+            /done           close the task, record the outcome
+anytime     /task-status
 ```
 
 ## The scope ladder
 
-Written to `.docs/work/<slug>/SCOPE` by the opener. `gate-check.sh` reads it.
+Written to `docs/work/<slug>/SCOPE` by the opener.
 
-| Scope | Design documents required first | Use when |
+| Scope | Design documents first | Use when |
 | :---: | :--- | :--- |
-| **L** | spec → impact → **design** → **opus design-review** → plan | A frozen document, `interfaces.md`, the `.proto`, `reuse/`, or anything measured |
+| **L** | spec → impact → **design** → **opus design-review** → plan | `docs/contracts/interfaces.md`, the `.proto`, `reuse/`, or anything measured |
 | **M** | spec → impact → plan | Ordinary code: a package, a handler, a script |
 | **S** | spec (one paragraph) | Tests, docs, comments, a one-line fix |
 
-Three things make this a ladder rather than three ways out:
-
 - **Every scope ends at `/approve implementation`.** S is cheap because it needs one document
-  before that approval, not because it skips the human.
-- **An unset scope blocks.** It is not defaulted to S — an unlabelled task would otherwise take
-  the cheapest path automatically, which is the hole three tiers invite.
-- **`frozen-guard.sh` is armed at every scope**, unchanged. It is not part of the ladder.
+  before that sign-off, not because it skips the human.
+- **An unset scope is not S.** An unlabelled task taking the cheapest path by default is the hole
+  three tiers invite. The session banner reports `scope UNSET` so it stays visible.
+- **Between two scopes, take the larger.** `/done` asks whether the scope was honest; a scope that
+  turned out wrong is a finding about the ladder worth recording.
 
-When you are between two scopes, take the larger. `/done` asks whether the scope was honest, and a
-scope that turned out wrong is a finding about the ladder worth recording.
+## What the hooks still do
 
-## The gate, and why it is aimed where it is
+All three are advisory. None blocks.
 
-In a normal backend repo a phase gate stops unreviewed architectural drift. Here the failure mode is
-different and quieter: **changing a frozen experimental value produces no error and no visible bug**, and
-silently invalidates every measurement taken before it. You find out in W20 when the numbers do not
-reconcile. So the enforcement is aimed at frozen artifacts first.
-
-| Layer | When | What it does |
+| Hook | When | What it does |
 | :--- | :--- | :--- |
-| `frozen-guard.sh` | **always, at every scope** | Blocks edits that *configure* a frozen value, edits to the three frozen docs, and writes to `results/*/raw/`. Releases when the active task's `approvals.md` cites an ADR |
-| `gate-check.sh` | **always, calibrated by scope** | Blocks source edits until the task's scope has produced its design documents **and** `/approve implementation` wrote `READY_TO_IMPLEMENT` |
+| `inject-context.sh` | every prompt | Prints the phase, its `**Exit:**` line from `docs/super-plan.md`, and the active task's scope and lock state |
+| `done-check.sh` | end of turn | Reminds you of an unset phase or an open task. Never blocks |
+| `format-lint.sh` | after an edit | `gofmt` / `ruff` on what was just written; reminds you to `make proto` when the `.proto` changed |
 
 The phase is explicit state (`.claude/state/phase`), not computed from the calendar: a phase ends
-when its exit criterion passes, which is a binary test and not a date.
+when its exit criterion passes, which is a binary test and not a date. Run that criterion by hand
+— each one names a command or an artefact, never a judgement.
 
-## Design notes worth knowing before you change a hook
+## The failure mode this workflow is shaped around
 
-- **`frozen-guard` distinguishes configuring from discussing.** `num_ctx = 8192` blocks;
-  `func F(top_k int)`, a proto field number, a comment, or a grep pattern does not. Patterns in
-  `.docs/ai/frozen-values.txt` must match an **assignment**. A guard that cries wolf gets disabled — every
-  false positive is a real cost.
-- **`.claude/*`, `.docs/*`, `docs/*`, `*.md`, `*.proto` and the `Makefile` are exempt from the value
-  scan.** They describe values rather than setting them. `.claude/*` is exempt *first*, deliberately: a
-  self-referential guard with no bootstrap exemption locks its own source and wedges the repo.
-- **The hook payload is read once at source time.** Reading it lazily inside a function fails silently,
-  because command substitution runs in a subshell and the second read gets an already-consumed stdin.
-- **A malformed payload blocks rather than allows.** Failing open on a guarded path is worse than a
-  false alarm.
+In a normal backend repo, process stops unreviewed architectural drift. Here the failure mode is
+quieter: **changing a frozen experimental value produces no error and no visible bug**, and
+silently invalidates every measurement taken before it. You find out at write-up time, when the
+numbers do not reconcile and months of runs are void.
+
+That is why `impact.md` asks *which prior runs does this invalidate* and why `/done` refuses to
+close quietly on a scope that turned out wrong. Since 2026-09-22 those questions are the **only**
+line of defence — no hook checks them.
 
 ## Commands
 
@@ -92,45 +85,28 @@ when its exit criterion passes, which is a binary test and not a date.
 | `/refactor <slug>` | Same behaviour, better structure — scope M; no test may change, golden values must reproduce |
 | `/investigate <slug>` | Answer a question and produce evidence. Writes no source, ever |
 | `/task <slug> <L\|M\|S>` | Open a task with a durable design trail, when none of the four fits |
-| `/approve <phase>` | Human approval of a design phase — only `/approve implementation` unlocks source edits |
+| `/approve <phase>` | Human sign-off on a design phase; `/approve implementation` records that code may start |
 | `/verify` | Build + test + lint; reports SKIPPED for absent tooling, never a vacuous pass |
 | `/ai-review` | Review the working diff against written checklists via the review subagents |
 | `/rca` | Structured root-cause analysis, invoked only after `/verify` fails twice |
-| `/done` | Close the active task, re-lock the gate, record the outcome |
-| `/log [note]` | Append a dated entry to `docs/worklog/journal.md` |
-| `/gate [phase]` | Run that phase's exit criterion concretely — PASS or FAIL, never a self-assessment |
-| `/task-status` | Report current state compactly — phase, active task, scope, gate state, outstanding phases |
-| `/adr [title]` | Record an architecturally significant decision in `docs/decisions.md` |
-| `/consistency` | Sweep the frozen documents for drift, stale references, reinstated scope |
-| `/spike` | **Spent.** The envelope is frozen (ADR-017) and re-running it re-freezes nothing. Kept because the method is what the design chapter describes, and a hardware change would need it run again — under a new ADR |
+| `/done` | Close the active task and record the outcome |
+| `/task-status` | Report current state compactly — phase, active task, scope, outstanding phases |
 
 ## Subagents
 
-| Agent | Model | Tools | Purpose |
-| :--- | :--- | :--- | :--- |
-| `impact-analyst` | opus | Read, Grep, Glob, Bash | Pre-implementation blast-radius analysis — which packages/frozen artifacts/prior runs a change would invalidate; writes `impact.md` |
-| `contract-reviewer` | sonnet | Read, Grep, Glob, Bash | Reviews diffs touching the Go↔Python seam, Redis schemas, wire fields, or chunk IDs against `interfaces.md` |
-| `experiment-reviewer` | sonnet | Read, Grep, Glob, Bash | Reviews diffs touching measurement/metrics/judging/thresholds against the frozen experiment protocol, incl. research-integrity check |
-| `rca-analyst` | opus | Read, Grep, Glob, Bash | Structured root-cause analysis after two failed `/verify` attempts; treats tests as immutable unless it can prove staleness |
-| `design-reviewer` | opus | Read, Grep, Glob, Bash | **Scope-L only, before any code.** Is the design sound, and what is the hidden risk — a different question from `impact-analyst`'s blast radius. Ranks silent failure paths first, because this project's characteristic bug raises no error |
+| Agent | Model | Purpose |
+| :--- | :--- | :--- |
+| `impact-analyst` | opus | Pre-implementation blast-radius — which packages and which prior runs a change would invalidate; writes `impact.md` |
+| `design-reviewer` | opus | **Scope-L only, before any code.** Is the design sound, and what is the hidden risk — a different question from blast radius. Ranks silent failure paths first, because this project's characteristic bug raises no error |
+| `contract-reviewer` | sonnet | Reviews diffs touching the Go↔Python seam, Redis schemas, wire fields, or chunk IDs against `docs/contracts/interfaces.md` |
+| `rca-analyst` | opus | Root-cause analysis after two failed `/verify` attempts; treats tests as immutable unless it can prove staleness |
 
-## Escape hatches
+## Testing a hook by hand
 
-- Legitimate frozen change → `/adr`, cite it in `approvals.md`, retry. **This is the intended path.**
-- Emergency → comment the hook out of `settings.json`, do the work, put it back, and record why in the
-  worklog. Do not edit `frozen-values.txt` to dodge a specific block — that removes the guard for
-  everyone, permanently, and silently.
-- Test a hook by hand:
-  ```bash
-  jq -nc --arg p "$PWD/rag/x.py" --arg c 'num_ctx = 8192' \
-    '{tool_name:"Write",tool_input:{file_path:$p,content:$c}}' | .claude/hooks/frozen-guard.sh; echo $?
-  ```
-  Exit 2 = blocked, 0 = allowed. Test the scope ladder by writing `L`, `M` or `S` to the active
-  task's `SCOPE` file and re-running; `THESIS_PHASE_FILE` points `current_phase()` elsewhere.
+```bash
+echo '{}' | .claude/hooks/inject-context.sh    # the session banner
+echo '{}' | .claude/hooks/done-check.sh        # the end-of-turn checklist
+```
 
-## Where the rules live
-
-`.docs/ai/rules.md` holds the ten trip-wires; each cites its governing section in `docs/` rather than
-restating it. Review subagents Read it at review time, so there is one place to update. The engineering
-standards suite is deliberately deferred to W6, to be derived from real Go code rather than invented
-against an empty repo.
+`THESIS_PHASE_FILE` points `current_phase()` at a different file. Scope is read from the active
+task's `SCOPE`, so writing `L`, `M` or `S` there changes what the banner reports.

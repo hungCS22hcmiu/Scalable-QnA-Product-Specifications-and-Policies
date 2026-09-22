@@ -1,8 +1,8 @@
 """Generation over retrieved context, via Ollama — httpx only, same calling convention as
-embedding.py (no new dependency, .docs/ai/rules.md #9).
+embedding.py (no new dependency).
 
 Reads frozen values (LLM_MODEL, LLM_THINK, LLM_NUM_CTX) from config.py only. Never accepts a
-per-call override: ADR-021 froze `think: false` after finding the hidden chain-of-thought mode
+per-call override: `think: false` is frozen. The hidden chain-of-thought mode
 inflates latency ~5x with no quality benefit, and a request-level override would silently
 reintroduce that regression.
 """

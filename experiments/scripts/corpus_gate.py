@@ -1,7 +1,7 @@
 """Corpus sensitivity gate — the executable form of `data-card.md` §7.
 
 C1 can only produce a signal where queries are **similar but ground differently**. The reduced
-corpus (ADR-016) risks removing the phenomenon it studies. This gate catches that *before* the
+corpus risks removing the phenomenon it studies. This gate catches that *before* the
 snapshot is hashed, while the corpus can still be fixed — and it refuses to print a snapshot hash
 unless every criterion passes, so "frozen" cannot happen by accident.
 
@@ -30,7 +30,7 @@ which needs an ingested index. The resolution is that the criteria split cleanly
 
 Stage 1 failing aborts before stage 2, so a mis-slugged corpus is never embedded.
 
-## Which overlap — the gate's is not the rule's (ADR-024)
+## Which overlap — the gate's is not the rule's
 
 The rule's overlap is `|A ∩ B| / |B|` between a query's retrieval and a *cached entry's*
 provenance: **asymmetric, and therefore not well-defined for the query–query pairs this gate
@@ -61,13 +61,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SIM_FLOOR = 0.85  # "sim >= 0.85"  -- the pair must be a genuine lookalike
 JACCARD_CEILING = 0.2  # "J <= 0.2" -- ...that nonetheless grounds elsewhere
 G1_MIN_PAIRS = 50  # "high-similarity / low-overlap pairs >= ~50"
-CAPACITY_RATIO = 0.25  # ADR-027: capacity = round(ratio * K)
+CAPACITY_RATIO = 0.25  # the capacity ratio: capacity = round(ratio * K)
 
 DOC_ID_PREFIXES = ("product-", "policy-")
 
 
 # =================================================================================================
-# ADR-015 normalization -- a MIRROR of gateway/internal/cache/normalize.go
+# the Tier-1 normalization contract normalization -- a MIRROR of gateway/internal/cache/normalize.go
 # =================================================================================================
 def normalize_t1(query: str) -> str:
     """Tier-1 normalization: lowercase, collapse whitespace, strip punctuation and symbols.
@@ -179,10 +179,10 @@ class Criterion:
 
 
 def check_g4(doc_ids: list[str]) -> Criterion:
-    """Every doc_id begins with `policy-` or `product-` (ADR-032, interfaces.md §C).
+    """Every doc_id begins with `policy-` or `product-` (interfaces.md §C).
 
     A corpus that omits the prefix does not fail loudly: the reuse rule reads a question's lane
-    from the prefix (ADR-030), so every question would classify into the spec lane, the lane
+    from the prefix, so every question would classify into the spec lane, the lane
     machinery would report plausible values throughout, and the mixed lane would never fire — a
     null result produced by the corpus rather than by the rule.
 
@@ -202,8 +202,8 @@ def check_g3(queries: list[Query]) -> tuple[Criterion, int]:
     """Zero Tier-1 collisions: no two queries sharing `(normalize(q), product_id)` may disagree.
 
     ⚠️ BYPASS 2026-09-09: the partition key gained `product_id` because the Tier-1 cache key did
-    (gateway/internal/cache/key.go), reversing ADR-028's "product_id in the Tier-1 key --
-    Rejected" without the owed superseding ADR -- see .docs/work/two-lane-cache/approvals.md.
+    (gateway/internal/cache/key.go), reversing the "product_id in the Tier-1 key --
+    Rejected" without the owed superseding ADR.
     Grouping by `normalize(q)` alone, as before, would now check a STRICTER invariant than Tier 1
     actually needs: two queries with the same text but different `product_id` no longer share a
     Redis key, so they can no longer collide there either.
@@ -257,7 +257,7 @@ def check_g3(queries: list[Query]) -> tuple[Criterion, int]:
 # Stage 2 -- retrieval criteria
 # =================================================================================================
 def cosine(a: list[float], b: list[float]) -> float:
-    """Plain-Python cosine. No numpy: adding a top-level dependency needs sign-off (rules.md #9).
+    """Plain-Python cosine. No numpy: adding a top-level dependency needs sign-off.
 
     O(K²·d) for the whole sweep — a few tens of seconds at K in the hundreds, which is the right
     trade for a check that runs once per corpus freeze.
@@ -271,7 +271,7 @@ def cosine(a: list[float], b: list[float]) -> float:
 
 
 def jaccard(a: tuple[str, ...], b: tuple[str, ...]) -> float:
-    """Symmetric |A ∩ B| / |A ∪ B| — the GATE's overlap, not the rule's (ADR-024).
+    """Symmetric |A ∩ B| / |A ∪ B| — the GATE's overlap, not the rule's.
 
     Two empty retrieval sets score 0, not 1. Vacuous agreement is not evidence of shared
     provenance, and scoring it 1 would quietly exclude the pair from G1's low-overlap count.
@@ -293,7 +293,7 @@ class Pair:
 
 
 def label_pair(a: Query, b: Query) -> str:
-    """B-within (same product, different grounding) vs B-cross (different product) — ADR-028.
+    """B-within (same product, different grounding) vs B-cross (different product).
 
     A pair where either side has no `product_id` is **unlabelled**, never folded into B-cross.
     G2 exists because a cross-product-only corpus is defeated by adding `product_id` to the cache
@@ -344,7 +344,7 @@ def check_g1(pairs: list[Pair]) -> Criterion:
                 (
                     "Fix the CORPUS, not the rule (data-card.md §7): add categories, differentiate "
                     "policy windows per category, lengthen policy documents so they chunk into >= 3 "
-                    "chunks (ADR-024 requirement 3), then re-run."
+                    "chunks (the v1 corpus model requirement 3), then re-run."
                 )
             ]
         ),
@@ -366,7 +366,7 @@ def check_g2(pairs: list[Pair]) -> Criterion:
                 (
                     "Every trap in this corpus is cross-product, so adding `product_id` to the "
                     "cache key reproduces C1's entire benefit at zero cost and C1 is redundant BY "
-                    "CONSTRUCTION OF THE CORPUS (ADR-028). Build same-product pairs that differ "
+                    "CONSTRUCTION OF THE CORPUS. Build same-product pairs that differ "
                     "in policy dimension or applicable condition — warranty vs return period, "
                     "opened vs unopened — which exist only if policy documents chunk finely "
                     "enough to separate conditions."
@@ -390,7 +390,7 @@ def check_g2(pairs: list[Pair]) -> Criterion:
 # Snapshot
 # =================================================================================================
 def snapshot_digest(paths: list[Path]) -> tuple[str, list[tuple[str, str]]]:
-    """`sha256` over a sorted (relative path, file digest) manifest — ADR-008's freeze record.
+    """`sha256` over a sorted (relative path, file digest) manifest — the freeze record.
 
     Hashes the manifest rather than concatenated bytes so that a rename, an added file, and a
     deleted file each change the digest. Paths are repo-relative and sorted, so the digest does not
@@ -421,9 +421,9 @@ def histogram(values: list[float], buckets: int = 10) -> list[tuple[str, int]]:
 
 
 def derive_capacity(k: int) -> int:
-    """ADR-027: `round(0.25 × K)` ENTRIES, where K is the distinct-query count.
+    """the capacity ratio: `round(0.25 × K)` ENTRIES, where K is the distinct-query count.
 
-    A COUNT, not a byte budget — ADR-031 puts enforcement in the gateway for exactly this reason.
+    A COUNT, not a byte budget puts enforcement in the gateway for exactly this reason.
     Feed the result to the gateway as CACHE_CAPACITY and record it in every run manifest.
     """
     return round(CAPACITY_RATIO * k)
@@ -545,7 +545,7 @@ def main() -> int:
     print(f"  per-stratum counts                           : {dict(sorted(strata.items()))}")
     print(f"  trap fraction of the workload                : {trap_fraction:.3f}")
     print(f"  K (distinct queries)                         : {distinct}")
-    print(f"  derived cache capacity (round({CAPACITY_RATIO}*K), ADR-027) : {capacity}")
+    print(f"  derived cache capacity (round({CAPACITY_RATIO}*K)) : {capacity}")
 
     # --- freeze ------------------------------------------------------------------------------------
     digest, per_file = snapshot_digest(sorted(corpus_dir.glob("*.json")) + [workload_path])
@@ -555,7 +555,7 @@ def main() -> int:
         print(f"  snapshot digest : {digest}")
         print(f"  over            : {len(per_file)} files")
         print("\n  All four criteria pass. Record the version, the digest, K and the capacity in")
-        print("  data-card.md §7 and in every run manifest (experiment-protocol.md §2).")
+        print("  data-card.md §7 and in every run manifest (the evaluation).")
     else:
         print("\n  NOT FROZEN — a criterion failed, so no snapshot digest is printed.")
         print(f"  (it would have been {digest[:12]}…; fix the corpus and re-run)")

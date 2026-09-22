@@ -1,5 +1,5 @@
 ---
-description: Open a task with a durable design trail under .docs/work/<slug>/
+description: Open a task with a durable design trail under docs/work/<slug>/
 argument-hint: <task-slug> <L|M|S> [one-line description]
 ---
 
@@ -20,24 +20,25 @@ design work is required before source edits unlock. **If you are between two, ta
 | **M** | spec → impact → plan | Ordinary code: a package, a handler, a script |
 | **S** | spec (one paragraph) | Tests, docs, comments, a one-line fix |
 
-Write the letter to `.docs/work/$1/SCOPE`. **Every scope still ends at `/approve implementation`** —
+Write the letter to `docs/work/$1/SCOPE`. **Every scope still ends at `/approve implementation`** —
 S is cheap because it needs one document, not because it skips the human.
 
 ## The trail
 
-1. **Create `.docs/work/$1/`**, write `SCOPE`, and set `.claude/state/active-task` to `$1`.
+1. **Create `docs/work/$1/`**, write `SCOPE`, and set `.claude/state/active-task` to `$1`.
 
 2. **`spec.md`** — all scopes:
    - The change in one sentence.
    - Which **phase** it serves, and which super-plan item or exit criterion (`docs/super-plan.md`,
      in `docs/super-plan.md`).
-   - Which `FR-xx` / `NFR-xx` / `RR-xx` it discharges, once `docs/requirements.md` is filled.
+   - Which `FR-xx` / `NFR-xx` / `RR-xx` it discharges, once `docs/contracts/requirements.md` is filled.
    - Acceptance: how we will know it is done, as a check that can be run.
    - Out of scope: what this explicitly does not do.
 
 3. **`impact.md`** — scopes **L** and **M**. Delegate to the `impact-analyst` subagent:
-   - Which packages does this touch? Does it respect `.docs/ai/architecture-guardrails.md`?
-   - **Does it touch a frozen artifact?** If yes: which ADR, and **which prior runs it invalidates**.
+   - Which packages does this touch? Does it respect `docs/architecture.md`'s module boundaries?
+   - **Does it touch a frozen value or a measured path?** If yes, say **which prior runs it
+     invalidates** — that sentence is the point, and nothing enforces it automatically any more.
    - Does it reinstate anything from `Final_Proposal.md` §12's do-not-reinstate list?
    - Does it add a dependency? (needs sign-off — rules #9)
    - Does it change a **contract** (`interfaces.md` surfaces)? → the contract phase becomes required.
@@ -65,7 +66,7 @@ S is cheap because it needs one document, not because it skips the human.
    | implementation | always   |          |      |     |
    ```
 
-   A frozen change is released by **citing the ADR here** (`frozen-guard.sh` reads this file).
-   Never edit `.docs/ai/frozen-values.txt` to dodge a block.
+   Nothing reads this file automatically since 2026-09-22 — it is the human record of what was
+   reviewed, and it is the only such record now that the hooks no longer gate.
 
 Report the slug, the scope and why that scope, and the outstanding phases. Then stop.
