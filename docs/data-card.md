@@ -20,8 +20,8 @@
 
 | Artifact | Source | License posture | Frozen |
 | :--- | :--- | :--- | :--- |
-| Product catalog (~150) | McAuley-lab Amazon product data | ⚠️ redistribution TBD | `TODO(W8)` |
-| Query workload + reference answers | AmazonQA / McAuley-lab | ⚠️ redistribution TBD | `TODO(W8)` |
+| Product catalog (~150) | **Amazon-PQA** (ADR-039) | **academic use granted; redistribution NOT granted** → build script + hash manifest | `TODO(W8)` |
+| Query workload | **Amazon-PQA** — same records as the catalog (ADR-039) | **academic use granted; redistribution NOT granted** → build script + hash manifest | `TODO(W8)` |
 | Policy corpus (8 docs) | self-authored | author-owned → releasable | `TODO(W8)` |
 | Paraphrase stress set | mined + machine-generated | derivative — see below | `TODO(W8)` |
 | Update set (~20 edits) | self-authored edits | author-owned | `TODO(W8)` |
@@ -29,10 +29,17 @@
 
 ---
 
-## 1. Product catalog (Amazon / McAuley-lab)
-- **Source:** McAuley-lab Amazon datasets (product specifications). `TODO(W8): exact dataset name, version, URL, access date.`
-- **⚠️ License / redistribution:** the Hugging Face dataset card for `Amazon-Reviews-2023` **states no license**, so redistribution terms are unresolved and the `TODO` below stands. Default to the download-and-build-script fallback. Verify the dataset's terms **before** committing any of it to the public repo. If redistribution is not permitted, ship a **download+build script** and a hash manifest instead of the raw data, and reconcile with the project LICENSE (ADR-013).
+## 1. Product catalog (Amazon-PQA)
+
+> **Changed by ADR-039 (2026-09-21).** The source was `Amazon-Reviews-2023` metadata joined to `AmazonQA`. It is now **Amazon-PQA**, where each record carries the question *and* the product content, so no join is performed and `asin`-against-`parent_asin` stops being a risk to measure. §3 changes with it.
+
+- **Source:** **Amazon-PQA**, AWS Open Data, `s3://amazon-pqa` — one JSON-lines file per category, served over **plain HTTPS with no credentials and no AWS CLI** (`https://amazon-pqa.s3.amazonaws.com/amazon_pqa_<category>.json`). Download three to five category files, never the 17 GB archive. `TODO(W8): category files, access date, per-file sizes and hashes.`
+- **⚠️ License / redistribution — academic use granted, redistribution NOT granted.** Two sources conflict and this study takes the more restrictive, because the cost of being wrong falls on a public repository. The AWS Open Data Registry entry records `License: https://cdla.dev/permissive-1-0/`; the dataset's **own `readme.txt`** — which that same entry names as its `Documentation` — instead carries the ACM personal/classroom notice: *"Permission to make digital or hard copies … for personal or classroom use … provided that copies are not made or distributed for profit or commercial advantage … For all other uses, contact the owner/author(s)."* The string "CDLA" appears nowhere in it. **Therefore:** using PQA for this thesis is the granted case; publishing a derived corpus is not. `data/v1/` stays gitignored and ships as a **download-and-build script plus a hash manifest**, reconciled with the project LICENSE (ADR-013). **Required citation:** Rozen, Carmel, Mejer, Mirkis and Ziser, *"Answering Product-Questions by Utilizing Questions from Other Contextually Similar Products"*, NAACL-HLT 2021 — BibTeX in the dataset readme.
+- **⚠️ The dataset's documentation does not match its data — write the builder against the bytes.** `readme.txt` describes `asin_id`, `bullet_points`, `is_yes-no_question`, `yes-no_answer`, `answer_text`. The records actually carry **`asin`**, **`bullet_point1` … `bullet_point5`**, **`question_type`** (`"yes-no"` | `"WH"`), **`answers`** (a list of `{answer_text}`) and **`answer_aggregated`**, alongside `question_id`, `question_text`, `brand_name`, `item_name`, `product_description`. A builder written against the documentation produces **empty records with no error**; the builder must assert a non-zero parse rate.
+- **⚠️ PQA products chunk to roughly one chunk each, and that is fine — but it is not requirement 3.** Measured 2026-09-21: median product prose (five bullets plus description) is **504 characters**, ≈ 126 tokens at the frozen `chunk_size = 256`, with `product_description` frequently empty; only **1.6 %** of products would reach ≥ 3 chunks. The earlier argument that prose would chunk more readily than a spec table is **withdrawn**. ADR-024 requirement 3 rests entirely on the **authored policy** half of §2. What PQA does fix is corpus *diversity*: `dev-v0`'s G1 = 0 came from 44 chunks in total, where one PQA category supplies over a thousand.
 - **Subset criteria:** **~150 products across ≥ 3 categories** (proposal §9.3, timeline W8). Small on purpose — the corpus exists to exercise the cache, not to stress retrieval — but **not single-category**: see the sensitivity gate in §7. `TODO(W8): categories, filter rules, final product count.`
+- **⚠️ Select into the thick tail; do NOT sample uniformly (ADR-039).** Questions per product is heavily skewed *within* a category and varies ~4× *between* categories on the original shortlist — `inkjet_printers` median **8** (63.7 % of products with ≥ 5 questions), `chairs` median **2** (24.3 %, but 19,193 products, so 4,664 still clear it). A uniform draw from a thin category returns mostly single-question products, from which **no stratum A or C pair can be built at all**. Record the selection rule used.
+- **⚠️ Category choice must satisfy two constraints at once.** §2's requirement 2 wants categories whose return *and* warranty windows genuinely differ; this section wants categories thick in questions per product. They are independent, and the shortlist in earlier planning was assembled against the first only. `TODO(W8): the chosen categories and which constraint drove each.`
 
 ## 2. Policy corpus (self-authored)
 - **Provenance:** **8** policy documents (returns, warranty, shipping) authored in-house, modelled on real store policy pages. Author-owned → freely releasable.
@@ -65,13 +72,14 @@ The three existing strata (natural cluster / generated paraphrase / constructed 
 
 | Half | Source | Why |
 | :--- | :--- | :--- |
-| **Product-specification questions** | Real shopper questions from **AmazonQA** (McAuley, UCSD) | Carries genuine paraphrase structure — many users, same intent, different words |
-| **Policy questions** | **Authored in-house** | ⚠️ **AmazonQA contains no policy questions at all.** It is product Q&A. Questions about return windows or warranty terms grounded in *store policy documents* do not exist in it. This is a constraint, not a convenience — and stratum B lives mostly in this half |
+| **Product-specification questions** | Real shopper questions from **Amazon-PQA** (ADR-039) — the same records that supply §1's product content | Carries genuine paraphrase structure — many users, same intent, different words. **Measured 2026-09-21:** 43.6 % of multi-question products in `inkjet_printers` carry at least one genuine near-duplicate question pair, so strata **A** and **C** are *sampled*, not authored |
+| **Policy questions** | **Authored in-house** | ⚠️ **PQA contains no policy questions at all**, exactly as AmazonQA did not. It is product Q&A. Questions about return windows or warranty terms grounded in *store policy documents* do not exist in it, and no public dataset of retail policy documents with questions was found. This is a constraint, not a convenience — and stratum B lives mostly in this half |
 
-- ⚠️ **The dataset's answers are NOT ground truth.** `experiment-protocol.md` §4 defines the reference as `reference(q) = LLM(retrieve(q), q)`, generated by the full pipeline. AmazonQA's answers are **community answers** — subjective, sometimes wrong, and explicitly modelled as ambiguous by the source paper. They are used as *question* provenance only. An earlier draft of this card described the workload as coming "with reference answers", which was misleading and is corrected here.
-- ⚠️ **Join risk — verify before building (`TODO(W8)`).** AmazonQA is the **2016** release, keyed on `asin`, with timestamps around 2014. `Amazon-Reviews-2023` (§1) is keyed on **`parent_asin`**. ASIN coverage across a near-decade gap is **unverified**. Measure the join rate first: if too few AmazonQA questions map onto products in the selected 2023 subset, either select products *from* the QA-covered set or author more of the workload, and record which was done.
-- **Queries must be self-contained (ADR-028).** Real AmazonQA questions are asked *on a product page* and are therefore elliptical — "does this fit?", "how long is the warranty?". The `/ask` contract carries no product context (`interfaces.md` §A), so every workload query must name its product or category in the query text. Rewriting is required, and it is reported as a limitation rather than presented as raw real traffic.
-- `TODO(W8): question count K, join rate achieved, rewrite policy, per-stratum counts.`
+- ⚠️ **The dataset's answers are NOT ground truth.** `experiment-protocol.md` §4 defines the reference as `reference(q) = LLM(retrieve(q), q)`, generated by the full pipeline. PQA's `answers` are **community answers** — subjective, sometimes wrong, sometimes contradicting each other within one record (median 1–2 per question, up to 56). They are used as *question* provenance only. An earlier draft of this card described the workload as coming "with reference answers", which was misleading and is corrected here.
+- ✅ **The join risk is deleted, not reduced (ADR-039).** This bullet previously recorded an unverified ASIN-coverage risk across a near-decade gap between AmazonQA (2016, `asin`) and `Amazon-Reviews-2023` (`parent_asin`). PQA carries the question and the product content **in the same record**, so there is no join to measure and no coverage to verify.
+- ⭐ **PQA supplies `B-within` traps naturally, and this matters for validity.** The same paraphrase clustering that yields strata A and C also surfaces same-product pairs that read as paraphrases and have **different answers** — *"Does printer work with windows 10?"* against *"Will this unit work with Windows 7?"*. These are ADR-028's `B-within` stratum and ADR-035's residual, occurring in real traffic. The standing limitation on the C1 result is that the measured residual is partly a property of how carefully the author split conditions (ADR-038); traps the author did not construct weaken that objection in a way an authored workload cannot. `TODO(W8): count of natural vs. constructed B-within pairs.`
+- **Queries must be self-contained (ADR-028).** Real PQA questions are asked *on a product page* and are therefore elliptical — "does this fit?", "how long is the warranty?". The `/ask` contract carries no product context (`interfaces.md` §A), so every workload query must name its product or category in the query text. Rewriting is required, and it is reported as a limitation rather than presented as raw real traffic.
+- `TODO(W8): question count K, selection rule used, rewrite policy, per-stratum counts.`
 
 ## 4. Paraphrase stress set
 - Natural paraphrase clusters mined from the Q&A data + machine-generated paraphrases of seed questions, built so exact-match fails and Tier-2 is genuinely exercised; also the redundancy driver for load tests (Zipf-distributed, **3 skew levels** — proposal §9.1).
@@ -133,30 +141,69 @@ C1 can only produce a signal where queries are **similar but ground differently*
 
 **Procedure (~30 lines, W8):** embed all workload queries with the frozen embedding model; compute pairwise similarity; retrieve top-k for each; then count pairs satisfying **`sim ≥ 0.85` AND `J ≤ 0.2`**.
 
+> **Implemented and runnable (2026-09-06):** `experiments/scripts/corpus_gate.py`, via `make gate-corpus`.
+> It computes every statistic listed below and **refuses to print a snapshot hash unless all four
+> criteria pass**, so "frozen" cannot happen by accident.
+>
+> **The workload file must live OUTSIDE `data/{version}/`** — `rag.ingest` globs that directory and
+> asserts `doc_id == filename`, so a workload dropped in it breaks ingestion. Convention:
+> `data/workload-{version}.json`, passed as `make gate-corpus WORKLOAD=…`.
+>
+> **Two stages, which resolves an apparent contradiction in the outcome table below.** A failure is
+> said to mean *"do not proceed to ingestion"*, yet G1/G2 are defined over `retrieve(q)` and so need
+> an ingested index. They split by what they need: **G3, G4 and G5 are structural** — corpus files and
+> the workload file only, and `make gate-corpus STRUCTURAL=1` runs them alone, which is the loop to
+> run while authoring. **G1 and G2 need the frozen retrieval path.** Stage 1 failing aborts before
+> stage 2, so a mis-slugged corpus is never embedded.
+>
+> **G3's normalization is a second implementation of a Go function** and the Go one is what actually
+> runs on the hit path. A looser mirror lets the gate pass a corpus that collides in production; a
+> tighter one rejects a corpus Tier 1 would have handled — both silent. The two are pinned to shared
+> golden vectors in `contracts/normalize/cases.json`, asserted from both languages.
+>
+> **Shakedown against `dev-v0` (2026-09-06, not a gate result — `dev-v0` is not gated, ADR-020).**
+> 24 questions, 44 documents: G3 and G4 pass; **G1 = 0 pairs** and **G2 = 0 B-within**. Across the
+> 16 high-similarity pairs the mean Jaccard is **0.68** and *no pair at all* falls below the 0.2
+> ceiling — the lowest occupied histogram bucket is 0.2–0.3. This is ADR-024 requirement 3 measured
+> rather than predicted: 44 documents ingesting to 44 chunks gives every question a near-identical
+> retrieval set, so the corpus cannot express the phenomenon C1 studies. It is the concrete target
+> `v1` has to clear.
+
 > ⚠️ **Which overlap — the gate's is not the rule's (ADR-024).** The rule's overlap is `|A ∩ B| / |B|`, between a query's retrieval and a *cached entry's* provenance — **asymmetric, and therefore not well-defined for a query–query pair**, which is what this gate counts. The gate uses symmetric Jaccard `J(A,B) = |A ∩ B| / |A ∪ B|` over the two top-k retrieval sets. At equal `top_k` this is monotone in `|A ∩ B|` and orders pairs identically to `|A ∩ B| / k`; at `top_k = 5`, `J ≤ 0.2` admits **at most one shared chunk**. The gate statistic is a **corpus property**, never the rule's operating metric, and the two are reported separately so they cannot be conflated.
 
-**Three criteria, all of which must pass before the snapshot is hashed.**
+**Five criteria, all of which must pass before the snapshot is hashed.**
 
 | # | Criterion | On failure |
 | :---: | :--- | :--- |
 | **G1** | High-similarity / low-overlap pairs **≥ ~50** | **Fix the corpus, not the rule** — add categories, differentiate policy windows per category, re-run |
 | **G2** | **`B-within` > 0** (ADR-028) | Rebuild. A corpus of only cross-product traps is defeated by a one-line change to the cache key, and C1 would be redundant by construction |
 | **G3** | **Zero Tier-1 collisions** (ADR-028) | Disambiguate the offending query text. Do not proceed to ingestion |
+| **G4** | **Every `doc_id` begins with `policy-` or `product-`** (ADR-032, `interfaces.md` §C v0.6) | Re-slug the offending documents before ingestion |
+| **G5** | **No two opposing conditions of the same kind share a `doc_id`** (ADR-038, **amended by ADR-041**) | Author the conditions into separate documents. Do not proceed to ingestion — this is unfixable after the freeze |
 
 **G2 — the within/cross split.** Every pair counted by G1 is additionally labelled `B-within` (same product, different grounding) or `B-cross` (different product). The gate reports both counts. **No numeric floor above zero is set**: there is no evidence yet from which to derive one, and an invented threshold is less defensible than a stated gap. The first gate run on `v1` supplies the number, and it is recorded below as a frozen corpus statistic.
+
+**G4 — the doc-id kind prefix.** The reuse rule reads a question's lane from the *prefix* of the documents its retrieval returned (ADR-030), so the prefix is the only place a document's kind is recorded. A corpus that omits it does not fail loudly: every question classifies into the spec lane, the lane machinery reports plausible values throughout, and the mixed lane never fires — a null result produced by the corpus rather than by the rule. It is a one-line check over the ingested doc-ids and runs alongside G1. Ingestion enforces the same rule (`rag/src/rag/ingest.py:record_kind()`), so G4 is a check that ingestion was actually the path taken.
+
+**G5 — condition-splitting, at DOCUMENT granularity (ADR-038, amended by ADR-041).** ADR-024 requirement 3 asks for policy documents long enough to yield at least three chunks, so that **containment has a gradient to sweep**. G5 asks something different and independent: that **opposing conditions do not share a `doc_id`**.
+
+⚠️ **The granularity was wrong when first written, and the correction matters.** ADR-038 originally required one *chunk* per condition. `reuse.Namespace` takes its policy component from the `doc_id` of the rank-1 policy chunk, and `reuse/lane.go`'s `docID()` deliberately strips `#chunk-{ordinal}` so that re-chunking cannot silently repartition the cache. An intra-document split is therefore **invisible to the namespace**. Worse, where retrieval returns both chunks — the expected case, since the embedding carries almost no weight on a negation — all four conjuncts of the reuse rule go blind at once: similarity cannot separate two near-identical questions, the namespace is the same document, containment is 1.0 over the same chunk set, and the support gate sees the text of *both* conditions in the concatenated evidence. **At document granularity the namespace conjunct separates them**, using machinery that already exists.
+
+The check is structural — it reads the corpus files, needs no ingested index, and runs in stage 1 alongside G3 and G4. It does **not** eliminate the residual: it still depends on retrieval ranking the correct condition document first. The difference is categorical rather than probabilistic — under a chunk-level split the pair *cannot* be separated by any conjunct; under a document-level split it *can* be, and the rate at which it actually is is what **RQ2a** measures on the `B-within` stratum built to contain it.
 
 **G3 — the Tier-1 collision check.** Tier 1 is a bare hash lookup that runs **no reuse rule** (`interfaces.md` §D), so a collision is unguarded and silent. Procedure: group all workload queries by `normalize(q)` using the ADR-015 function, and fail any group whose members disagree on `doc_ids` or `reference_answer`. Note that stripping punctuation collapses `Model A-1` and `Model A1`. The check is ~30 lines and runs alongside G1.
 
 | Outcome | Action |
 | :--- | :--- |
-| G1 ∧ G2 ∧ G3 all pass | Freeze and hash the corpus. Record the statistics below |
-| Any criterion fails | Fix the corpus, re-run all three. Do not proceed to ingestion |
+| G1 ∧ G2 ∧ G3 ∧ G4 ∧ G5 all pass | Freeze and hash the corpus. Record the statistics below |
+| Any criterion fails | Fix the corpus, re-run all five. Do not proceed to ingestion |
 
-**Recorded as frozen corpus statistics** (they are also what make a null C1 interpretable rather than merely disappointing — proposal §5 C1 fallback):
+**Recorded as frozen corpus statistics** (they are also what make a null C1 interpretable rather than merely disappointing — proposal §5 C1 fallback). Every one of them is printed by `make gate-corpus`, and `REPORT=<path>` additionally writes them as JSON so the freeze record is machine-readable rather than transcribed by hand:
 
 - `TODO(W8): count of high-similarity / low-overlap pairs (G1).`
 - `TODO(W8): B-within and B-cross counts and their ratio (G2).`
 - `TODO(W8): Tier-1 collision groups found, and benign duplicate groups (G3).`
+- `TODO(W8): opposing-condition pairs sharing a doc_id, before and after splitting (G5).`
 - `TODO(W8): distribution of source-overlap across all high-similarity pairs (the overlap-variance statistic).`
 - `TODO(W8): per-stratum query counts (A / B-within / B-cross / C / D, §2) and the trap fraction of the workload.`
 - `TODO(W8): K — the count of distinct queries in the frozen workload.` ⚠️ **Cache capacity derives from this**: `cache_capacity = round(0.25 × K)` (ADR-027). Record both `K` and the derived capacity here and in every run manifest.

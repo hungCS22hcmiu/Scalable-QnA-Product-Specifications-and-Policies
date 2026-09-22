@@ -12,15 +12,17 @@ import (
 // sha256 equality is not a judgement (architecture-guardrails.md).
 type Store struct {
 	rdb *redis.Client
+	dim int // Tier-2 vector width, supplied by main.go from embed.Dim -- see tier2.go
 }
 
-func NewStore(rdb *redis.Client) *Store {
-	return &Store{rdb: rdb}
+func NewStore(rdb *redis.Client, dim int) *Store {
+	return &Store{rdb: rdb, dim: dim}
 }
 
-// Get looks up the exact-match entry for query. The bool is false on a cache miss.
-func (s *Store) Get(ctx context.Context, query string) (*Entry, bool, error) {
-	key := Key(Normalize(query))
+// Get looks up the exact-match entry for query, scoped to productID ("" is its own partition,
+// never a wildcard -- see Key). The bool is false on a cache miss.
+func (s *Store) Get(ctx context.Context, query, productID string) (*Entry, bool, error) {
+	key := Key(Normalize(query), productID)
 	fields, err := s.rdb.HGetAll(ctx, key).Result()
 	if err != nil {
 		return nil, false, err
@@ -47,8 +49,9 @@ func (s *Store) Get(ctx context.Context, query string) (*Entry, bool, error) {
 	}, true, nil
 }
 
-// Put writes back a full-miss result. Mints an EntryID if the caller did not already set one.
-func (s *Store) Put(ctx context.Context, query string, e Entry) error {
+// Put writes back a full-miss result, scoped to productID (see Key). Mints an EntryID if the
+// caller did not already set one.
+func (s *Store) Put(ctx context.Context, query, productID string, e Entry) error {
 	if e.EntryID == "" {
 		e.EntryID = NewEntryID()
 	}
@@ -61,7 +64,7 @@ func (s *Store) Put(ctx context.Context, query string, e Entry) error {
 		return err
 	}
 
-	key := Key(Normalize(query))
+	key := Key(Normalize(query), productID)
 	return s.rdb.HSet(ctx, key, map[string]any{
 		"answer":           e.Answer,
 		"source_chunk_ids": string(sourceChunkIDs),

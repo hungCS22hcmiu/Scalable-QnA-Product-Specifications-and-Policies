@@ -2,7 +2,7 @@
 
 | Dir | Contents |
 | :--- | :--- |
-| `scripts/` | workload generator, replay harness, judge, figure generators |
+| `scripts/` | corpus gate (`corpus_gate.py`) · corpus fetcher · ad-hoc load burst · admission self-check. ⚠️ **The workload generator, replay harness, judge harness and figure generators do NOT exist yet** — this row claimed all four until 2026-09-21. They are `super-plan.md` items 3.4, 5.1 and 5.4; `make figures` invokes a script that is not there |
 | `k6/` | load scenarios (W8+, run off-box) |
 | `results/{run_id}/` | `manifest.yaml` (required) · `raw/` (**write-once**) · `figures/` (regenerated, gitignored) |
 

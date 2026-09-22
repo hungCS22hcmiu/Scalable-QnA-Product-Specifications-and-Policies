@@ -42,21 +42,34 @@ gateway logic before then unless a task explicitly says otherwise.
 
 ## What this project is
 
-A **scalable RAG question-answering platform** for e-commerce product specs and store policies. The engineering contribution is a **high-concurrency Go gateway that acts as an admission controller and resource governor**, using RAG-aware caching to perform **load conversion** — turning compute-bound LLM generation into memory-bound cache lookups — so a fixed 16 GB machine absorbs redundant load without swapping or OOM. Its research claim is that **retrieval provenance** beats embedding similarity as a reuse-safety signal, tested with a *deterministic* source-overlap rule. The contribution is weighted **60 % systems design / 25 % applied-LLM / 15 % semantic cache** (proposal §2 *Contribution Profile*). The full framing lives in `docs/Final_Proposal.md` — read §1 "Proposal at a Glance" and §2 "Contribution Profile" first.
+A **scalable RAG question-answering platform** for e-commerce product specs and store policies. The engineering contribution is a **high-concurrency Go gateway that acts as an admission controller and resource governor**, using RAG-aware caching to perform **load conversion** — turning compute-bound LLM generation into memory-bound cache lookups — so a fixed 16 GB machine absorbs redundant load without swapping or OOM. Its research claim is that a **namespace-partitioned source-containment rule over retrieval provenance**, augmented by a **deterministic answer–evidence support gate**, sustains more reuse than the best fixed similarity threshold at a stated false-hit budget — with the residual it does *not* close (same-evidence, opposite-condition queries) carried inside the claim rather than deferred to a limitations section. Read **ADR-026** (provenance-gated reuse is concurrent work, not novel) and **ADR-035** (the support gate is adopted from prior work, not claimed) before writing any novelty claim; the older "provenance beats similarity" wording is superseded. The contribution is weighted **60 % systems design / 25 % applied-LLM / 15 % semantic cache** (proposal §2 *Contribution Profile*). The full framing lives in `docs/learning/Final_Proposal.md` — read §1 "Proposal at a Glance" and §2 "Contribution Profile" first.
 
 ## Workflow
 
 This repo has an enforced workflow. **Read `.claude/README.md` once before working here.**
 
-- **Weekly:** `/week` (what is due) → work → `/log` (hours, blockers) → `/gate` (run the exit test for
-  real). `/task-status` answers "where am I".
-- **Changes:** `/task <slug>` opens a design trail under `.docs/work/`; `/approve <phase>` is a **human**
-  decision; `/verify` → `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then
-  `/rca` takes over. **Tests are immutable** unless an RCA proves staleness and the human confirms.
+> **Weeks were removed 2026-09-21** (`Pre-thesis_Sweeping.md` #4). The schedule is **phases with
+> binary exit criteria**, and rigor is set by the **scope** of a change, not by the calendar. Any
+> instruction elsewhere that says "from W8" or "this week" is stale — report it rather than acting
+> on it. `/week` is gone; `/phase` replaces it.
+
+- **Orienting:** `/phase` (what phase, what closes it, how far off) → work → `/log` (hours,
+  blockers, into `docs/worklog/journal.md`) → `/gate` (run the exit criterion for real).
+  `/task-status` answers "where am I".
+- **Changes:** open with `/feature` · `/bugfix` · `/refactor` · `/investigate`, or `/task <slug>
+  <L|M|S>` when none fits. Each writes a durable trail under `.docs/work/<slug>/` and a `SCOPE`.
+  `/approve <phase>` is a **human** decision and is required at **every** scope. Then `/verify` →
+  `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then `/rca` takes over.
+  **Tests are immutable** unless an RCA proves staleness and the human confirms.
+- **The scope ladder** — `L` (frozen doc, `interfaces.md`, the `.proto`, `reuse/`, anything
+  measured) needs spec → impact → design → **opus design-review** → plan; `M` (ordinary code)
+  needs spec → impact → plan; `S` (tests, docs, one-liners) needs a one-paragraph spec. **Between
+  two, take the larger.** An unset scope blocks rather than defaulting to `S`.
 - **Commands:** use the **Makefile** (`make help`) — do not invent ad-hoc invocations.
-- **Hooks enforce two things.** `frozen-guard.sh` is armed *always*: it blocks edits that configure a
-  frozen value, edits to the three frozen docs, and writes to `results/*/raw/`. `gate-check.sh` blocks
-  source edits without approval from **W8** onward (lightweight in the W5–W7 runway, ADR-020).
+- **Hooks enforce two things.** `frozen-guard.sh` is armed *always, at every scope*: it blocks
+  edits that configure a frozen value, edits to the three frozen docs, and writes to
+  `results/*/raw/`. `gate-check.sh` blocks source edits until the task's scope has produced its
+  design documents **and** a human ran `/approve implementation`.
 - **The intended path through a frozen change is `/adr`**, then cite the ADR in the task's
   `approvals.md`. Never edit `.docs/ai/frozen-values.txt` to dodge a block.
 
@@ -67,14 +80,16 @@ This repo has an enforced workflow. **Read `.claude/README.md` once before worki
   depend on.
 - **`.docs/ai/rules.md`** — the ten trip-wires this repo actually falls over, each citing its governing
   section. `.docs/` is the AI trail and is separate from human-authored `docs/`.
-- **`docs/worklog/`** — one file per week, append-only. The raw material for the write-up phase.
-- **`docs/Final_Proposal.md`** — the source of truth. Defines the three contributions, system architecture, tech stack, research questions, evaluation design, and scope guardrails. Any code written must match the architecture and terminology defined here (§6 Architecture, §7 Technical Stack).
-- **`docs/time_line.md`** — the **phase plan**, replanned 2026-09-02 by phase and **exit criterion** rather than by date. Pre-thesis is closed. Eight phases run to completion in December 2026 at ~15 h/week. Week numbers are retained only as the handle `/week` and the session banner read (`.claude/hooks/lib.sh` greps `| **<week>**`, and "Done when" is **column 5**). Drop order and deliverables are **not** restated there — `Final_Proposal.md` §12 and §13 own them.
+- **`docs/worklog/`** — **`journal.md`**, append-only and dated, written by `/log`. `W05/W06/W08.md` are the pre-thesis record and stay unedited — they hold the μ_hit numbers, the G1 = 0 / G2 = 0 shakedown, and the measurements behind ADR-017/021/030…033. The raw material for the write-up phase.
+- **`docs/learning/Final_Proposal.md`** — the source of truth. Defines the three contributions, system architecture, tech stack, research questions, evaluation design, and scope guardrails. Any code written must match the architecture and terminology defined here (§6 Architecture, §7 Technical Stack).
+- **`docs/time_line.md`** — ⚠️ **RETIRED 2026-09-21** into `super-plan.md`. **Do not take an instruction from it**: three of its rows were wrong when it was retired (it told you to populate `similarity_only_decision`, which ADR-036 retired; it described the AmazonQA join that ADR-039 deleted; it scheduled `admission/` and `telemetry/` as future work when both were built). Kept because two sections still live there and have no other home: the **Risk Register** and the **Learning Path**.
+- **`docs/requirements.md`** — **skeleton, shape approved 2026-09-21, deliberately unfilled.** Requirements split **three** ways, not two: **FR** (what the system does) · **NFR** (how well) · **RR — Research Requirements** (what makes a measurement admissible). RR exists because most of this project's binding constraints — frozen values, green memory pressure, δ ≤ 5 %, swept-not-hand-set, pre-registered nulls, tune-on-validation/report-on-test — are neither behaviours nor runtime qualities, and filing them under NFR hides the failure mode: violating an NFR makes the system worse *visibly*, violating an RR voids the result *silently*. Do not add rows before sign-off.
+- **`docs/super-plan.md`** — ⭐ **the phase plan, in force from 2026-09-21.** **Eight** phases re-derived from the critical path through the codebase, each with a binary `**Exit:**` line that `.claude/hooks/lib.sh` reads for the session banner and `/gate`. Its spine: `μ_gen` is frozen, so `h` is the only free variable in `λ_max`, and `h ≤ ρ` for any cache serving no false hit — which makes **minimising false hits and serving more requests the same frontier**, not two tracks. Also carries **"Measuring without a second machine"** (ADR-040). `Final_Proposal.md` §12 (drop order) and §13 (deliverables) are **never** restated here.
 - **`docs/defense_demo.md`** — the defense demo script (five live steps + a recorded load clip that is the only demonstration of scalability) and the input/output contract the debug UI must expose. Any UI/API work should conform to this contract, including the **required** counters sidebar.
-- **`docs/interfaces.md`** — interface & data contracts (HTTP `/ask`, Go↔Python gRPC incl. a retrieval-only RPC for the reuse cascade, the stable chunk-ID scheme, Redis cache/dependency schemas, invalidation event). **Frozen at v0.5** (ADR-029 added §H, the per-request evaluation log) — code at the seam must conform, and changes require a `decisions.md` entry.
+- **`docs/interfaces.md`** — interface & data contracts (HTTP `/ask`, Go↔Python gRPC incl. a retrieval-only RPC for the reuse cascade, the stable chunk-ID scheme, Redis cache/dependency schemas, invalidation event). **Frozen at v0.9** (ADR-037 adds `texts` to §B's `RetrieveResponse`, positionally aligned with `chunk_ids`, without which ADR-035's support gate cannot run; ADR-035 adds §H's `refusal_cause` and the two support-arm fields; ADR-036 **retires** §H's `similarity_only_decision` along with the unfiltered similarity-only cascade phase and `tau_high`; ADR-034 adds the optional `product_id` to §B, scoping `Retrieve`/`Answer`'s corpus search to the asked-about product plus policy content — never a reuse-decision signal; ADR-033 lets `Answer` take pre-retrieved chunks; ADR-032 adds the optional `product_id` on §A and the doc-id kind prefix; ADR-031 moves eviction into the gateway; ADR-030 restates what `entered_band` measures) — code at the seam must conform, and changes require a `decisions.md` entry.
 - **`docs/experiment-protocol.md`** — reproducibility: run-manifest schema, operational metric definitions, the frozen LLM-judge prompt, statistics, and the pre-registered headline results. Experiment/measurement code conforms to this.
 - **`docs/decisions.md`** — decision log (ADRs): frozen choices and open questions with decide-by weeks. **ADR-016 is the scope reduction**; **ADR-021 (2026-08-15) replaced the generation LLM** (Gemma 4 E4B → Qwen 3.5 2B) after the originally frozen model failed the W5 memory-envelope spike on this machine's real available RAM — read it before trusting a "Gemma" reference anywhere else (older prose in `Final_Proposal.md`/`README.md` may still say Gemma; `decisions.md` is authoritative). ADR-003 (embedding model: `nomic-embed-text`) and ADR-014 (chunking) are also Decided now. **ADR-022/023/024 (2026-08-18)** add the admission-control record (previously the 60 %-weighted contribution had no ADR at all), the config×mutation experiment grid, and `v1`'s corpus data model. **ADR-026 (2026-09-02) narrowed C1**: two 2026 systems (GroundedCache, FinCacheServe) already gate reuse on retrieval context, so provenance-gated reuse is **no longer claimed as novel** — read it before writing any novelty claim. **ADR-027/028/029** set capacity as a ratio, tighten the corpus gate, and add the evaluation log.
-- **`docs/data-card.md`** — corpus/workload provenance, licensing, schemas, versioning. **Filled and frozen at W8**, not W5 (`data-card.md` is the authority here; ADR-020 moved it with the `v1` corpus). ADR-024 adds `v1`'s structural requirements: product↔policy join key, per-category warranty windows, policy docs long enough to yield ≥3 chunks, and the query strata. **ADR-028** splits stratum B into **B-within / B-cross** and adds the Tier-1 collision invariant, so §7's gate now has **three** criteria (G1/G2/G3). **ADR-027** derives cache capacity as `0.25 × K` from the frozen workload's distinct-query count.
+- **`docs/data-card.md`** — corpus/workload provenance, licensing, schemas, versioning. **Filled and frozen at W8**, not W5 (`data-card.md` is the authority here; ADR-020 moved it with the `v1` corpus). ADR-024 adds `v1`'s structural requirements: product↔policy join key, per-category warranty windows, policy docs long enough to yield ≥3 chunks, and the query strata. **ADR-028** splits stratum B into **B-within / B-cross** and adds the Tier-1 collision invariant, so §7's gate grew past its original three. It now has **five** (G1/G2/G3/G4/G5): **ADR-032** added G4, the doc-id kind prefix, and **ADR-038** added G5, condition-splitting — one chunk carries one condition, which is the only lever against ADR-035's residual and exists only before the corpus freeze. **ADR-027** derives cache capacity as `0.25 × K` from the frozen workload's distinct-query count.
 - **`docs/archive/pre_thesis-Proposal.md`** — ⚠️ **superseded**, retained as the record of the full design space. Its section numbers do not match the current proposal. Never code against it, and don't treat features described there as in scope.
 - **`README.md`** (repo root) — landing page and document index.
 
@@ -87,7 +102,7 @@ Two-tier cache in front of a RAG pipeline, decoupled by language/responsibility:
 - **Local LLM** (**Qwen 3.5 2B** via Ollama, 4-bit `q4_K_M`, `num_ctx` fixed at 8192, **`think: false` required on every call** — ADR-021, supersedes the originally-frozen Gemma 4 E4B) and a separate **embedding service** (**`nomic-embed-text`, 768-dim** — ADR-003) — both consumed as black boxes, not modified. Ollama runs **natively on the host**, never in Docker: macOS containers have no Metal GPU passthrough, and a CPU-bound LLM invalidates every latency measurement.
 - **Redis** — cache store + vector search for Tier 2.
 
-Full request-flow diagram and component responsibilities: `docs/Final_Proposal.md` §6.
+Full request-flow diagram and component responsibilities: `docs/learning/Final_Proposal.md` §6.
 
 ## Constraints that any code change must respect
 

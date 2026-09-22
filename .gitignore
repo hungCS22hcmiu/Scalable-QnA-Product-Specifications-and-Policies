@@ -1,10 +1,15 @@
 # --- Not published ------------------------------------------------------------
 # docs/ is version-controlled: the frozen source of truth is the most valuable
 # artifact here and a local-only copy is a single point of failure.
-# Local machinery stays out — Claude Code config, and the AI workflow trail whose
-# per-task spec/impact/plan/approvals are write-once once a task closes.
-.claude/
-.docs/
+# .claude/ and .docs/ are tracked for exactly the same reason (2026-09-21). Both
+# their READMEs already claimed it while this file said otherwise, and the task
+# trail under .docs/work/ is what .docs/README.md calls the raw material for the
+# design and evaluation chapters — leaving it with no history and no remote copy
+# was the larger risk. Only per-machine state stays out.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/state/*
+!.claude/state/.gitkeep
 
 # Submitted prose stays off a public remote: a public copy of text that is also
 # handed in can register as a plagiarism-detection match against its own author.
@@ -18,6 +23,10 @@ docs/learning/
 # Un-ignore once the terms are verified, or ship a download+build script and a
 # hash manifest instead of the raw data (ADR-013).
 data/v1/
+# v1-draft is the same unresolved licence, one directory earlier in the pipeline.
+# fetch_corpus_v1.py's own header says "do not git add data/v1-draft/"; 175 files
+# had been staged anyway. Regenerate it by re-running that script, don't track it.
+data/v1-draft/
 
 # --- Build output --------------------------------------------------------------
 # Generated protobuf stubs (regenerate with `make proto`)
@@ -43,3 +52,9 @@ experiments/results/*/figures/
 
 # --- OS ------------------------------------------------------------------------
 .DS_Store
+
+# --- demo UI -------------------------------------------------------------------
+# Source is tracked; the toolchain output is not. `make ui` regenerates dist/ from
+# source, so shipping it would be a second copy of the same thing that can drift.
+ui/node_modules/
+ui/dist/

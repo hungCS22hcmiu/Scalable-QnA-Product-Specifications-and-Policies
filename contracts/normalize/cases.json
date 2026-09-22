@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "Golden vectors for ADR-015's Tier-1 query normalization. This file is a CONTRACT, not a",
+    "fixture: two languages implement the same function and nothing else forces them to agree.",
+    "",
+    "Go  (authoritative, runs on the hit path): gateway/internal/cache/normalize.go",
+    "Python (corpus gate G3 only):              experiments/scripts/corpus_gate.py",
+    "",
+    "Why the pin exists. G3 (data-card.md 7) fails a workload in which two queries with different",
+    "grounding collapse to one normalized string, because Tier 1 is a bare hash lookup that runs no",
+    "reuse rule (interfaces.md D) -- such a collision serves the wrong answer permanently with",
+    "nothing to detect it. If the Python mirror is LOOSER than Go, the gate misses a real collision.",
+    "If it is TIGHTER, the gate rejects a corpus Tier 1 would have handled. Either way the failure",
+    "is silent, so both sides assert against this file rather than against their own expectations.",
+    "",
+    "Adding a case is cheap and is the right response to any normalization question. Changing an",
+    "existing `out` is an ADR-015 change and needs an ADR."
+  ],
+  "adr": "ADR-015",
+  "cases": [
+    { "name": "lowercase",                        "in": "How Long Is The WARRANTY",   "out": "how long is the warranty" },
+    { "name": "collapse runs of spaces",          "in": "how  long   is",             "out": "how long is" },
+    { "name": "collapse mixed whitespace",        "in": "how\tlong\nis",              "out": "how long is" },
+    { "name": "trim surrounding whitespace",      "in": "   how long is   ",          "out": "how long is" },
+    { "name": "strip trailing punctuation",       "in": "can i return this?",         "out": "can i return this" },
+    { "name": "strip repeated terminal punct",    "in": "really?!",                   "out": "really" },
+    { "name": "punctuation does not join words",  "in": "laptop, headphones",         "out": "laptop headphones" },
+    { "name": "spaced punctuation leaves one",    "in": "laptop , headphones",        "out": "laptop headphones" },
+    { "name": "apostrophe stripped",              "in": "what's the return window",   "out": "whats the return window" },
+    { "name": "symbols stripped",                 "in": "under $500 & in stock",      "out": "under 500 in stock" },
+    { "name": "non-breaking space is whitespace", "in": "how long",              "out": "how long" },
+    { "name": "already normalized is unchanged",  "in": "how long is the warranty",   "out": "how long is the warranty" },
+    { "name": "punctuation only becomes empty",   "in": "???",                        "out": "" },
+    { "name": "empty stays empty",                "in": "",                           "out": "" },
+
+    { "name": "hyphen collapse (documented loss)", "in": "Model A-1",                 "out": "model a1" },
+    { "name": "hyphen collapse counterpart",       "in": "Model A1",                  "out": "model a1" },
+
+    { "name": "no stemming",                      "in": "returns",                    "out": "returns" },
+    { "name": "no stopword removal",              "in": "the warranty",               "out": "the warranty" },
+    { "name": "digits survive",                   "in": "EarBuds Pop 3",              "out": "earbuds pop 3" },
+    { "name": "slash is punctuation",             "in": "return/refund",              "out": "returnrefund" },
+    { "name": "em dash is punctuation",           "in": "return — policy",       "out": "return policy" },
+    { "name": "underscore is punctuation",        "in": "product_id",                 "out": "productid" },
+    { "name": "percent is punctuation",           "in": "100% cotton",                "out": "100 cotton" },
+    { "name": "plus is a symbol",                 "in": "14+ days",                   "out": "14 days" },
+    { "name": "unicode quotes stripped",          "in": "“full refund”",    "out": "full refund" },
+    { "name": "accents are preserved",            "in": "Café Grinder",          "out": "café grinder" },
+    { "name": "whitespace only becomes empty",    "in": "   \t\n  ",                  "out": "" }
+  ]
+}
