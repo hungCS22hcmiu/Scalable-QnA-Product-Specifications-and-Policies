@@ -1,11 +1,11 @@
 # Data Card
 
-**Status:** stub v0.3 — scaffold now, **fill and freeze at timeline W8** · **Created:** 2026-07-23 · **Revised:** 2026-09-02
+**Status:** v0.4 — sources chosen (ADR-002), corpus **not yet frozen** · scaffold now, **fill and freeze at timeline W8** · **Created:** 2026-07-23 · **Revised:** 2026-10-04
 **Companion to:** `Final_Proposal.md` (§9.3 datasets), `contracts/interfaces.md` (§C chunk-IDs, §D Tier-1 key), `decisions.md` (inherited state and every decision from 2026-09-22 on).
 
 **Purpose.** Document provenance, licensing, schema, and versioning for every data artifact the study consumes or produces, so results are reproducible and the open-source deliverable (proposal §13) is legally clean. Items marked **`TODO(W8)`** are filled when the corpus is frozen.
 
-**Freeze policy.** At **W8** the experimental snapshot `v1` is frozen and hashed. `dataset_version`, `snapshot_sha256`, and **`K` (distinct-query count, which sets cache capacity)** are recorded here and in every run manifest (the evaluation Re-chunking or corpus edits bump the version. **No experiment runs against an unfrozen corpus**, and none against one that has not passed all three gate criteria in §7.
+**Freeze policy.** At **W8** the experimental snapshot `v1` is frozen and hashed. `dataset_version`, `snapshot_sha256`, and **`K` (distinct-query count, which sets cache capacity)** are recorded here and in every run manifest (the evaluation Re-chunking or corpus edits bump the version. **No experiment runs against an unfrozen corpus**, and none against one that has not passed all five gate criteria in §7 (G1–G5).
 
 > ⚠️ **Two corpora — do not conflate them.**
 >
@@ -16,13 +16,13 @@
 >
 > Both use the **same frozen embedding model and chunking config** (the frozen embedding model/the frozen chunking, frozen W5), so `v1` is a content expansion rather than a re-chunk. Any number in the pre-thesis report that comes from `dev-v0` must be labelled preliminary and non-authoritative.
 
-> **Sizes cut by the scope reduction (2026-08-09).** Product subset 500–2,000 → **~150**; policy corpus 5–10 → **8** documents; the reuse-safety training set is replaced by a smaller **judged evaluation set** (no training, so no splits). A small clean corpus beats a large messy one, and W8 is a hard timebox.
+> **Sizes cut by the scope reduction (2026-08-09).** Product subset 500–2,000 → **~150**; policy corpus 5–10 → **8** documents (raised to **~13** by ADR-002, because opposing conditions live in separate documents); the reuse-safety training set is replaced by a smaller **judged evaluation set** (no training, so no splits). A small clean corpus beats a large messy one, and W8 is a hard timebox.
 
 | Artifact | Source | License posture | Frozen |
 | :--- | :--- | :--- | :--- |
-| Product catalog (~150) | **Amazon-PQA** | **academic use granted; redistribution NOT granted** → build script + hash manifest | `TODO(W8)` |
+| Product catalog (~150) | **Amazon-PQA** — six leaf files → four departments (ADR-002) | **academic use granted; redistribution NOT granted** → build script + hash manifest | `TODO(W8)` |
 | Query workload | **Amazon-PQA** — same records as the catalog | **academic use granted; redistribution NOT granted** → build script + hash manifest | `TODO(W8)` |
-| Policy corpus (8 docs) | self-authored | author-owned → releasable | `TODO(W8)` |
+| Policy corpus (~13 docs) | self-authored | author-owned → releasable | `TODO(W8)` |
 | Paraphrase stress set | mined + machine-generated | derivative — see below | `TODO(W8)` |
 | Update set (~20 edits) | self-authored edits | author-owned | `TODO(W8)` |
 | Judged evaluation set | auto-generated + ~100 human-verified | author-owned | thesis W14 |
@@ -33,16 +33,48 @@
 
 > **Changed 2026-09-21 — the source is now Amazon-PQA.** The source was `Amazon-Reviews-2023` metadata joined to `AmazonQA`. It is now **Amazon-PQA**, where each record carries the question *and* the product content, so no join is performed and `asin`-against-`parent_asin` stops being a risk to measure. §3 changes with it.
 
-- **Source:** **Amazon-PQA**, AWS Open Data, `s3://amazon-pqa` — one JSON-lines file per category, served over **plain HTTPS with no credentials and no AWS CLI** (`https://amazon-pqa.s3.amazonaws.com/amazon_pqa_<category>.json`). Download three to five category files, never the 17 GB archive. `TODO(W8): category files, access date, per-file sizes and hashes.`
+- **Source:** **Amazon-PQA**, AWS Open Data, `s3://amazon-pqa` — one JSON-lines file per category, served over **plain HTTPS with no credentials and no AWS CLI** (`https://amazon-pqa.s3.amazonaws.com/amazon_pqa_<category>.json`). Download only the category files listed below, never the full archive (2.27 GB compressed; ~17 GB of JSON across all 100 files). **Chosen 2026-10-04 (ADR-002); downloaded 2026-10-03; kept gitignored in `data/raw/pqa/`:**
+
+  | File | Bytes | sha256 |
+  | :--- | ---: | :--- |
+  | `amazon_pqa_unlocked_cell_phones.json` | 821,444,488 | `007178b847b2fb2b3bbdee7a79982dfcf7c51818f7cc909c5b4b5381c249424c` |
+  | `amazon_pqa_traditional_laptops.json` | 403,702,059 | `86452e67a51d029d8ff7419b2f4fe3037c2a1fcf27a2de199d859e35bf098b5f` |
+  | `amazon_pqa_led_&_lcd_tvs.json` | 178,273,635 | `bd8e9530c3ae2b678fd773c612e612770ce7b601b3b340d38f468767861622f1` |
+  | `amazon_pqa_over-ear_headphones.json` | 278,531,682 | `b784c7e144257dbc1eb77e76ab46aaaba786d73280b533701a2314860344b320` |
+  | `amazon_pqa_chairs.json` | 138,252,584 | `b015bea4871be949d5ca332a605fb0b1f1ebba5d89a903e277a857b1567b73c0` |
+  | `amazon_pqa_home_office_desks.json` | 95,549,762 | `2d89b15fc9c592539a4af9f4806517896e04594c7333ffdd68e5418a34fcba74` |
+
+  Together: **1,212,029 questions over 71,794 products**. ⚠️ **Verify by sha256 and parse rate, not by ETag.** The S3 ETags are multipart with an unpublished part size, so they cannot be recomputed. Single connections can throttle to ~15 KB/s, so the builder downloads with resume and byte ranges. Four records in `unlocked_cell_phones` carry an empty `question_text` in the source: skip them and still assert a non-zero parse rate.
 - **⚠️ License / redistribution — academic use granted, redistribution NOT granted.** Two sources conflict and this study takes the more restrictive, because the cost of being wrong falls on a public repository. The AWS Open Data Registry entry records `License: https://cdla.dev/permissive-1-0/`; the dataset's **own `readme.txt`** — which that same entry names as its `Documentation` — instead carries the ACM personal/classroom notice: *"Permission to make digital or hard copies … for personal or classroom use … provided that copies are not made or distributed for profit or commercial advantage … For all other uses, contact the owner/author(s)."* The string "CDLA" appears nowhere in it. **Therefore:** using PQA for this thesis is the granted case; publishing a derived corpus is not. `data/v1/` stays gitignored and ships as a **download-and-build script plus a hash manifest**, reconciled with the project LICENSE. **Required citation:** Rozen, Carmel, Mejer, Mirkis and Ziser, *"Answering Product-Questions by Utilizing Questions from Other Contextually Similar Products"*, NAACL-HLT 2021 — BibTeX in the dataset readme.
 - **⚠️ The dataset's documentation does not match its data — write the builder against the bytes.** `readme.txt` describes `asin_id`, `bullet_points`, `is_yes-no_question`, `yes-no_answer`, `answer_text`. The records actually carry **`asin`**, **`bullet_point1` … `bullet_point5`**, **`question_type`** (`"yes-no"` | `"WH"`), **`answers`** (a list of `{answer_text}`) and **`answer_aggregated`**, alongside `question_id`, `question_text`, `brand_name`, `item_name`, `product_description`. A builder written against the documentation produces **empty records with no error**; the builder must assert a non-zero parse rate.
-- **⚠️ PQA products chunk to roughly one chunk each, and that is fine — but it is not requirement 3.** Measured 2026-09-21: median product prose (five bullets plus description) is **504 characters**, ≈ 126 tokens at the frozen `chunk_size = 256`, with `product_description` frequently empty; only **1.6 %** of products would reach ≥ 3 chunks. The earlier argument that prose would chunk more readily than a spec table is **withdrawn**. the `v1` corpus model requirement 3 rests entirely on the **authored policy** half of §2. What PQA does fix is corpus *diversity*: `dev-v0`'s G1 = 0 came from 44 chunks in total, where one PQA category supplies over a thousand.
-- **Subset criteria:** **~150 products across ≥ 3 categories** (proposal §9.3, timeline W8). Small on purpose — the corpus exists to exercise the cache, not to stress retrieval — but **not single-category**: see the sensitivity gate in §7. `TODO(W8): categories, filter rules, final product count.`
+- **⚠️ PQA products chunk to roughly one chunk each, and that is fine — but it is not requirement 3.** Measured 2026-09-21: median product prose (five bullets plus description) is **504 characters**, ≈ 126 tokens at the frozen `chunk_size = 256`, with `product_description` frequently empty; only **1.6 %** of products would reach ≥ 3 chunks. The earlier argument that prose would chunk more readily than a spec table is **withdrawn**. `v1` corpus requirement 3 rests entirely on the **authored policy** half of §2. What PQA does fix is corpus *diversity*: `dev-v0`'s G1 = 0 came from 44 chunks in total, where one PQA category supplies over a thousand.
+- **Subset criteria:** **~150 products across ≥ 3 categories** (proposal §9.3, timeline W8). Small on purpose — the corpus exists to exercise the cache, not to stress retrieval — but **not single-category**: see the sensitivity gate in §7. **Categories are four store departments** (ADR-002). PQA has no department-level file, so each department draws on one or two leaves, and the department is the `category` that product and policy records share (§2 requirement 1). `TODO(W8): final filter rules, final product count.`
 - **⚠️ Select into the thick tail; do NOT sample uniformly.** Questions per product is heavily skewed *within* a category and varies ~4× *between* categories on the original shortlist — `inkjet_printers` median **8** (63.7 % of products with ≥ 5 questions), `chairs` median **2** (24.3 %, but 19,193 products, so 4,664 still clear it). A uniform draw from a thin category returns mostly single-question products, from which **no stratum A or C pair can be built at all**. Record the selection rule used.
-- **⚠️ Category choice must satisfy two constraints at once.** §2's requirement 2 wants categories whose return *and* warranty windows genuinely differ; this section wants categories thick in questions per product. They are independent, and the shortlist in earlier planning was assembled against the first only. `TODO(W8): the chosen categories and which constraint drove each.`
+- **⚠️ Category choice must satisfy two constraints at once.** §2's requirement 2 wants categories whose return *and* warranty windows genuinely differ; this section wants categories thick in questions per product. They are independent, and the shortlist in earlier planning was assembled against the first only. **Resolved 2026-10-04 (ADR-002)**, with the author's own requirement added as a third constraint, recognisable departments:
+
+  | `category` | Leaf file(s) | What drove the choice | Pool* |
+  | :--- | :--- | :--- | ---: |
+  | `phones` | `unlocked_cell_phones` | Department required by the author. Preferred to `carrier_cell_phones` on every measure; 14-day window and an opened-vs-unopened fee (Target, Best Buy) | 1,811 |
+  | `laptops` | `traditional_laptops` | Department required by the author. 30-day window; new vs renewed (Amazon 30 vs 90) | 1,312 |
+  | `electronics` | `led_&_lcd_tvs` + `over-ear_headphones` | TVs: densest clustering among non-phone electronics leaves, lowest prose-warranty conflict. Headphones broaden the department | 302 + 399 |
+  | `furniture` | `chairs` + `home_office_desks` | Largest pool; 90-day general-merchandise window (Target); opened vs unopened (IKEA 180 vs 365) | 796 + 339 |
+
+  \*Products with 5–50 questions after removing price, stock and carrier questions, ≥ 3 bullets, no warranty term in their own prose, and ≥ 1 near-duplicate question pair (content-word Jaccard 0.45–0.99; exact repeats excluded). **These are upper bounds**: the answerability filter below will shrink them. Evidence: `docs/work/pqa-category-choice/`.
+- **⚠️ Selection rule — proposed, frozen at `super-plan.md` item 3.2.** Every filter in the footnote above is measured and cheap. One more is required and not yet designed. ⚠️ **Most real questions are not answerable from their own product record**: ~20–23 % are answerable from specifications (ePQA 22.9 %; Flipkart ~20 %), and a hand-read laptop example had 1 in 15. Without an **answerability filter**, the reference `LLM(retrieve(q), q)` becomes "not available" for most queries, reuse becomes trivially safe, and natural traps stop being traps. 194 questions in the six leaves carry ePQA's human answerability labels and serve as the filter's validation set. `TODO(W8): the answerability criterion and its agreement with those labels.`
+- **Empty and thin products exist.** 2.7–9.1 % of products per leaf have no bullets and no description, and the document is then the title alone. The ≥ 3-bullets filter removes them. 3.4–16.8 % state a warranty term in their own prose, which can contradict the authored warranty documents of §2. `TODO(W8): exclude them, or scope the authored warranty documents around them.`
 
 ## 2. Policy corpus (self-authored)
-- **Provenance:** **8** policy documents (returns, warranty, shipping) authored in-house, modelled on real store policy pages. Author-owned → freely releasable.
+- **Provenance:** **~13** policy documents (returns, warranty, shipping) authored in-house, modelled on real store policy pages. Author-owned → freely releasable. The count rose from 8 because opposing conditions live in separate documents (G5); it is fixed at `super-plan.md` item 3.3.
+- **Per-department windows, modelled on published policy** (primary sources, fetched 2026-10-03):
+
+  | `category` | Return window — modelled on | Opposing conditions available |
+  | :--- | :--- | :--- |
+  | `phones` | 14 days — Target; Best Buy (activatable devices) | opened (restocking fee: Target up to $35, Best Buy $45) vs unopened; domestic vs international warranty (21.6 % of phone warranty questions) |
+  | `laptops` | 30 days — Target electronics | new (30) vs renewed (90) — Amazon; domestic vs international warranty (26.4 %) |
+  | `electronics` | 30 days — Target electronics | none found in a primary source |
+  | `furniture` | 90 days — Target general merchandise | opened (180) vs unopened (365) — IKEA |
+
+  Warranty terms (~1 year for phones, laptops and electronics; multi-year for furniture) come from **secondary** sources so far. A primary citation is required before any of them is authored. `laptops` and `electronics` share 30-day terms by design: identical answers under different `doc_id`s measure what namespace partitioning costs in refused safe reuse.
 - **⚠️ Per-category, not global.** Return/warranty windows must **genuinely differ across the product categories** of §1. A single global return policy makes every policy question retrieve the same chunk, drives source overlap to ≈ 1 everywhere, and nulls C1 by construction of the corpus rather than by finding (§7).
 - **Why in-house:** the invalidation experiment (RQ3) needs *controlled* edits; only a corpus under the author's control permits that (proposal §9.3). Policy documents are also where the lookalike traps live — two categories with genuinely different return windows is what makes the provenance signal testable.
 - **⚠️ Four structural requirements for `v1`, each measured against what `dev-v0` actually produced:**
@@ -68,12 +100,12 @@ The three existing strata (natural cluster / generated paraphrase / constructed 
 
 ## 3. Query workload
 
-**The workload is split by half, and only one half can be sourced from real traffic.**
+**The workload is split by half. Both halves take their wording from real traffic, but only the product half takes its grounding from real content.**
 
 | Half | Source | Why |
 | :--- | :--- | :--- |
-| **Product-specification questions** | Real shopper questions from **Amazon-PQA** — the same records that supply §1's product content | Carries genuine paraphrase structure — many users, same intent, different words. **Measured 2026-09-21:** 43.6 % of multi-question products in `inkjet_printers` carry at least one genuine near-duplicate question pair, so strata **A** and **C** are *sampled*, not authored |
-| **Policy questions** | **Authored in-house** | ⚠️ **PQA contains no policy questions at all**, exactly as AmazonQA did not. It is product Q&A. Questions about return windows or warranty terms grounded in *store policy documents* do not exist in it, and no public dataset of retail policy documents with questions was found. This is a constraint, not a convenience — and stratum B lives mostly in this half |
+| **Product-specification questions** | Real shopper questions from **Amazon-PQA** — the same records that supply §1's product content | Real wording and real traps. ⚠️ **Corrected 2026-10-03:** paraphrase *within one product* is low. Of 100 questions about one product, 5–14 re-ask something already asked (frozen embedding, cosine ≥ 0.85), and clusters are pairs, not families. PQA records what shoppers *post*, after the public Q&A board has shown them what was already asked, so it under-represents traffic redundancy by construction. **Redundancy is therefore modelled (Zipf) and machine-generated paraphrases supply Tier 2's volume**, with natural and generated pairs reported separately (§4) |
+| **Policy questions** | **Wording sampled from PQA where possible; grounding always authored** | ⚠️ **Corrected 2026-10-03.** An earlier version said PQA contains no policy questions at all. Measured, it contains thousands per leaf — e.g. 12,585 warranty questions in `unlocked_cell_phones` — such as *"What is the return policy?"* and *"Does the warranty remain valid in India?"* What does not exist is a **store policy document** to ground them, so their grounding is the authored corpus of §2. Their wording is real traffic; their answers are not. Because the policy lane's namespace is the policy document, one cached answer serves the same question about every product in a department |
 
 - ⚠️ **The dataset's answers are NOT ground truth.** The evaluation defines the reference as `reference(q) = LLM(retrieve(q), q)`, generated by the full pipeline. PQA's `answers` are **community answers** — subjective, sometimes wrong, sometimes contradicting each other within one record (median 1–2 per question, up to 56). They are used as *question* provenance only. An earlier draft of this card described the workload as coming "with reference answers", which was misleading and is corrected here.
 - ✅ **The join risk is deleted, not reduced.** This bullet previously recorded an unverified ASIN-coverage risk across a near-decade gap between AmazonQA (2016, `asin`) and `Amazon-Reviews-2023` (`parent_asin`). PQA carries the question and the product content **in the same record**, so there is no join to measure and no coverage to verify.
@@ -144,6 +176,9 @@ C1 can only produce a signal where queries are **similar but ground differently*
 > **Implemented and runnable (2026-09-06):** `experiments/scripts/corpus_gate.py`, via `make gate-corpus`.
 > It computes every statistic listed below and **refuses to print a snapshot hash unless all four
 > criteria pass**, so "frozen" cannot happen by accident.
+> ⚠️ **"Four" means G1–G4. G5 is not implemented yet** (`super-plan.md` item 3.5). Until it is, a
+> passing gate run says nothing about G5, even though the freeze policy requires all five. Check G5
+> by hand before any freeze.
 >
 > **The workload file must live OUTSIDE `data/{version}/`** — `rag.ingest` globs that directory and
 > asserts `doc_id == filename`, so a workload dropped in it breaks ingestion. Convention:

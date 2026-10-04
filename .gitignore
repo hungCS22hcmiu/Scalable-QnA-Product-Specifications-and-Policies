@@ -28,6 +28,12 @@ data/v1/
 # fetch_corpus_v1.py's own header says "do not git add data/v1-draft/"; 175 files
 # had been staged anyway. Regenerate it by re-running that script, don't track it.
 data/v1-draft/
+# Raw Amazon-PQA source files, as downloaded. Redistribution is NOT granted (the
+# dataset's own readme carries the ACM personal/classroom notice) and this remote
+# is public, so these never get tracked — permanently, not pending a licence check.
+# Not under data/v1/: rag.ingest globs that directory. Hashes live in
+# docs/work/pqa-category-choice/spec.md.
+data/raw/
 
 # --- Build output --------------------------------------------------------------
 # Generated protobuf stubs (regenerate with `make proto`)
