@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchStats } from './api.js'
 
-// The counters sidebar defense_demo.md 3 marks REQUIRED, not optional:
+// The counters sidebar is REQUIRED by the demo UI contract, not optional:
 //
 //   "running counters: total requests, hit rate, and generations avoided. Not optional.
 //    Generations avoided is the load-conversion ratio (§3) rendered as a single live number,
@@ -10,7 +10,7 @@ import { fetchStats } from './api.js'
 //
 // It polls the GATEWAY rather than counting locally, because the demo drives the system from
 // several tabs at once and a per-tab counter would show each tab its own slice. Polling is a
-// deliberate non-choice: server-sent events were out of scope (ADR-016), and one small GET a
+// deliberate non-choice: server-sent events were out of scope, and one small GET a
 // second is invisible next to a generation.
 export default function Counters({ intervalMs = 1000 }) {
   const [stats, setStats] = useState(null)

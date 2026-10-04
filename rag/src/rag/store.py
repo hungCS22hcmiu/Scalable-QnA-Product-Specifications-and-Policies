@@ -2,10 +2,10 @@
 
 ingest.py (writer) and retrieve.py (reader) must build the IDENTICAL schema — RedisVectorStore
 has no from_existing_index(); reconnecting means re-declaring the same IndexSchema. A drift
-between the two would be a silent-failure class of bug (.docs/ai/rules.md), so this lives in
+between the two would be a silent-failure class of bug (a silent-failure class), so this lives in
 one place.
 
-Vector field algorithm is "flat" — frozen study-wide, never HNSW (interfaces.md §D, rules.md #1).
+Vector field algorithm is "flat" — frozen study-wide, never HNSW (interfaces.md §D).
 Redis & LlamaIndex require id/doc_id/text/vector as the base fields; the rest are ours.
 """
 

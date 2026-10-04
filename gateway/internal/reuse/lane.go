@@ -2,7 +2,7 @@ package reuse
 
 import "strings"
 
-// Two-lane cache namespacing -- EXPERIMENT, see .docs/work/two-lane-cache/approvals.md.
+// Two-lane cache namespacing -- EXPERIMENT.
 //
 // The idea this file tests: a RAG answer's own grounding says what cache namespace it belongs
 // in, and the right namespace is NOT the same for every question.
@@ -18,13 +18,13 @@ import "strings"
 //   - A question grounded in BOTH ("how long is the warranty on the EarBuds Pop 3, and what is
 //     its battery life") belongs to neither namespace. data-card.md 2 pre-registers it as
 //     stratum D and calls it impossible in dev-v0, because it needs the product<->policy join
-//     key of ADR-024 requirement 1. It is LaneMixed here, and its namespace is the PAIR of both
+//     key of the v1 corpus model requirement 1. It is LaneMixed here, and its namespace is the PAIR of both
 //     documents -- neither alone is sufficient, as a measured false hit showed. See Namespace.
 //
 // Which lane a question is in is READ FROM THE GROUNDING, never predicted from the query text.
 // That distinction is the point: a classifier's error would become a false-hit cause with no
-// bucket in experiment-protocol.md 4's two-cause split, charged to the reuse rule -- the exact
-// reason ADR-018 dropped the bypass classifier. A prefix count cannot be wrong about what
+// bucket in the evaluation's two-cause split, charged to the reuse rule -- the exact
+// reason the bypass classifier was dropped. A prefix count cannot be wrong about what
 // retrieval returned.
 //
 // Measured on dev-v0 2026-09-06, 10 spec + 10 policy questions: PolicyFraction was 0.00 for
@@ -59,7 +59,7 @@ const (
 // Chunk IDs are `{doc_id}#chunk-{ordinal}` (interfaces.md C) and doc_id carries the kind as a
 // prefix.
 //
-// The prefix is REQUIRED by interfaces.md C as of v0.6 (ADR-032), checked at corpus-freeze time
+// The prefix is REQUIRED by interfaces.md C as of v0.6, checked at corpus-freeze time
 // by data-card.md 7's gate G4, and enforced at ingestion by rag/src/rag/ingest.py:record_kind().
 // It was an unstated convention until then, which mattered: a corpus without it classifies every
 // question into the spec lane SILENTLY, with the lane machinery reporting plausible values.
@@ -152,7 +152,7 @@ func docID(chunkID string) string {
 //	MIXED  -> "{product}|{policy}", both components required.
 //
 // ⚠️ MIXED returned "" and deferred to containment until 2026-09-06. That was WRONG and the run
-// that showed it is recorded in .docs/work/two-lane-cache/approvals.md. Containment cannot decide
+// that showed it is recorded in the run log. Containment cannot decide
 // this lane, for a structural reason no threshold reaches: a mixed grounding is roughly four
 // product chunks to one policy chunk, so the single chunk carrying the entire difference between
 // "how long do I have to return it" and "how long is the warranty" is 1/5 of the denominator.
@@ -181,7 +181,7 @@ func docID(chunkID string) string {
 // Pop 3" ranked product-headphones-04 (the *Pro* variant) first while "key features of the
 // EarBuds Pop 3" ranked product-headphones-03. Two paraphrases of one question, two namespaces,
 // and one of them the wrong product. Request metadata does not drift like that -- which is the
-// honest half of the product_id objection ADR-028 rejected wholesale.
+// honest half of the product_id objection the Tier-1 collision invariant rejected wholesale.
 //
 // Returns "" when the grounding offers no chunk of the needed kind -- and in MIXED, when EITHER
 // component is missing, because half a composite key would silently widen to "any policy" or "any
@@ -247,8 +247,8 @@ type NamespaceDecision struct {
 	// containment hit without re-deriving it from Lane. Without this the mixed lane's hits and
 	// the pure lanes' hits are indistinguishable in the log, and the fallback's contribution to
 	// the false-hit rate cannot be attributed -- which would put it outside
-	// experiment-protocol.md 4's two-cause split, the same defect ADR-018 rejected a classifier
-	// for.
+	// the evaluation's two-cause split -- the same defect that got the bypass
+	// classifier dropped.
 	Rule string
 
 	// EntryLane and LaneMatch are read only on the MIXED path. On the pure lanes they stay zero,
@@ -276,7 +276,7 @@ const (
 	// RuleSimilarityOnly marks a TauHigh short-circuit: served WITHOUT consulting provenance.
 	// It must be distinguishable in the log from the other two, because a false hit produced this
 	// way was not the provenance rule's fault -- the provenance rule never ran -- and charging it
-	// to that rule is exactly the mis-attribution experiment-protocol.md 4's two-cause split
+	// to that rule is exactly the mis-attribution the evaluation's two-cause split
 	// exists to prevent.
 	RuleSimilarityOnly = "similarity_only"
 )
@@ -337,7 +337,7 @@ type LaneInput struct {
 // spec-only entry at similarity 0.9244 that the containment rule accepted.
 //
 // The three lanes therefore partition the cache into three non-interacting regions, which is what
-// makes their false-hit rates separately attributable to experiment-protocol.md 4's two causes.
+// makes their false-hit rates separately attributable to the evaluation's two causes.
 func (t Thresholds) DecideLane(in LaneInput) NamespaceDecision {
 	if in.QueryLane != LaneMixed {
 		d := t.DecideNamespace(in.Similarity, in.QueryLane, in.QueryNS, in.EntryNS)

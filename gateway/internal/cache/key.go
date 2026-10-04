@@ -8,9 +8,9 @@ import (
 // Key derives the Tier-1 Redis key from an already-normalized query, scoped by productID:
 // t1:{sha256(normalized "\x00" product_id)}.
 //
-// ⚠️ BYPASS 2026-09-09: this reverses ADR-028's explicit "Add product_id to the Tier-1 key --
-// Rejected" alternative (docs/decisions.md ADR-028). Implemented directly for an urgent MVP
-// demo without the owed ADR/contract approval -- see .docs/work/two-lane-cache/approvals.md.
+// ⚠️ BYPASS 2026-09-09: this reverses the explicit "Add product_id to the Tier-1 key --
+// Rejected" alternative (the decision record). Implemented directly for an urgent MVP
+// demo without the owed ADR/contract approval.
 // A superseding ADR is still owed before this is citable or mergeable.
 //
 // productID == "" is its own partition, never a wildcard: a request with no product_id neither

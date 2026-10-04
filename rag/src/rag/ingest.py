@@ -1,6 +1,6 @@
 """Load data/dev-v0/*.json -> chunk -> embed (Ollama) -> write to Redis (FLAT index).
 
-W5 scope only: retrieval corpus, no generation. See docs/design/architecture.md §5.
+W5 scope only: retrieval corpus, no generation. See docs/architecture.md §5.
 """
 
 import json

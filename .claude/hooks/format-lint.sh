@@ -26,7 +26,7 @@ case "$path" in
     fi
     ;;
   *.proto)
-    echo "reminder: .proto changed — run \`make proto\` so both sides regenerate (.docs/ai/rules.md #4)"
+    echo "reminder: .proto changed — run \`make proto\` so both sides regenerate"
     ;;
 esac
 exit 0

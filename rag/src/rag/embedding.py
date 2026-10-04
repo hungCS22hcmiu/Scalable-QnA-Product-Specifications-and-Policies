@@ -1,10 +1,10 @@
 """Ollama embedding client for LlamaIndex — httpx only, no new dependency.
 
 Deliberately NOT the llama-index-embeddings-ollama package: adding a new top-level
-dependency needs sign-off (.docs/ai/rules.md #9); httpx is already declared and Ollama's
+dependency needs sign-off (a new dependency needs sign-off); httpx is already declared and Ollama's
 /api/embed is a plain HTTP endpoint, so a ~40-line custom BaseEmbedding subclass is enough.
 
-Nomic prefix convention (silent-degradation risk if skipped, decisions.md ADR-003):
+Nomic prefix convention (silent-degradation risk if skipped, the decision record):
 indexed chunk text gets "search_document: ", queries get "search_query: ".
 """
 

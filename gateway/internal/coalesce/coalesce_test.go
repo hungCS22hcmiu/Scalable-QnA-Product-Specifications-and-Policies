@@ -77,7 +77,7 @@ func TestConcurrentDuplicatesRunTheFunctionOnce(t *testing.T) {
 }
 
 // Distinct keys must not share. Collapsing two different questions onto one answer would be a
-// false hit with no rule involved and no bucket in experiment-protocol.md 4's two-cause split.
+// false hit with no rule involved and no bucket in the evaluation's two-cause split.
 func TestDifferentKeysDoNotShare(t *testing.T) {
 	var g Group[string]
 	var wg sync.WaitGroup

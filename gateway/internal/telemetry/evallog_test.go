@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// raw/ is write-once (experiment-protocol.md 3, rules.md #3). Reusing a run id must FAIL, not
+// raw/ is write-once. Reusing a run id must FAIL, not
 // append: rows from two runs in one file would be silently mixed, and every per-run denominator
 // computed from it would be wrong with nothing to reveal it.
 func TestOpenRefusesAnExistingRunFile(t *testing.T) {

@@ -1,0 +1,507 @@
+# Interface & Data Contracts
+
+**Status:** Draft v0.9 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-09-21
+**Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
+
+**Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
+
+> **v0.2 changes.** `reuse_confidence` → **`source_overlap`** (the deterministic rule's overlap score, not a predictor output); SSE demoted to optional/future; `question_type` / `answer_type` dropped from the Tier-2 schema; purge policy is **blind only**. The `Retrieve` RPC and the whole cascade are **unchanged** — the rule needs retrieval exactly as the predictor would have.
+>
+> **v0.3 changes — three correctness fixes found in advisor review.** Each closes a path by which C2's completeness guarantee would fail *silently*:
+> 1. **Eviction policy (§D).** `allkeys-lru` can evict `dep:{chunk_id}` sets, orphaning the entries they point to. Dependency state now lives under **`noeviction`**, separate from the LRU-managed cache.
+> 2. **`t1_key` (§D).** The dependency map stored only `entry_id`, from which the Tier-1 hash key is *not computable* — so Tier-1 entries survived purges. The Tier-2 record now carries `t1_key`.
+> 3. **`dataset_epoch` (§B, §E).** A generation in flight during an edit wrote back *after* the purge, resurrecting stale data. Retrieval now stamps an epoch; write-back discards if it has advanced.
+
+> **v0.6 changes.** Three seam changes the two-lane reuse rule forced,
+> each with a measured failure behind it rather than a preference:
+> 1. **`product_id` on `/ask` (§A).** Optional. A spec-lane namespace derived from the *rank-1 product
+>    document* is unstable: measured 2026-09-06, one run produced **one false hit and one false miss**
+>    from that instability alone, both corrected by sending `product_id`. It is a **stabiliser, not a
+>    cache key** — the rejection of `product_id` as a cache key stands untouched.
+> 2. **Doc-id kind prefix is now required (§C).** `reuse.Classify` reads the document kind from the
+>    `policy-` / `product-` prefix. It was enforced only in the ingester, so a corpus built without it
+>    would classify every question `SPEC` **silently**, with the lane machinery reporting plausible
+>    values throughout.
+> 3. **Eviction moves into the gateway (§D).** `maxmemory-policy` is server-global rather than
+>    per-logical-DB, so v0.3's two-region split was not achievable on one server; and the capacity ratio
+>    capacity is a **count** of entries, which a byte budget cannot express.
+
+> **v0.7 changes.** `AnswerRequest` gains `retrieved_chunk_ids` (§B). Every Tier-1 miss
+> already retrieved once before reaching `Answer`, which then retrieved again; the duplicated work
+> is the **query embedding**, not the vector search. Additive — an empty field preserves the old
+> behaviour exactly.
+
+> **v0.9 changes.** The reuse rule gains a fourth and final test — an
+> **answer–evidence support gate** adopted from GroundedCache at its published threshold, in a
+> lexical arm and a numeric arm — and two things follow at this seam. **§B `RetrieveResponse` gains
+> `texts`**, positionally aligned with `chunk_ids`: the gateway has only ever held chunk
+> *identifiers*, and the gate compares a cached answer against chunk *text*, so it cannot run at all
+> without this field. **§H gains `refusal_cause`, `support_lex` and `support_numeric_ok`**, without
+> which a support refusal is indistinguishable from a namespace refusal and the adopted gate's
+> contribution cannot be attributed. In the same revision **§H's `similarity_only_decision` is
+> retired** together with the unfiltered similarity-only cascade phase and the `tau_high`
+> short-circuit that produced it; the counterfactual becomes a cross-configuration join
+> on the static-cache arm. Additive at §B — an absent `texts` is today's behaviour exactly — but
+> **removing** at §H, which is why retiring the unfiltered phase carries the reasoning rather than this note.
+
+> **v0.8 changes.** `RetrieveRequest` and `AnswerRequest` gain `product_id` (§B). When
+> set, retrieval runs its normal unscoped search first, then drops any chunk belonging to a
+> *different* product and, if `product_id`'s own chunk did not naturally rank, splices in exactly
+> that one chunk — a post-filter on real ranking, never a pre-filter that forces content in.
+> Unscoped retrieval over a flat, one-chunk-per-document corpus returns whichever chunk contains
+> the query's literal words, regardless of product; reproduced 2026-09-10 by asking a generic
+> "power rating" question against three different products and retrieving the same five
+> kitchen-appliance chunks for all three. A first implementation pre-filtered candidates to
+> `doc_id == product_id OR kind == "policy"` before ranking, which regressed measurably on this
+> corpus (only four policy docs, one chunk per product): the eligible pool shrank to near `top_k`,
+> so `PolicyFraction` (§B's own reuse machinery, `reuse/lane.go`) saturated toward ~0.8 for almost
+> any product-scoped question, collapsing unrelated products into the same policy-dominated
+> namespace — confirmed live serving one product's cached answer to a different, unrelated
+> product's question. The post-filter design closes that: policy content only ever reaches the
+> result when it genuinely ranks, never by construction of a too-small eligible pool. Additive — an
+> empty `product_id` preserves the old, unscoped behaviour exactly, and the reuse-decision
+> machinery is untouched: this only narrows what retrieval may consider, never
+> how a retrieved candidate is judged for reuse.
+
+> Conventions: `snake_case` field names on the wire; timestamps are RFC 3339 UTC; vectors are `float32`. "Entry" = a cached Q&A record; "chunk" = a retrieved source fragment.
+
+---
+
+## Request-flow map
+
+Keyed to proposal §6 (architecture diagram). Each numbered contract is specified below.
+
+```
+Client ──(A) HTTP POST /ask──▶ Go Gateway
+                                  │
+                                  ├─ (G) classify: cacheable? ──▶ (bypass) live source
+                                  ├─ Tier-1 exact lookup ─────────▶ (D) Redis
+                                  ├─ (F) embed query ─────────────▶ Embedding service
+                                  ├─ Tier-2 vector search ────────▶ (D) Redis
+                                  ├─ C1 cascade: (B) Retrieve ─────▶ Python RAG   (overlap only, no generation)
+                                  └─ MISS: (B) Answer (stream) ────▶ Python RAG ──▶ Local LLM
+                                                                     │
+Corpus edit ──(E) invalidation event──▶ Invalidator ──▶ (D/E) Redis purge
+
+Every request also appends one (H) evaluation-log record to results/{run_id}/raw/
+```
+
+---
+
+## A. Client ↔ Gateway — HTTP API
+
+### `POST /ask`
+
+Request:
+
+```json
+{ "question": "Can I return this laptop after 30 days?",
+  "product_id": "product-laptops-01" }
+```
+
+| Field | Type | Notes |
+| :--- | :--- | :--- |
+| `question` | string | Required. |
+| `product_id` | string\|null | **Optional (v0.6).** The product the question was asked about — the page a production assistant is embedded in already knows it. Read **only** by the spec lane, to pin which product that lane's namespace names; the policy lane ignores it, because scoping a policy answer by product spends capacity on one answer per product. Absent, the namespace falls back to the rank-1 product document, which is correct but less stable. It is **not** part of the reuse decision and **not** a cache key. |
+
+> ⚠️ **`stratum` is deliberately not a request field.** The evaluation log (§H) carries it, but it is a
+> property of the *workload*, not of a client request. The measurement harness may send it as an
+> optional `X-Thesis-Stratum` header; absent that, the label joins offline on `query_normalized`,
+> which the Tier-1 collision invariant makes exact.
+
+Success response (`200 application/json`) — the six fields the debug UI needs are required, the rest optional:
+
+```json
+{
+  "answer": "Returns are accepted within 30 days of delivery...",
+  "cache": "TIER2_HIT",                    // TIER1_HIT | TIER2_HIT | MISS | BYPASS
+  "latency_ms": 48,
+  "similarity": 0.93,                       // Tier-2 embedding similarity; null on TIER1/BYPASS
+  "source_overlap": 0.80,                   // overlap rule score (Contribution 1); null unless the cascade ran
+  "sources": ["policy-returns#chunk-2"],    // provenance tags (Contribution 2); [] on BYPASS
+  "model_used": "qwen3.5-2b",                // constant for now (routing rejected)
+  "request_id": "01J..."                    // extension: correlation id for tracing/eval
+}
+```
+
+| Field | Type | Notes |
+| :--- | :--- | :--- |
+| `answer` | string | Final answer text. |
+| `cache` | enum | `TIER1_HIT` \| `TIER2_HIT` \| `MISS` \| `BYPASS`. Drives the debug-UI badge colors (debug UI §3). |
+| `latency_ms` | int | Gateway-internal wall time; the eval also records off-box end-to-end separately (an evaluation rule, not an error path). |
+| `similarity` | float\|null | Cosine similarity of the matched Tier-2 entry. |
+| `source_overlap` | float\|null | Fraction of the candidate entry's `source_chunk_ids` also returned by retrieval on the incoming query — the rule's score, compared against θ. `null` when the cascade short-circuited on similarity alone. |
+| `sources` | string[] | Chunk IDs (§C) that grounded the answer. |
+| `model_used` | string\|null | Constant (`qwen3.5-2b`) — retained for forward compatibility with routing (future work). |
+| `request_id` | string | Optional; ULID for joining logs to eval records. |
+
+Showing `similarity` and `source_overlap` **side by side** is what makes the contribution observable: a high-similarity, low-overlap miss is the lookalike trap the rule exists to catch (debug UI §4 step 4).
+
+### Streaming variant (MISS path — SSE) — *optional, not in scope*
+
+**Dropped from the thesis scope** (miss responses return complete). The shape is retained here so that adding it later is a pure extension, not a contract change. If implemented, a client sending `Accept: text/event-stream` receives a token stream whose terminal `done` event carries the metadata block:
+
+```
+event: token
+data: {"text": "Returns are "}
+
+event: token
+data: {"text": "accepted within 30 days..."}
+
+event: done
+data: {"answer": "...", "cache": "MISS", "latency_ms": 4120, "sources": ["policy-returns#chunk-2"], "model_used": "qwen3.5-2b", "request_id": "01J..."}
+```
+
+### Backpressure / admission-control response
+
+When the bounded generation-concurrency pool is exhausted and the queue budget is spent (proposal §6.1/§6.2 admission control), the gateway **sheds** rather than admitting a generation the memory envelope cannot hold:
+
+```
+HTTP/1.1 503 Service Unavailable
+Retry-After: 2
+{ "error": "busy", "reason": "generation_pool_saturated", "request_id": "01J..." }
+```
+
+Shed responses are counted by the scalability eval as graceful-degradation events, not errors (an evaluation rule, not an error path).
+
+---
+
+## B. Gateway ↔ RAG Service — gRPC
+
+Two RPCs. The separation is deliberate: the **C1 cascade** must run retrieval on the incoming query to compute source overlap **without** paying for generation (proposal §5 C1 — "the retriever doubles as a reuse-safety oracle").
+
+```proto
+syntax = "proto3";
+package rag.v1;
+
+service RagService {
+  // Full miss path: retrieve + generate. Streaming is optional (see §A).
+  rpc Answer(AnswerRequest) returns (stream AnswerChunk);
+  // Retrieval only — supplies the chunk IDs the source-overlap rule compares against.
+  rpc Retrieve(RetrieveRequest) returns (RetrieveResponse);
+}
+
+message RetrieveRequest {
+  string query = 1;
+  uint32 top_k = 2;          // default 5; pinned per run and reported
+  string product_id = 3;     // optional; scopes the search (v0.8) — see below
+}
+
+message RetrieveResponse {
+  repeated string chunk_ids     = 1;   // stable chunk IDs, ranked (see §C)
+  repeated float  scores        = 2;   // aligned with chunk_ids; retriever similarity
+  uint64          dataset_epoch = 3;   // corpus version these chunks came from (§E)
+  repeated string texts         = 4;   // v0.9 — chunk text, POSITIONALLY
+                                       // ALIGNED with chunk_ids; see below
+}
+
+message AnswerRequest {
+  string query = 1;
+  uint32 top_k = 2;
+  bool   stream = 3;         // defaults FALSE in scope (SSE dropped):
+                             // a single terminal AnswerChunk is returned
+  repeated string retrieved_chunk_ids = 4;  // v0.7 — see below
+  string product_id = 5;                    // optional; scopes Answer's OWN fallback
+                                             // retrieval when retrieved_chunk_ids is
+                                             // empty (v0.8) — see below
+}
+
+// **`texts` (v0.9).** `texts[i]` is the text of `chunk_ids[i]`, or the field is absent
+// entirely -- there is no partial population. The support gate compares a cached
+// answer against this text; the gateway has never held chunk text and the gate cannot run at
+// all without it. `text` is a field `store.build_schema()` declares, so this reads a schema
+// field, not a storage-layout detail (the distinction single-retrieval settled).
+//
+// ⚠️ **Alignment is an invariant, not a convention.** A `texts` array shifted by one scores a
+// cached answer against the WRONG chunk's text and returns a support verdict that is wrong with
+// no error raised anywhere -- the same silent-failure class as the three invariants of v0.3.
+// It joins the single-retrieval three obligations on this RPC: return the ids you were given, preserve
+// rank order, drop a missing id rather than substitute one, and keep `texts` aligned.
+//
+// **`product_id` (v0.8).** Optional, on both `RetrieveRequest` and `AnswerRequest`. When
+// non-empty, the service runs its normal unscoped top_k search FIRST -- ranking is untouched --
+// then POST-filters: drops any chunk belonging to a different product, and if product_id's own
+// chunk did not naturally rank, fetches it with one small product-scoped search and splices it
+// in (dropping the lowest-ranked survivor to stay within top_k). Empty/absent is bit-for-bit
+// today's unscoped search.
+//
+// Why it exists: unscoped retrieval over a flat, one-chunk-per-document corpus has almost no
+// signal to prefer the asked-about product for a generic question — a literal word shared with an
+// unrelated product's chunk can win outright. Reproduced 2026-09-10: the same generic "power
+// rating" question retrieved identical unrelated chunks across three different products.
+//
+// ⚠️ Post-filter, not pre-filter -- the first implementation regressed. Pre-filtering candidates
+// to `doc_id == product_id OR kind == "policy"` before ranking shrank the eligible pool to near
+// top_k on this corpus (four policy docs, one chunk per product), so nearly every candidate
+// came back regardless of relevance: PolicyFraction (reuse/lane.go) saturated toward ~0.8 for
+// almost any product-scoped question, collapsing unrelated products into the same
+// policy-dominated namespace. Confirmed live: product-kitchen-05 (a genuine 1800W power spec)
+// was served product-laptops-02's cached "no power info" answer this way. Filtering AFTER
+// ranking means policy content only ever appears because it genuinely ranked -- the MIXED lane's
+// reason to exist is unaffected, but it can no longer be forced in by construction of
+// a too-small eligible pool.
+//
+// This does not touch the reuse decision. `product_id` here decides what a single retrieval call
+// may search over, never whether a retrieved candidate should be reused — `reuse/lane.go`,
+// `reuse/rule.go`, and the cache-key functions are unaffected and still derive their partition
+// from post-retrieval evidence (that boundary, unchanged).
+
+// **`retrieved_chunk_ids` (v0.7).** Chunk IDs the caller already retrieved for this
+// query. When non-empty the service **skips its own retrieval** and grounds generation on exactly
+// these chunks; when empty it retrieves as before, so the field is additive.
+//
+// Why it exists: every Tier-1 miss retrieves at least once — above τ in the cascade, below it
+// inside `Answer` — and since the gateway issues its retrieval concurrently with the embedding,
+// every miss reached `Answer` having already retrieved, whereupon `Answer` retrieved again. The
+// duplicated work is the **query embedding**, not the vector search.
+//
+// Three obligations on the service, each closing a silent failure:
+//
+// 1. **Return the ids it was given** in `source_chunk_ids`. Provenance is C1's input and C2's
+//    dependency key, so an entry written under a set that differs from the one its answer was
+//    generated over corrupts both contributions with no error (rules.md #6).
+// 2. **Preserve rank order.** Generation is order-sensitive, and the reuse rule's namespace comes
+//    from the rank-1 document *of each kind* — reordering would repartition the cache.
+// 3. **Drop a missing id, never substitute.** A fabricated chunk puts text into an answer that no
+//    provenance record accounts for; a short context is visible in the answer, an invented one is
+//    not.
+
+message AnswerChunk {
+  string text = 1;                 // token / span for streaming
+  bool   done = 2;                 // true on the terminal chunk
+  repeated string source_chunk_ids = 3;  // populated on the terminal chunk
+  string model_used    = 4;              // populated on the terminal chunk
+  uint64 dataset_epoch = 5;              // epoch at retrieval time; gates write-back (§E)
+}
+```
+
+Transport: gRPC over a pooled channel (proposal §6.1). Proto lives at `contracts/rag/v1/rag.proto` once code is scaffolded (**W6**); this sketch is the frozen shape.
+
+---
+
+## C. Stable chunk-ID scheme  ⚠️ reuse-critical
+
+Both provenance (C1) and source-aware invalidation (C2) key on chunk IDs, so the scheme must be **stable across re-chunking** (timeline **W5** implements it, W9–W11 depend on it). It must survive the `dev-v0` → `v1` corpus change: the chunking config is frozen in W5, so `v1` is a content expansion under a new `dataset_version`, not a re-chunk.
+
+- **Format:** `{doc_id}#chunk-{ordinal}` — e.g. `policy-returns#chunk-2` (this exact example is the one in the demo scripd` §2).
+- **`doc_id`:** stable slug of the source document, assigned at ingestion and never reused for a different document. ⚠️ **It MUST begin with `policy-` or `product-` (v0.6)** — e.g. `policy-returns-electronics`, `product-laptops-01`. The prefix is the only place the document *kind* is recorded, and the reuse rule reads the lane from it. A corpus built without it classifies every question into the spec lane **silently**, with the lane machinery reporting plausible values throughout, so `data-card.md` §7 checks the prefix at corpus-freeze time alongside G1–G3. Enforced at ingestion in `rag/src/rag/ingest.py:record_kind()`, which raises on any other prefix.
+- **`ordinal`:** 0-based position of the chunk within the document under the **frozen chunking config** (size/overlap recorded in `decisions.md`).
+- **Re-chunking rule:** if the chunking config changes, IDs are *not* silently reassigned — a re-chunk is a new dataset version (`data-card.md`) and forces a full cache rebuild, so a given `{doc_id}#chunk-{ordinal}` always denotes the same span within one dataset version. This keeps completeness/precision measurable (proposal §5 C2).
+- **Uniqueness:** `(dataset_version, chunk_id)` is unique; `chunk_id` is unique within a dataset version.
+
+---
+
+## D. Cache-entry schema (Redis)
+
+Bounded, LRU (proposal §6.3). **Capacity is `round(0.25 × K)`**, where `K` is the frozen workload's distinct-query count — the ratio is frozen study-wide, the absolute is derived at corpus freeze and recorded per run. An absolute capacity was rejected because at `C ≥ K` nothing is ever evicted and the redundancy sweep collapses to a constant.
+
+> ⚠️ **Eviction policy is a correctness constraint, not a tuning knob.** `allkeys-lru` evicts *any* key under pressure — **including the `dep:{chunk_id}` sets of §E**. An evicted dependency record makes its entries permanently unpurgeable, so invalidation completeness fails silently and non-reproducibly. Therefore:
+>
+> **v0.6 — the gateway evicts; Redis evicts nothing.** The v0.3 split above prescribed two
+> regions with different eviction settings. That is **not achievable on one server**: the eviction
+> setting is server-global rather than per logical DB, so any `allkeys-*` value can reach `dep:*`. It
+> also cannot express the capacity ratio, which is a **count** of entries while `allkeys-lru` evicts by
+> **bytes**. Therefore:
+>
+> - **Redis is configured to evict nothing at all**, and no byte budget is set. `make redis-check`
+>   verifies this and fails the run otherwise.
+> - **The gateway enforces the count.** A sorted set `lru:entries` holds `entry_id` scored by last
+>   access; after each write-back the gateway trims to `round(0.25 × K)` entries.
+> - **Both tiers of a victim are deleted together**, the Tier-1 record found through the `t1_key`
+>   stored on the Tier-2 record. Dropping only `t2:` would leave Tier 1 serving the same answer from a
+>   bare hash lookup that runs no reuse rule — so the entry would still be served while absent from the
+>   cache the experiment believes it is bounding, and the capacity sweep would measure nothing.
+>
+> This is **stronger** than the v0.3 split, not a relaxation: the dependency region is now safe by
+> construction rather than by a configuration a later `CONFIG SET` could silently undo. The capacity
+> in force is recorded per run; a run whose dependency region lost anything remains **invalid** and is
+> repeated.
+
+**Tier 1 — exact match.** O(1) hash lookup, no vector:
+
+```
+KEY   t1:{sha256(normalized_query)}      # HASH
+      answer            <string>
+      source_chunk_ids  <json array>
+      model_used        <string>
+      created_at        <rfc3339>
+      entry_id          <ulid>            # links to the Tier-2 record / dependency map
+```
+
+Normalization (lowercase, collapse whitespace, strip punctuation) is specified in `decisions.md` and must match the Tier-1 write path exactly.
+
+> ⚠️ **Tier 1 runs no reuse rule, so its safety is a corpus invariant.** This lookup is a bare hash equality test — no similarity check, no containment check. Two workload queries with different correct answers that normalise to the same string would be served wrongly from first write, permanently, with nothing to detect it. Worse, the resulting false hit has **no bucket** in the evaluation §4's two-cause split and would be charged to the reuse rule, which never ran. The corpus therefore carries the invariant *"no two queries with different `reference_answer` or `doc_ids` share a `normalize(q)`"*, checked before the snapshot is hashed (`data-card.md` §7). Note that stripping punctuation collapses `Model A-1` and `Model A1` — harmless within one product, not harmless across two.
+
+**Tier 2 — semantic.** RediSearch vector index (RedisVL) — **`FLAT` (exact), frozen study-wide**. HNSW is a scaling path for a production deployment but is **never enabled mid-study**: approximate retrieval would make `retrieve(q)` nondeterministic and inject overlap noise indistinguishable from C1's signal (proposal §5 C1, §7).
+
+```
+INDEX  idx:cache   ON HASH PREFIX t2:
+KEY    t2:{entry_id}                      # HASH
+       embedding         <float32[DIM]>   # VECTOR field; DIM = embedding model dim (§F)
+       query_text        <string>
+       answer            <string>
+       source_chunk_ids  <json array>     # provenance (§C) — the set the overlap rule tests against
+       t1_key            <string>         # ⚠️ the Tier-1 key this entry was co-written with
+       dataset_epoch     <int>            # corpus version at generation time (§E)
+       source_overlap    <float>          # last overlap score computed for this entry
+       hit_count         <int>            # reuse-value signal (future admission-control idea)
+       created_at        <rfc3339>
+```
+
+`source_chunk_ids` is the load-bearing field for **both** contributions: C1 intersects it with the incoming query's retrieval, C2 indexes it in reverse to build the dependency map (§E). (`question_type` / `answer_type`, auxiliary features for the learned predictor, were removed in v0.2.)
+
+> ⚠️ **`t1_key` exists so that Tier-1 is purgeable.** Tier 1 is keyed by `sha256(normalized_query)`; the dependency map stores only `entry_id`. Without a stored back-pointer the invalidator **cannot compute the Tier-1 key** from a dependency record, so Tier-1 copies of an invalidated answer would survive the purge and continue serving stale content — a completeness hole that no test of the Tier-2 path would reveal. Both tiers are written together on a miss, so `t1_key` is written at the same moment and never diverges.
+
+Vector field: distance metric **COSINE**, `DIM` equals the embedding dimension in §F (they must not drift). Write-back on a full miss populates **both** tiers, tagged with `source_chunk_ids` (proposal §6.3).
+
+---
+
+## E. Dependency map + invalidation event
+
+**Authoritative map (Redis):** reverse index from source chunk to dependent entries.
+
+```
+KEY   dep:{chunk_id}   # SET of entry_id
+```
+
+**Fast-path index (in-process, Go):** a read-mostly copy consulted without touching Redis on the hot path, guarded per proposal §5 C2 — `sync.RWMutex` baseline, or `atomic.Pointer` copy-on-write for a wait-free read path. Mutations are **serialized through a single writer goroutine** fed by a buffered channel; the writer updates the in-process index and fans the purge out to Redis (both tiers) off the critical path.
+
+**Invalidation event (channel payload):**
+
+```json
+{
+  "chunk_id": "policy-returns#chunk-2",
+  "doc_id": "policy-returns",
+  "change_type": "substantive",          // substantive (answer-changing) | cosmetic (answer-preserving)
+  "new_text": "Returns are accepted within 14 days...",
+  "dataset_version": "v3",
+  "ts": "2026-07-23T10:00:00Z"
+}
+```
+
+**Dataset epoch (⚠️ concurrency-critical).** A monotonic counter incremented by the invalidator on every applied edit, held in Redis under the no-eviction region and cached in-process.
+
+```
+KEY   dataset:epoch    # INT, monotonically increasing
+```
+
+- `Retrieve` and `Answer` return the epoch **observed at retrieval time** (§B).
+- **Write-back compares that epoch against the current one and discards the result if it has advanced.** Without this, a generation already in flight when its source chunk is edited writes back *after* the purge has run — resurrecting an answer derived from superseded text, with no trace. Completeness is therefore a property of the purge **and** the write path together, not of the purge alone.
+- Discarded write-backs are counted and reported; a nonzero count under load is expected and is evidence the guard is doing work, not evidence of a bug.
+
+**Purge decision:** **`blind` only** — purge every `entry_id` in `dep:{chunk_id}`, dropping both the `t2:` record and its `t1_key` (§D). Guaranteed-complete: no answer over a changed source survives. Predictor-gated purging was removed by the scope reduction (it depended on the dropped learned predictor) and is future work (proposal §14).
+
+- `change_type` is recorded **for evaluation only** — it measures how often blind purge over-invalidates on answer-preserving edits (defined with the evaluation metrics). It is never used as a gate: trusting an edit's self-declared type would make completeness depend on the corpus author's labelling.
+- `new_text` is carried on the event so a future gated variant needs no corpus round-trip, and so the writer can log what changed.
+
+---
+
+## F. Embedding service
+
+```
+POST /embed   { "text": "..." }
+200           { "vector": [float32...], "dims": 768, "model": "<frozen-model-id>" }
+```
+
+- The embedding model is **frozen** early (proposal §12) — see `decisions.md` the frozen embedding model (**Decided and frozen 2026-08-15**: `nomic-embed-text`, `dims = 768`). It is **served by Ollama**, not by an in-process `sentence-transformers`/PyTorch stack, which would cost ~2 GB resident for a ~400 MB model.
+- ⚠️ **This call sits on the hit path.** Every Tier-2 lookup pays an embedding round-trip, so this endpoint's latency directly bounds **μ_hit** — the load-conversion ceiling of proposal §3. Hit-path latency is reported **decomposed** into {Tier-1 lookup, embed, vector search, overlap check} rather than as a single total, so the share attributable to this call is visible.
+- `dims` **must equal** the Tier-2 index `DIM` (§D) and be identical across all **five** cache configurations (proposal §9.2 pins one embedding model so comparisons isolate the reuse policy).
+
+---
+
+## G. Bypass classifier
+
+**Demo stub only — not an evaluated component.** The corpus contains no dynamic content and there is no live inventory source, so a learned or evaluated classifier would be scored against a stub while adding a false-hit cause that contaminates the headline. It is therefore a **hardcoded keyword rule** that exists so the demo can show the routing decision (debug UI §1).
+
+```
+classify(query) -> { "route": "cacheable" | "bypass", "reason": "<label>" }
+```
+
+- `cacheable` → continues into Tier-1/Tier-2. This is the path all evaluation traffic takes.
+- `bypass` → returns the stub response, sets `"cache": "BYPASS"`, `sources: []`.
+- **Bypass accuracy is not a reported metric**, and `BYPASS` does not appear in the evaluation workload.
+
+---
+
+## H. Per-request evaluation log  ⚠️ measurement-critical
+
+**The evaluation log.** One **JSONL record per request**, appended by the gateway to `results/{run_id}/raw/requests.jsonl`. Written off the critical path. `request_id` (§A) is the join key to the `/ask` response and to judge verdicts.
+
+Four evaluation metrics are **not computable without this record**: *decisions changed by provenance*, *% entering the cascade band*, *false hits by cause*, and the hit-path latency decomposition.
+
+```json
+{
+  "request_id": "01J...",              // ULID, joins to /ask (§A)
+  "run_id": "2026-11-18T14-03-02_cfg4_zipf1.1",
+  "config_id": 4,                       // 1..5 (proposal §9.2)
+  "mutation": "off",                    // off|on
+  "ts": "2026-11-18T14:03:02.481Z",
+
+  "query_raw": "How long is the warranty period on the XPS 13?",
+  "query_normalized": "how long is the warranty period on the xps 13",
+  "t1_key": "t1:9f2c...",               // §D; lets a collision be detected post hoc
+  "stratum": "B-within",                // A | B-within | B-cross | C | D
+
+  "cache": "TIER2_HIT",                 // TIER1_HIT | TIER2_HIT | MISS
+  "similarity": 0.91,
+  "source_overlap": 0.80,               // null when the cascade short-circuited
+  "entered_band": true,                 // consulted provenance — see the field note, v0.6
+  "refusal_cause": "SUPPORT",           // v0.9 — null when reuse was served; see below
+  "support_lex": 0.21,                  // v0.9 — null when the gate arm is off
+  "support_numeric_ok": false,          // v0.9 — null when the gate arm is off
+
+  "retrieved_chunk_ids": ["policy-warranty-electronics#chunk-1"],
+  "entry_sources": ["policy-warranty-electronics#chunk-1"],
+  "entry_id": "01J...",
+
+  "t_total_ms": 48.2,
+  "t_tier1_ms": 0.3,
+  "t_embed_ms": 11.4,
+  "t_search_ms": 4.1,
+  "t_overlap_ms": 0.1,
+  "t_permit_wait_ms": null,             // null unless a permit was requested
+  "t_generate_ms": null,                // null unless generation ran
+
+  "shed": false,
+  "permit_queue_depth": 0,
+
+  "dataset_epoch_at_retrieval": 7,
+  "writeback_discarded": false,         // epoch guard fired (§E)
+
+  "answer_sha256": "3a71..."            // ⚠️ judge dedupe key, see below
+}
+```
+
+> ⚠️ **`answer_sha256` cannot be reconstructed after the fact.** It is the `sha256` of the served answer text. The evaluation keys judge verdicts by `sha256(query ‖ candidate_answer)` to keep judging affordable, and the hash must be taken when the answer is served rather than recomputed from a possibly re-generated answer.
+>
+> ⚠️ **`similarity_only_decision` is RETIRED at v0.9.** It recorded what a fixed-threshold baseline *would* have decided, inline, because re-deriving it would have required replaying against cache state that no longer exists. It was produced by the unfiltered similarity-only cascade phase, and it is retired **with** that phase. *Decisions changed by provenance* is now a **cross-configuration join** of configurations 3 and 4 on `request_id`'s query identity — valid only on the **static-cache** arm, where both runs are guaranteed identical cache state, which is why retiring the unfiltered phase moves that arm into the non-negotiable list. A log written before v0.9 carries the old field; do not mix the two derivations in one figure.
+
+Field notes:
+
+| Field | Notes |
+| :--- | :--- |
+| `stratum` | Carried from the workload record (`data-card.md` §2). Enables the frontier to be reported per sub-stratum, which is what answers the product-ID objection |
+| `t1_key` | Recording it lets the Tier-1 collision invariant be re-verified from run output, not only at corpus-freeze time |
+| `entered_band` | Distinguishes short-circuit hits from cascade-band hits; the evaluation requires their latencies reported separately. ⚠️ **v0.6 restates what this measures.** It was *"paid for retrieval — the rule's cost driver"*. Since the gateway issues retrieval **concurrently with the embedding**, every Tier-1 miss pays for retrieval whether or not it enters the band, so this now records **how often the rule consulted provenance** and no longer bounds what the rule costs. Read `t_overlap_ms` for the cost, and note it is wall-clock-concurrent with `t_embed_ms` |
+| `refusal_cause` | **v0.9.** Why a Tier-2 candidate was refused: `SIMILARITY` \| `NAMESPACE` \| `CONTAINMENT` \| `SUPPORT` \| `NONE` (reuse served). Without it a support refusal is indistinguishable from a namespace refusal and the adopted gate's contribution cannot be attributed — which is the exact methodological gap this study records against the source paper's conjunctive reporting |
+| `support_lex` / `support_numeric_ok` | **v0.9.** The two gate arms, **reported separately and never summed**. `support_lex` is the fraction of the cached answer's content tokens present in the fresh evidence; `support_numeric_ok` is the fail-closed numeric check. Both null on the gate-off arm of configuration 4, which is how the two arms are told apart in the log itself |
+| `t_*_ms` | Null where the stage did not run. Sum need not equal `t_total_ms` — the difference is gateway overhead and is reported as such |
+| `writeback_discarded` | A nonzero count under load is evidence the epoch guard is working, not a bug (§E) |
+
+`raw/` is write-once, so this file is immutable once a run completes.
+
+---
+
+## Versioning
+
+These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, or the Redis schema is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
+
+**Current version: v0.9** (2026-09-21).
+
+| Version | Date | Change |
+| :--- | :--- | :--- |
+| **v0.9** | 2026-09-21 | §B `RetrieveResponse` gains **`texts`**, positionally aligned with `chunk_ids` — the support gate compares a cached answer against chunk text the gateway had never held, so without this it cannot run at all. §H gains **`refusal_cause`** and the two support-arm fields, making the gate's contribution attributable rather than inferred from a conjunction. §H's `similarity_only_decision` is **retired** together with the unfiltered cascade phase and the `tau_high` knob that produced it, which moves *decisions changed by provenance* to a cross-configuration join valid only on the static-cache arm |
+| v0.8 | 2026-09-10 | §B gains an optional `product_id`, scoping `Retrieve`/`Answer`'s own corpus search to the asked-about product plus all policy content. It closes a cross-product grounding failure that unscoped search could not avoid on a flat corpus, and it is **never a reuse-decision signal**. `Answer` may accept pre-retrieved chunks, so a request retrieves once rather than twice |
+| v0.6 | 2026-08-2× | §A gains an optional `product_id`; §C fixes the `policy-` / `product-` doc-id kind prefix; §D moves eviction into the gateway; §H restates what `entered_band` measures |
+
+**Frozen study-wide, from measurement or by policy — changing any of these mid-study invalidates every comparison:** the generation LLM, Qwen 3.5 2B `q4_K_M` with `think: false` · the embedding model and `DIM` · `top_k` · the **FLAT (exact) vector index** — no mid-study HNSW upgrade, since approximate retrieval would inject overlap noise indistinguishable from C1's signal · `num_ctx = 8192` and `OLLAMA_NUM_PARALLEL = 4` (the memory envelope, from the feasibility spike) · the **cache-capacity ratio `C/K = 0.25`** and the rule that **Redis evicts nothing while the gateway enforces the entry count** (§D — this supersedes the two-region split frozen at v0.3) · the **`policy-` / `product-` doc-id kind prefix** (§C), on which the reuse rule's lane selection depends.

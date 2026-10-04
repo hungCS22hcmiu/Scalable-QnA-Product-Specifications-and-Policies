@@ -14,7 +14,7 @@ const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 // Crockford base32 encoded to 26 characters. interfaces.md §D's Tier-1 schema names this field
 // `entry_id <ulid>`; implementing the real algorithm against crypto/rand + time honors that
 // literally without a fourth Go dependency beyond the three already signed off
-// (.docs/ai/rules.md #9).
+// (a new dependency needs sign-off).
 func NewEntryID() string {
 	var raw [16]byte // 6 bytes timestamp + 10 bytes randomness
 

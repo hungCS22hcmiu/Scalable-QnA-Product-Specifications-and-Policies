@@ -3,7 +3,7 @@ package cache
 import "time"
 
 // Entry is the Tier-1 exact-match cache record (interfaces.md §D, ⚠️ stale as of the 2026-09-09
-// product-scoping bypass -- see cache.Key and .docs/work/two-lane-cache/approvals.md):
+// product-scoping bypass -- see cache.Key):
 //
 //	KEY   t1:{sha256(normalized_query "\x00" product_id)}      # HASH
 //	      answer            <string>

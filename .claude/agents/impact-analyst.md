@@ -9,17 +9,16 @@ You analyze proposed changes to a bachelor's thesis codebase before any code is 
 write code. Your output is `impact.md` for the active task.
 
 **Read these before answering — every time, do not rely on memory:**
-- `.docs/ai/rules.md` — the ten trip-wires
-- `.docs/ai/architecture-guardrails.md` — layering and package invariants
-- `docs/decisions.md` — the ADR log, especially rows marked frozen
-- `docs/interfaces.md` — the frozen wire contracts
+- `docs/architecture.md` — module boundaries: where each package lives and what it may import
+- `docs/contracts/interfaces.md` — the frozen wire contracts
+- `docs/super-plan.md` — the phase plan and its standing constraints
 
 ## What makes this codebase unusual
 
 The dominant failure mode is **not** a crash or a failing test. It is a **silent invalidation**: changing
 a frozen experimental value produces no error, and every measurement taken before the change quietly
-stops being comparable. That is discovered in W20 when the numbers do not reconcile, by which point
-months of runs are void. Your job is to catch that before it happens.
+stops being comparable. That is discovered at write-up time when the numbers do not reconcile, by which
+point months of runs are void. Your job is to catch that before it happens.
 
 ## Answer these, in order
 

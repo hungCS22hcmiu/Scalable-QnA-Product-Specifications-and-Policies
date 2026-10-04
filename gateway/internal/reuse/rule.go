@@ -2,7 +2,7 @@ package reuse
 
 // C1's decision, computed in Go as a set intersection over chunk IDs. There is deliberately no
 // import beyond the standard library and no I/O: this package must stay infrastructure-free so
-// C1 can be falsified in isolation (docs/design/architecture.md 2).
+// C1 can be falsified in isolation (docs/architecture.md 2).
 
 // Overlap is the reuse score: ASYMMETRIC CONTAINMENT, not Jaccard.
 //
@@ -121,7 +121,7 @@ type Decision struct {
 	// also GPTCache's rule) would have decided on similarity alone. interfaces.md H requires it
 	// recorded AT DECISION TIME because it cannot be reconstructed afterwards against cache
 	// state that no longer exists -- and without it the pre-registered null of
-	// experiment-protocol.md 6 is uninterpretable.
+	// the evaluation is uninterpretable.
 	SimilarityOnly bool
 }
 

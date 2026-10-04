@@ -6,7 +6,7 @@
 // it -- and it also corrupts the measurement, because the no-cache baseline's generation count
 // then depends on the load generator's concurrency rather than on the workload's redundancy.
 //
-// Hand-rolled rather than golang.org/x/sync/singleflight: .docs/ai/rules.md #9 requires sign-off
+// Hand-rolled rather than golang.org/x/sync/singleflight: a new dependency requires sign-off
 // for a new dependency, and the shape is forty lines.
 package coalesce
 

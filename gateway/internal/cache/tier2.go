@@ -17,7 +17,7 @@ import (
 //
 // This file stores and retrieves CANDIDATES. It never decides whether a candidate may be reused --
 // that judgement is reuse/'s, and keeping it out of here is what lets C1 be falsified in isolation
-// (docs/design/architecture.md 2: "cache/ ... must not make a reuse decision").
+// (docs/architecture.md 2: "cache/ ... must not make a reuse decision").
 
 const (
 	CacheIndexName = "idx:cache"
@@ -52,7 +52,7 @@ type Tier2Entry struct {
 	HitCount      int64
 	CreatedAt     time.Time
 
-	// Namespace and Lane are the two-lane experiment's partition (.docs/work/two-lane-cache).
+	// Namespace and Lane are the two-lane experiment's partition.
 	// Stored, never interpreted here: cache/ must not make a reuse decision
 	// (architecture.md 2), so it carries the partition the way it carries source_chunk_ids --
 	// as recorded provenance for reuse/ to judge.
@@ -77,7 +77,7 @@ func (s *Store) EnsureCacheIndex(ctx context.Context) error {
 			VectorArgs: &redis.FTVectorArgs{
 				// FLAT is frozen study-wide and must never become HNSW mid-study: approximate
 				// retrieval makes the candidate set nondeterministic, injecting overlap noise
-				// that is indistinguishable from C1's own signal (interfaces.md D, rules.md #1).
+				// that is indistinguishable from C1's own signal (interfaces.md §D).
 				FlatOptions: &redis.FTFlatOptions{
 					Type:           "FLOAT32",
 					Dim:            s.dim,
@@ -236,7 +236,7 @@ func (s *Store) nearest(ctx context.Context, filter string, vec []float32, k int
 
 // BumpHitCount increments the reuse counter on a served Tier-2 entry. Fire-and-forget: a failed
 // increment must never fail a request that was already answered correctly. This is the raw
-// material for the demo's "generations avoided" counter (defense_demo.md 3).
+// material for the demo's "generations avoided" counter (the demo UI contract).
 func (s *Store) BumpHitCount(ctx context.Context, entryID string) error {
 	return s.rdb.HIncrBy(ctx, tier2KeyPrefix+entryID, "hit_count", 1).Err()
 }

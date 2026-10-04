@@ -15,7 +15,7 @@ Raise the scope, without asking:
 - the cause is in `reuse/`, at a seam, or in anything measured → **L**
 - the fix changes behaviour beyond restoring what was intended → **M**, because that is a feature
 - **a test would have to change** → stop. Tests are immutable unless an RCA proves staleness and
-  the human confirms (`.docs/ai/rules.md`, `/rca`). A failing test that is "obviously wrong" has
+  the human confirms (`/rca`). A failing test that is "obviously wrong" has
   been right often enough that the rule exists
 
 **Write the failing case first**, as a test, before the fix — then the fix has a witness and the

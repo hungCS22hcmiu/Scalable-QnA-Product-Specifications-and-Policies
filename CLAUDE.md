@@ -1,126 +1,201 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository.
+
+> **The documentation was consolidated on 2026-09-22 and the decision log restarted at ADR-001.**
+> `docs/` is now the single tree: the plan, the contracts, the corpus card, the decision log, and
+> the task trails under `docs/work/`. Source comments were swept in the same pass, so an
+> `ADR-NNN` anywhere in this repository now means an entry in `decisions.md` and nothing else.
+> Resolve a frozen value from `decisions.md` or `contracts/interfaces.md`, never from memory.
 
 ## Repository status
 
-Build work started **W5 (Aug 10, 2026)** and is **in progress**. The Python RAG service
-(`rag/src/rag/`) is real and working — corpus ingestion, chunking, embedding, and retrieval run
-end-to-end against Redis. The Go gateway (`gateway/`) is still scaffold-only (package-doc stubs,
-no logic) — its build starts **W6** per `docs/design/architecture.md` §5's build order; don't add
-gateway logic before then unless a task explicitly says otherwise.
+Both services are real and running end-to-end.
+
+- **Python RAG service** (`rag/src/rag/`) — ingestion, chunking, embedding, retrieval, and the gRPC
+  server. Works today.
+- **Go gateway** (`gateway/internal/`) — `httpapi` (569 lines), `reuse` (732), `cache` (662),
+  `telemetry` (234), `coalesce` (216), `admission` (197), `ragclient`, `embed`, `catalog`. The
+  two-tier cache, the reuse rule with its three lanes, admission control and request coalescing are
+  all built and tested.
+- **Not built:** `gateway/internal/deps/` is a one-line stub — **C2, source-aware invalidation,
+  does not exist**. `httpapi/` has **zero tests** despite every measured number passing through it.
 
 **Commands that work today:**
 - `cd rag && pip3 install -e '.[dev]'` — install the RAG service + dev tools.
-- **Before running any local-AI command** (`make ingest`, `rag ask`, `/spike`, or the W6 gRPC
-  generation path) — check current memory is under the ~9-10 GB "other apps" ceiling **first**,
-  every time, not just once. Quick proxy: Activity Monitor's Memory tab, or
-  `ps aux -m | awk '{sum+=$6} END {print sum/1024/1024" GB used"}'` for total RSS across
-  processes. Authoritative signal: `sysctl kern.memorystatus_vm_pressure_level` with the model
-  loaded — `0` = green (proceed), `1`/`2` = yellow/urgent (close apps and recheck before
-  running). This is a live, moment-to-moment check, not a one-time setup step: `docs/worklog/
-  W05.md`'s 2026-08-16 entry caught pressure regressing to yellow purely from ordinary app load
-  (extra browser tabs, editor windows, chat sessions) — no code or config had changed, and
-  ADR-017's frozen envelope was still correct. Runs taken under yellow/red pressure are invalid
-  and must be discarded and repeated (proposal §7).
-- Redis needs **`redis-stack-server`**, not plain Homebrew `redis` — the plain `redis` 8.10
-  formula ships a config that references search-module files it doesn't bundle and crashes on
-  start. `brew install redis-stack` (tap `redis-stack/redis-stack`) instead; see
-  `docs/worklog/W05.md`'s 2026-08-15 entry. It's installed as a **cask**, so `brew services`
-  can't manage it — persistence is a manual LaunchAgent instead:
-  `~/Library/LaunchAgents/com.redis-stack.server.plist` (`RunAtLoad` + `KeepAlive`), loaded via
-  `launchctl load -w ~/Library/LaunchAgents/com.redis-stack.server.plist`. It survives reboot/
-  logout; check with `launchctl list | grep redis-stack` and `redis-cli PING`.
-- `make ingest` — chunk + embed `data/dev-v0/*.json` into Redis (`python3 -m rag.ingest`).
-- `rag ask "<question>"` (or `python3 -m rag.cli ask "<question>"` if the console-script isn't on
-  `PATH`) — retrieval-only CLI, prints top-k chunks with chunk IDs. This is the W5 exit test.
-- `make lint` / `make test` / `make verify` — repo-wide checks. If `ruff`/`pytest` report
-  `SKIPPED — not installed` despite being pip-installed, they likely landed in
-  `~/Library/Python/3.13/bin`, not on `PATH` — add it or invoke them by full path.
-
-**Scope was reduced on 2026-08-09** (`docs/decisions.md` **ADR-016**) to fit a ~250-hour part-time budget and a backend-engineering skill profile. Read ADR-016 before acting on anything that looks like it involves machine learning — it probably was cut.
+- **Before any local-AI command** (`make ingest`, `rag ask`, gRPC generation) — check memory is
+  under the ~9–10 GB "other apps" ceiling **every time, not once**. Authoritative signal:
+  `sysctl kern.memorystatus_vm_pressure_level` with the model loaded — `0` = green (proceed),
+  `1`/`2` = yellow/urgent (close apps and recheck). Pressure has regressed to yellow purely from
+  ordinary app load — extra browser tabs, editor windows, chat sessions — with no code or config
+  change. **Runs taken under yellow/red are invalid and must be discarded and repeated.**
+- Redis must be **`redis-stack-server`**, not plain Homebrew `redis` — the plain formula ships a
+  config referencing search-module files it does not bundle and crashes on start. It installs as a
+  **cask**, so `brew services` cannot manage it; persistence is a manual LaunchAgent at
+  `~/Library/LaunchAgents/com.redis-stack.server.plist` (`RunAtLoad` + `KeepAlive`). Check with
+  `launchctl list | grep redis-stack` and `redis-cli PING`.
+- `make ingest` — chunk + embed `data/dev-v0/*.json` into Redis.
+- `rag ask "<question>"` — retrieval-only CLI, prints top-k chunks with chunk IDs.
+- `make lint` / `make test` / `make verify` / `make check` — repo-wide checks. If `ruff`/`pytest`
+  report `SKIPPED — not installed` despite being pip-installed, they likely landed in
+  `~/Library/Python/3.13/bin` rather than on `PATH`.
 
 ## What this project is
 
-A **scalable RAG question-answering platform** for e-commerce product specs and store policies. The engineering contribution is a **high-concurrency Go gateway that acts as an admission controller and resource governor**, using RAG-aware caching to perform **load conversion** — turning compute-bound LLM generation into memory-bound cache lookups — so a fixed 16 GB machine absorbs redundant load without swapping or OOM. Its research claim is that a **namespace-partitioned source-containment rule over retrieval provenance**, augmented by a **deterministic answer–evidence support gate**, sustains more reuse than the best fixed similarity threshold at a stated false-hit budget — with the residual it does *not* close (same-evidence, opposite-condition queries) carried inside the claim rather than deferred to a limitations section. Read **ADR-026** (provenance-gated reuse is concurrent work, not novel) and **ADR-035** (the support gate is adopted from prior work, not claimed) before writing any novelty claim; the older "provenance beats similarity" wording is superseded. The contribution is weighted **60 % systems design / 25 % applied-LLM / 15 % semantic cache** (proposal §2 *Contribution Profile*). The full framing lives in `docs/learning/Final_Proposal.md` — read §1 "Proposal at a Glance" and §2 "Contribution Profile" first.
+A **scalable RAG question-answering platform** for e-commerce product specs and store policies. The
+engineering contribution is a **high-concurrency Go gateway acting as an admission controller and
+resource governor**, using RAG-aware caching to perform **load conversion** — turning compute-bound
+LLM generation into memory-bound cache lookups — so a fixed 16 GB machine absorbs redundant load
+without swapping or OOM.
+
+The research claim: a **namespace-partitioned source-containment rule over retrieval provenance**,
+augmented by a **deterministic answer–evidence support gate**, sustains more reuse than the best
+fixed similarity threshold at a stated false-hit budget — with the residual it does *not* close
+(same-evidence, opposite-condition queries) carried inside the claim rather than deferred to a
+limitations section. **Provenance-gated reuse is not claimed as novel** (two 2026 systems,
+GroundedCache and FinCacheServe, already gate reuse on retrieval context) and **the support gate is
+adopted from prior work, not claimed**. Weighting: **60 % systems / 25 % applied-LLM / 15 % semantic
+cache**. Full framing: `docs/Final_Proposal.md` §1 and §2.
 
 ## Workflow
 
-This repo has an enforced workflow. **Read `.claude/README.md` once before working here.**
+**Read `.claude/README.md` once before working here.**
 
-> **Weeks were removed 2026-09-21** (`Pre-thesis_Sweeping.md` #4). The schedule is **phases with
-> binary exit criteria**, and rigor is set by the **scope** of a change, not by the calendar. Any
-> instruction elsewhere that says "from W8" or "this week" is stale — report it rather than acting
-> on it. `/week` is gone; `/phase` replaces it.
+The schedule is **phases with binary exit criteria** (`docs/super-plan.md`), and rigor is set by the
+**scope** of a change, not by the calendar. Any instruction that says "from W8" or "this week" is
+stale — report it rather than acting on it.
 
-- **Orienting:** `/phase` (what phase, what closes it, how far off) → work → `/log` (hours,
-  blockers, into `docs/worklog/journal.md`) → `/gate` (run the exit criterion for real).
-  `/task-status` answers "where am I".
-- **Changes:** open with `/feature` · `/bugfix` · `/refactor` · `/investigate`, or `/task <slug>
-  <L|M|S>` when none fits. Each writes a durable trail under `.docs/work/<slug>/` and a `SCOPE`.
-  `/approve <phase>` is a **human** decision and is required at **every** scope. Then `/verify` →
-  `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then `/rca` takes over.
+- **Orienting:** `/phase` → work. `/task-status` answers "where am I". The phase's `**Exit:**` line
+  prints in the session banner; run it **by hand** to close a phase — each criterion names a command
+  or an artefact, never a judgement.
+- **Changes:** open with `/feature` · `/bugfix` · `/refactor` · `/investigate`, or
+  `/task <slug> <L|M|S>`. Each writes a durable trail under `docs/work/<slug>/` and a `SCOPE`. Then
+  `/verify` → `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then `/rca`.
   **Tests are immutable** unless an RCA proves staleness and the human confirms.
-- **The scope ladder** — `L` (frozen doc, `interfaces.md`, the `.proto`, `reuse/`, anything
-  measured) needs spec → impact → design → **opus design-review** → plan; `M` (ordinary code)
-  needs spec → impact → plan; `S` (tests, docs, one-liners) needs a one-paragraph spec. **Between
-  two, take the larger.** An unset scope blocks rather than defaulting to `S`.
+- **The scope ladder** — `L` (`docs/contracts/interfaces.md`, the `.proto`, `reuse/`, anything
+  measured) needs spec → impact → design → **opus design-review** → plan; `M` (ordinary code) needs
+  spec → impact → plan; `S` (tests, docs, one-liners) needs a one-paragraph spec. **Between two,
+  take the larger.**
 - **Commands:** use the **Makefile** (`make help`) — do not invent ad-hoc invocations.
-- **Hooks enforce two things.** `frozen-guard.sh` is armed *always, at every scope*: it blocks
-  edits that configure a frozen value, edits to the three frozen docs, and writes to
-  `results/*/raw/`. `gate-check.sh` blocks source edits until the task's scope has produced its
-  design documents **and** a human ran `/approve implementation`.
-- **The intended path through a frozen change is `/adr`**, then cite the ADR in the task's
-  `approvals.md`. Never edit `.docs/ai/frozen-values.txt` to dodge a block.
+- **No hook blocks any more.** `frozen-guard.sh` and `gate-check.sh` were removed 2026-09-22 because
+  both read deleted files and were failing open silently. The surviving hooks are advisory:
+  `inject-context.sh` (banner), `done-check.sh` (end-of-turn reminder), `format-lint.sh`.
+  **Consequence: nothing will stop you changing a frozen value.** Writing down what a change
+  invalidates, in the task's `approvals.md`, is now the only record that it happened.
 
 ## Documents
 
-- **`docs/design/architecture.md`** — **the folder-structure and module-boundary authority.** Read it
-  before creating a directory or adding an import; it says where each package lives and what it may
-  depend on.
-- **`.docs/ai/rules.md`** — the ten trip-wires this repo actually falls over, each citing its governing
-  section. `.docs/` is the AI trail and is separate from human-authored `docs/`.
-- **`docs/worklog/`** — **`journal.md`**, append-only and dated, written by `/log`. `W05/W06/W08.md` are the pre-thesis record and stay unedited — they hold the μ_hit numbers, the G1 = 0 / G2 = 0 shakedown, and the measurements behind ADR-017/021/030…033. The raw material for the write-up phase.
-- **`docs/learning/Final_Proposal.md`** — the source of truth. Defines the three contributions, system architecture, tech stack, research questions, evaluation design, and scope guardrails. Any code written must match the architecture and terminology defined here (§6 Architecture, §7 Technical Stack).
-- **`docs/time_line.md`** — ⚠️ **RETIRED 2026-09-21** into `super-plan.md`. **Do not take an instruction from it**: three of its rows were wrong when it was retired (it told you to populate `similarity_only_decision`, which ADR-036 retired; it described the AmazonQA join that ADR-039 deleted; it scheduled `admission/` and `telemetry/` as future work when both were built). Kept because two sections still live there and have no other home: the **Risk Register** and the **Learning Path**.
-- **`docs/requirements.md`** — **skeleton, shape approved 2026-09-21, deliberately unfilled.** Requirements split **three** ways, not two: **FR** (what the system does) · **NFR** (how well) · **RR — Research Requirements** (what makes a measurement admissible). RR exists because most of this project's binding constraints — frozen values, green memory pressure, δ ≤ 5 %, swept-not-hand-set, pre-registered nulls, tune-on-validation/report-on-test — are neither behaviours nor runtime qualities, and filing them under NFR hides the failure mode: violating an NFR makes the system worse *visibly*, violating an RR voids the result *silently*. Do not add rows before sign-off.
-- **`docs/super-plan.md`** — ⭐ **the phase plan, in force from 2026-09-21.** **Eight** phases re-derived from the critical path through the codebase, each with a binary `**Exit:**` line that `.claude/hooks/lib.sh` reads for the session banner and `/gate`. Its spine: `μ_gen` is frozen, so `h` is the only free variable in `λ_max`, and `h ≤ ρ` for any cache serving no false hit — which makes **minimising false hits and serving more requests the same frontier**, not two tracks. Also carries **"Measuring without a second machine"** (ADR-040). `Final_Proposal.md` §12 (drop order) and §13 (deliverables) are **never** restated here.
-- **`docs/defense_demo.md`** — the defense demo script (five live steps + a recorded load clip that is the only demonstration of scalability) and the input/output contract the debug UI must expose. Any UI/API work should conform to this contract, including the **required** counters sidebar.
-- **`docs/interfaces.md`** — interface & data contracts (HTTP `/ask`, Go↔Python gRPC incl. a retrieval-only RPC for the reuse cascade, the stable chunk-ID scheme, Redis cache/dependency schemas, invalidation event). **Frozen at v0.9** (ADR-037 adds `texts` to §B's `RetrieveResponse`, positionally aligned with `chunk_ids`, without which ADR-035's support gate cannot run; ADR-035 adds §H's `refusal_cause` and the two support-arm fields; ADR-036 **retires** §H's `similarity_only_decision` along with the unfiltered similarity-only cascade phase and `tau_high`; ADR-034 adds the optional `product_id` to §B, scoping `Retrieve`/`Answer`'s corpus search to the asked-about product plus policy content — never a reuse-decision signal; ADR-033 lets `Answer` take pre-retrieved chunks; ADR-032 adds the optional `product_id` on §A and the doc-id kind prefix; ADR-031 moves eviction into the gateway; ADR-030 restates what `entered_band` measures) — code at the seam must conform, and changes require a `decisions.md` entry.
-- **`docs/experiment-protocol.md`** — reproducibility: run-manifest schema, operational metric definitions, the frozen LLM-judge prompt, statistics, and the pre-registered headline results. Experiment/measurement code conforms to this.
-- **`docs/decisions.md`** — decision log (ADRs): frozen choices and open questions with decide-by weeks. **ADR-016 is the scope reduction**; **ADR-021 (2026-08-15) replaced the generation LLM** (Gemma 4 E4B → Qwen 3.5 2B) after the originally frozen model failed the W5 memory-envelope spike on this machine's real available RAM — read it before trusting a "Gemma" reference anywhere else (older prose in `Final_Proposal.md`/`README.md` may still say Gemma; `decisions.md` is authoritative). ADR-003 (embedding model: `nomic-embed-text`) and ADR-014 (chunking) are also Decided now. **ADR-022/023/024 (2026-08-18)** add the admission-control record (previously the 60 %-weighted contribution had no ADR at all), the config×mutation experiment grid, and `v1`'s corpus data model. **ADR-026 (2026-09-02) narrowed C1**: two 2026 systems (GroundedCache, FinCacheServe) already gate reuse on retrieval context, so provenance-gated reuse is **no longer claimed as novel** — read it before writing any novelty claim. **ADR-027/028/029** set capacity as a ratio, tighten the corpus gate, and add the evaluation log.
-- **`docs/data-card.md`** — corpus/workload provenance, licensing, schemas, versioning. **Filled and frozen at W8**, not W5 (`data-card.md` is the authority here; ADR-020 moved it with the `v1` corpus). ADR-024 adds `v1`'s structural requirements: product↔policy join key, per-category warranty windows, policy docs long enough to yield ≥3 chunks, and the query strata. **ADR-028** splits stratum B into **B-within / B-cross** and adds the Tier-1 collision invariant, so §7's gate grew past its original three. It now has **five** (G1/G2/G3/G4/G5): **ADR-032** added G4, the doc-id kind prefix, and **ADR-038** added G5, condition-splitting — one chunk carries one condition, which is the only lever against ADR-035's residual and exists only before the corpus freeze. **ADR-027** derives cache capacity as `0.25 × K` from the frozen workload's distinct-query count.
-- **`docs/archive/pre_thesis-Proposal.md`** — ⚠️ **superseded**, retained as the record of the full design space. Its section numbers do not match the current proposal. Never code against it, and don't treat features described there as in scope.
-- **`README.md`** (repo root) — landing page and document index.
+- **`docs/super-plan.md`** — ⭐ **the phase plan, in force.** Eight phases derived from the critical
+  path, each with a binary `**Exit:**` line that `.claude/hooks/lib.sh` reads for the banner. Its
+  spine: `μ_gen` is frozen, so `h` is the only free variable in `λ_max`, and `h ≤ ρ` for any cache
+  serving no false hit — which makes **minimising false hits and serving more requests the same
+  frontier**, not two tracks. Also carries "Measuring without a second machine".
+- **`docs/Final_Proposal.md`** — the source of truth for framing: contributions, architecture,
+  stack, research questions, evaluation design, scope guardrails. §12 (drop order) and §13
+  (deliverables) are authoritative and never restated elsewhere. **Gitignored** — it is submitted
+  prose and this remote is public.
+- **`docs/architecture.md`** — **the folder-structure and module-boundary authority.** Read it
+  before creating a directory or adding an import.
+- **`docs/contracts/interfaces.md`** — interface and data contracts (HTTP `/ask`, Go↔Python gRPC
+  including the retrieval-only RPC, the stable chunk-ID scheme, Redis cache/dependency schemas,
+  invalidation event). **At v0.9.** Code at the seam must conform.
+- **`docs/contracts/requirements.md`** — skeleton, deliberately unfilled. Requirements split
+  **three** ways: **FR** (what the system does) · **NFR** (how well) · **RR — Research
+  Requirements** (what makes a measurement admissible). RR exists because most binding constraints
+  here are neither behaviours nor runtime qualities, and filing them under NFR hides the failure
+  mode: violating an NFR makes the system worse *visibly*, violating an RR voids the result
+  *silently*.
+- **`docs/data-card.md`** — corpus/workload provenance, licensing, schemas, versioning. §7's gate
+  has **five** criteria (G1–G5). G5 is condition-splitting: **no two opposing conditions of the
+  same kind share a `doc_id`** — the only lever against the support gate's residual, and it exists
+  only before the corpus freeze.
+- **`docs/work/`** — task trails. One directory per task: `SCOPE`, `spec.md`, `impact.md`,
+  `design.md`, `review.md`, `plan.md`, `approvals.md`, `READY_TO_IMPLEMENT`.
+- **`docs/learning/`** — submitted prose and study notes. **Gitignored**, same reason as above.
+- **`README.md`** (repo root) — landing page.
 
-## Intended architecture (from the proposal — binding once code lands)
+## Intended architecture
 
-Two-tier cache in front of a RAG pipeline, decoupled by language/responsibility:
+Two-tier cache in front of a RAG pipeline, decoupled by language and responsibility:
 
-- **Go gateway** (the contribution) — an **active admission controller and resource governor**, not just a proxy: concurrent request handling; a **bounded generation-concurrency pool** (semaphore) sized to the memory envelope; **backpressure / graceful load shedding** (`503 busy, retry`) so overload never swaps/OOMs; Tier-1 exact-match cache (hash lookup); Tier-2 semantic cache (embed + similarity search + the **source-overlap reuse rule**); request coalescing (`singleflight`); and a **thread-safe source→entry dependency map** for invalidation (read-mostly, guarded by `sync.RWMutex` or `atomic.Pointer` copy-on-write, mutated out-of-band by a channel-fed writer goroutine). This is where the systems and research contributions live and where most engineering effort belongs.
-- **Python RAG service** (infrastructure, invoked on a cache miss or for the cascade's retrieval-only call) — corpus ingestion/chunking/embedding (LlamaIndex), retrieval, calls the local LLM. Communicates with Go over gRPC.
-- **Local LLM** (**Qwen 3.5 2B** via Ollama, 4-bit `q4_K_M`, `num_ctx` fixed at 8192, **`think: false` required on every call** — ADR-021, supersedes the originally-frozen Gemma 4 E4B) and a separate **embedding service** (**`nomic-embed-text`, 768-dim** — ADR-003) — both consumed as black boxes, not modified. Ollama runs **natively on the host**, never in Docker: macOS containers have no Metal GPU passthrough, and a CPU-bound LLM invalidates every latency measurement.
+- **Go gateway** (the contribution) — concurrent request handling; a **bounded generation-concurrency
+  pool** (semaphore) sized to the memory envelope; **backpressure / graceful load shedding**
+  (`503 busy, retry`) so overload never swaps or OOMs; Tier-1 exact-match cache; Tier-2 semantic
+  cache (embed + similarity search + the source-overlap reuse rule); request coalescing
+  (`singleflight`); and a **thread-safe source→entry dependency map** for invalidation (read-mostly,
+  `atomic.Pointer` copy-on-write, mutated out-of-band by a channel-fed writer goroutine).
+- **Python RAG service** — ingestion/chunking/embedding (LlamaIndex), retrieval, calls the local
+  LLM. Speaks gRPC to Go. Invoked on a miss, or for the cascade's retrieval-only call.
+- **Local LLM** — **Qwen 3.5 2B** via Ollama, 4-bit `q4_K_M`, `num_ctx` fixed at 8192,
+  **`think: false` required on every call**. It replaced the originally-frozen Gemma 4 E4B, which
+  entered yellow memory pressure at even the lightest config on this machine's real available RAM.
+  Older prose may still say "Gemma" — it is wrong. Embeddings: **`nomic-embed-text`, 768-dim**,
+  served by Ollama, never an in-process PyTorch stack (~2 GB for a ~400 MB model). Ollama runs
+  **natively on the host, never in Docker** — macOS containers have no Metal passthrough, and a
+  CPU-bound LLM invalidates every latency measurement.
 - **Redis** — cache store + vector search for Tier 2.
 
-Full request-flow diagram and component responsibilities: `docs/learning/Final_Proposal.md` §6.
+## Constraints any code change must respect
 
-## Constraints that any code change must respect
-
-- **Cache only the "stable" slice** (product specs, policies) — dynamic content (stock/price/order) must classify-and-bypass to a live source, never enter the cache (proposal §6.3).
-- **Freeze the LLM and embedding model** once chosen — swapping either mid-study invalidates every cross-configuration comparison (proposal §12).
-- **Bounded cache**: fixed capacity, LRU eviction, always — no unbounded-cache assumptions (proposal §6.3).
-- **Hardware envelope**: all experiments target a single MacBook M1, 16 GB unified memory, with `OLLAMA_NUM_PARALLEL` pinned and reported (frozen at **4**, ADR-017). In practice this machine also runs other, unrelated projects — the author keeps them to **~9-10 GB used / ~5-6 GB free before any Ollama test**, which is a materially tighter real constraint than "16 GB nominal" and is what actually drove ADR-021 (see below). **Check before every local-AI run, not just once**: total memory used must be under ~10 GB (`kern.memorystatus_vm_pressure_level` reads `0`/green with the model loaded) before proceeding — see the "Commands that work today" check above. Load generation must run off-box (a second machine), not co-hosted with the system under test (proposal §7).
-- **Govern admission to the memory envelope.** The gateway must bound in-flight generations to what unified memory can hold (permit pool sized to `OLLAMA_NUM_PARALLEL` + headroom) and shed with backpressure rather than admit work that swaps/OOMs; runs are valid only in macOS green memory pressure — yellow/red runs are discarded and repeated at lower load (proposal §7, `docs/experiment-protocol.md`).
-- **Provenance-first, and deterministic.** The reuse decision is `overlap(retrieve(q), sources(e)) ≥ θ ∧ sim(q,e) ≥ τ` — source-chunk overlap, not embedding similarity alone. It is a **rule computed in Go** (set intersection over chunk IDs), not a learned model; there is no ML runtime on the hit path. Both θ and τ are swept, never hand-set.
-- **Invalidation is blind dependency-purge.** Source edits purge every dependent entry via the dependency map — guaranteed-complete. Predictor-gated purging was **removed** (`decisions.md` ADR-010, superseded by ADR-016). The update set's `substantive`/`cosmetic` split exists to *measure* over-invalidation, never to gate it.
-- **Single-node envelope; no scale-out.** Horizontal scaling / multi-pod, DB sharding/partitioning, and a fronting load balancer (NGINX / Elasticsearch) are out of scope — the contribution is single-envelope load conversion; scale-out (incl. distributed cache coherence for the invalidation map) is future work (proposal §14, ADR-009).
-- **δ ≤ 5%** is the provisional false-hit budget (proposal §10) — the target operating point for any θ/τ tuning until the judge's measured error finalizes it. Report rates with **Wilson score intervals**.
-- **Five cache configurations**, not eight (proposal §9.2): no-cache · exact-only · fixed-τ (also GPTCache's rule) · source-overlap rule · full tiered system — **crossed with a binary `mutation: off|on` factor** (ADR-023). A run is identified by `(config_id, mutation)`, never `config_id` alone; cells `(3,on)` and `(5,on)` are the source-mutation extensions, not separate architectures.
-- **Do not reintroduce cut scope.** The learned reuse-safety predictor, predictor-gated invalidation, GPTCache/vCache *integration*, semantic routing (RQ4), SSE streaming, and the **bypass classifier** (ADR-018 — demo stub only, not evaluated) are **out of scope** and live in proposal §14 as future work. If a task seems to need one of them, flag it rather than building it.
-- **Three correctness invariants from the advisor review** (`interfaces.md` v0.3, ADR-005/019) — each closes a *silent* failure path, so none is optional:
-  1. **Two Redis eviction regions.** Cache entries under LRU; `dep:*` / `entry:*` under **`noeviction`**. An evicted dependency record makes its entries unpurgeable and breaks invalidation completeness with no error.
-  2. **`t1_key` on every Tier-2 record.** The Tier-1 hash is not computable from `entry_id`, so without it purges silently miss Tier 1.
-  3. **Epoch-guarded write-back.** Retrieval stamps `dataset_epoch`; write-back discards if it advanced. Otherwise a generation in flight during an edit resurrects stale data after the purge.
-- **C1 validity is method, not polish** (ADR-019): the reference-free labelling ablation, validation/test split by seed cluster, and the decisions-changed-by-provenance metric sit **above** judged-sample size in the drop order. Never quietly trade them for a bigger sample.
-- **The envelope is measured, not assumed** (ADR-017, decided 2026-08-15). Frozen at **`num_ctx=8192`, `OLLAMA_NUM_PARALLEL=4`** from the W5 feasibility spike — μ_gen ≈ 28.2 tok/s aggregate at that pair, green pressure. The spike also forced **ADR-021**: the originally frozen Gemma 4 E4B entered yellow pressure at even the lightest config on this machine's real available RAM, so generation moved to Qwen 3.5 2B after empirically comparing five candidate models on both memory footprint and RAG-QA quality. Embeddings are served by **Ollama** (`nomic-embed-text`, 768-dim — ADR-003), never an in-process PyTorch stack (~2 GB for a ~400 MB model).
-- **The platform is the thesis.** Non-negotiable: tiered caching, source-aware invalidation, the concurrency-safe gateway with admission control and memory-pressure discipline, the load-testing evaluation. Everything else follows the drop order in proposal §12 — assume it's optional and don't gold-plate it.
+- **Cache only the "stable" slice** (product specs, policies). Dynamic content — stock, price,
+  order status — must classify-and-bypass to a live source and never enter the cache.
+- **Freeze the LLM and embedding model.** Swapping either mid-study invalidates every
+  cross-configuration comparison.
+- **Bounded cache**: fixed capacity, LRU eviction, always. Capacity is derived as `0.25 × K` from
+  the frozen workload's distinct-query count, and the **gateway** enforces it — Redis evicts
+  nothing.
+- **Hardware envelope**: a single MacBook M1, 16 GB unified memory, `OLLAMA_NUM_PARALLEL` pinned
+  and reported (**frozen at 4**, with `num_ctx = 8192`; μ_gen ≈ 28.2 tok/s aggregate at that pair,
+  measured under green pressure). This machine also runs unrelated projects, so the real ceiling is
+  ~9–10 GB used / ~5–6 GB free before any Ollama test — materially tighter than "16 GB nominal".
+- **Load generation is co-hosted, and reported as such.** A second machine was required by the
+  original decision and none exists. The headline capacity claim survives because it is an
+  *inequality*: `h*` is monotone increasing in `μ_hit`, and co-hosting depresses `μ_hit`, so a
+  co-hosted figure is a **lower bound** on both. What it does **not** rescue: any number presented
+  as a ceiling (the Tier-1 `μ_hit` probe especially), and p95 at high offered rate. See
+  `docs/super-plan.md` "Measuring without a second machine".
+- **Govern admission to the memory envelope.** Bound in-flight generations to what unified memory
+  can hold and shed with backpressure rather than admit work that swaps. Runs are valid only in
+  macOS green pressure.
+- **Provenance-first, and deterministic.** The reuse decision is four conjuncts:
+  `sim(q,e) ≥ τ  ∧  namespace(q) = namespace(e)  ∧  overlap(retrieve(q), sources(e)) ≥ θ  ∧
+  support(answer(e), text(retrieve(q)))`. It is a **rule computed in Go** — set intersection over
+  chunk IDs and token overlap — not a learned model. **There is no ML runtime on the hit path.**
+  θ and τ are **swept, never hand-set**; `τ_s` for the support gate is pinned at 0.6 and never
+  swept. The reuse decision must never read the query text as a *predictive* signal.
+- **Invalidation is blind dependency-purge.** Source edits purge every dependent entry via the
+  dependency map — guaranteed-complete. Predictor-gated purging was removed. The update set's
+  `substantive`/`cosmetic` split exists to *measure* over-invalidation, never to gate it.
+- **Single-node envelope; no scale-out.** Horizontal scaling, multi-pod, DB sharding, and a
+  fronting load balancer are out of scope. The contribution is single-envelope load conversion.
+- **δ ≤ 5 %** is the provisional false-hit budget — the target operating point for θ/τ tuning until
+  the judge's measured error finalises it. Report rates with **Wilson score intervals**.
+- **Five cache configurations**, not eight: no-cache · exact-only · fixed-τ · source-overlap rule ·
+  full tiered system — **crossed with a binary `mutation: off|on` factor**. A run is identified by
+  `(config_id, mutation)`, never `config_id` alone.
+- **Do not reintroduce cut scope.** The learned reuse-safety predictor, predictor-gated
+  invalidation, GPTCache/vCache *integration*, semantic routing, SSE streaming, and the **bypass
+  classifier** are out of scope. If a task seems to need one, flag it rather than building it.
+- **Three correctness invariants** — each closes a *silent* failure path, so none is optional:
+  1. **Dependency records must not be evictable.** An evicted `dep:*` / `entry:*` record makes its
+     entries unpurgeable and breaks invalidation completeness with no error.
+  2. **`t1_key` on every Tier-2 record.** The Tier-1 hash is not computable from `entry_id`, so
+     without it purges silently miss Tier 1.
+  3. **Epoch-guarded write-back.** Retrieval stamps `dataset_epoch`; write-back discards if it
+     advanced. Otherwise a generation in flight during an edit resurrects stale data after the purge.
+- **Validity is method, not polish.** The reference-free labelling ablation, the validation/test
+  split partitioned **by seed-question cluster** (splitting by pair leaks paraphrases), and the
+  decisions-changed-by-provenance metric sit **above** judged-sample size in the drop order. Never
+  quietly trade them for a bigger sample.
+- **Never tune to make a headline work.** A measurement is evidence, not a target. Thresholds are
+  swept, tuned on validation, and reported on held-out test. A pre-registered null is a result.
+- **`dev-v0` is not citable in any result.** It is the development corpus.
+- **Amazon-PQA redistribution is not granted.** `data/v1/` and `data/v1-draft/` stay gitignored;
+  ship a download-and-build script plus a hash manifest, never the raw corpus. Required citation:
+  Rozen et al., NAACL-HLT 2021.
+- **`experiments/results/*/raw/` and `manifest.yaml` are write-once.** Figures regenerate FROM raw,
+  never the reverse. If a run is wrong, record a new `run_id` — do not edit history.
+- **The platform is the thesis.** Non-negotiable: tiered caching, source-aware invalidation, the
+  concurrency-safe gateway with admission control and memory-pressure discipline, the load-testing
+  evaluation. Everything else follows the drop order in `Final_Proposal.md` §12 — assume it is
+  optional and do not gold-plate it.

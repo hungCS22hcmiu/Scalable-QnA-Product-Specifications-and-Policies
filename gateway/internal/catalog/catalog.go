@@ -1,5 +1,5 @@
 // Package catalog is a read-only view of the ingested corpus, and it exists for ONE reason:
-// the demo UI needs a product list to render (docs/defense_demo.md §3).
+// the demo UI needs a product list to render (the demo UI contract).
 //
 // ⚠️ Nothing here is on a measured path. It is never called by POST /ask, it holds no cache, and
 // it makes no reuse decision. If that ever stops being true, this package is in the wrong place:
@@ -8,7 +8,7 @@
 //
 // It is NOT in cache/ on purpose. cache/ owns the answer cache -- idx:cache, t1:, t2: -- and
 // mixing a corpus reader into it would make "which index does this touch?" a question you have to
-// read the function body to answer (docs/design/architecture.md §2).
+// read the function body to answer (docs/architecture.md §2).
 package catalog
 
 import (

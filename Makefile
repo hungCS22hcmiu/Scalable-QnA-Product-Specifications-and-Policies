@@ -1,5 +1,5 @@
 # The single command surface for this repo.
-# Do not invent ad-hoc invocations — add a target here instead (docs/design/architecture.md §4).
+# Do not invent ad-hoc invocations — add a target here instead (docs/architecture.md §4).
 # Targets report "SKIPPED — <tool> not installed" rather than passing vacuously.
 
 SHELL := /bin/bash
@@ -19,8 +19,8 @@ PY := python3
 # been invisible that way. Presence and outcome are now separate: if/else, never `||`.
 export PATH := $(PATH):$(shell $(PY) -m site --user-base)/bin
 
-# Frozen by ADR-017; mu_gen = 28.2 tok/s was measured at this value, and
-# experiment-protocol.md 1 requires it pinned and reported per run. Exported here so a
+# Frozen: mu_gen = 28.2 tok/s was measured at this value, so it must be pinned and
+# reported per run or no two runs are comparable. Exported here so a
 # terminal-launched Ollama is pinned even if the shell predates the launchctl setenv
 # (~/Library/LaunchAgents/com.thesis.ollama-env.plist covers GUI/login launches).
 export OLLAMA_NUM_PARALLEL := 4
@@ -37,15 +37,16 @@ setup: ## Report the tooling /verify needs but cannot find (W5 setup task)
 	@command -v ruff          >/dev/null || echo "  pip3 install ruff pytest"
 	@echo "  cd $(RAG) && pip3 install -e '.[dev]'"
 
-spike: ## W5 feasibility spike — measure the memory envelope (ADR-017)
-	@echo "Run /spike in Claude Code: fills experiment-protocol.md 1.1 and freezes ADR-017."
+spike: ## Feasibility spike — measure the memory envelope. SPENT: already frozen
+	@echo "Envelope frozen at num_ctx=8192, OLLAMA_NUM_PARALLEL=4. Re-run only on a"
+	@echo "hardware change, and re-freeze deliberately if the numbers move."
 	@echo "Baseline:"; vm_stat | head -4; sysctl hw.memsize; sysctl vm.swapusage
 
 ingest: ## Build the index from the current corpus
 	cd $(RAG) && $(PY) -m rag.ingest
 
-env-check: ## Verify the frozen envelope is actually pinned in the running environment (ADR-017)
-	@printf 'OLLAMA_NUM_PARALLEL  make=%s  launchd=%s  (frozen: 4, ADR-017)\n' \
+env-check: ## Verify the frozen envelope is actually pinned in the running environment
+	@printf 'OLLAMA_NUM_PARALLEL  make=%s  launchd=%s  (frozen: 4)\n' \
 	  "$(OLLAMA_NUM_PARALLEL)" "$$(launchctl getenv OLLAMA_NUM_PARALLEL || echo unset)"
 	@test "$$(launchctl getenv OLLAMA_NUM_PARALLEL)" = "4" || { \
 	  echo "  FAIL — launchd value is not 4. Ollama reads this at START, so a mismatch means"; \
@@ -58,14 +59,14 @@ env-check: ## Verify the frozen envelope is actually pinned in the running envir
 	  echo "         It reads OLLAMA_NUM_PARALLEL at process start only, and macOS does not let"; \
 	  echo "         us read it back: 'ps eww' on an owned process returns zero environment"; \
 	  echo "         tokens. Unverifiable must not read as verified — this used to be a NOTE"; \
-	  echo "         that exited 0, which let a run report ADR-017's value while serving another."; \
+	  echo "         that exited 0, which let a run report the memory envelope value while serving another."; \
 	  echo "         Fix: pkill -f 'ollama serve', then start it again (2 seconds)."; \
 	  echo "         See also review.md F1: for qwen3.5 this variable currently has NO effect at"; \
 	  echo "         all — ollama overrides it to -np 1. Resolve that ADR before trusting a 4."; \
 	  exit 1; } || true
 	@echo "  OK"
 
-redis-check: ## Verify the cache/dependency eviction split is safe (interfaces.md D, ADR-005)
+redis-check: ## Verify the cache/dependency eviction split is safe (interfaces.md D)
 	@redis-cli PING >/dev/null 2>&1 || { echo "redis not reachable — start it (see CLAUDE.md)"; exit 1; }
 	@pol=$$(redis-cli CONFIG GET maxmemory-policy | tail -1); \
 	 mem=$$(redis-cli CONFIG GET maxmemory | tail -1); \
@@ -79,18 +80,18 @@ redis-check: ## Verify the cache/dependency eviction split is safe (interfaces.m
 	   echo "         Fix: redis-cli CONFIG SET maxmemory-policy noeviction"; \
 	   exit 1; }
 	@test "$$(redis-cli CONFIG GET maxmemory | tail -1)" = "0" || { \
-	   echo "  FAIL — maxmemory is set. Cache capacity is round(0.25 * K) entries (ADR-027),"; \
+	   echo "  FAIL — maxmemory is set. Cache capacity is round(0.25 * K) entries,"; \
 	   echo "         a COUNT, and K is not derived until W8. A byte budget here would evict"; \
 	   echo "         by size instead, which is not the bounded cache the study specifies."; \
 	   exit 1; }
-	@echo "  OK — nothing evictable; capacity stays unset until K is derived (ADR-005 Open, W8)"
+	@echo "  OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)"
 
 # There are TWO kinds of run and they need different gates. Conflating them is what makes a
 # strict gate get quietly weakened, because it blocks work it was never meant to govern.
 #
 #   `dev`     — FUNCTIONAL. Demo, MVP, debugging. Proves behaviour. Produces NO citable number:
 #               every headline figure is pre-computed and the load clip is pre-recorded
-#               (defense_demo.md 4). It needs exactly one thing from memory: enough room to load
+#              . It needs exactly one thing from memory: enough room to load
 #               the models without swapping. No app-closing ritual, no pressure zone.
 #   `measure` — MEASURED. Anything whose number reaches the thesis. Full discipline; proposal 7's
 #               validity rule applies and a failed gate means the run is discarded.
@@ -103,8 +104,8 @@ measure: env-check redis-check ## Gate a MEASURED run (proposal 7 validity rule)
 	 if [ "$$zone" != "0" ]; then \
 	   echo "FAIL — memory pressure level $$zone (0=green, 1=yellow, 2=urgent)."; \
 	   echo "       A yellow/red run is invalid and must be discarded and repeated at lower"; \
-	   echo "       load (proposal 7). NOTE: this sensor's behaviour is under review — see"; \
-	   echo "       worklog W06 finding 2; run the reboot test before trusting a reading."; \
+	   echo "       load. NOTE: this sensor's behaviour is under review — run the reboot"; \
+	   echo "       test before trusting a reading."; \
 	   ps aux -m | awk '{sum+=$$6} END {printf "       currently %.1f GB total RSS\n", sum/1024/1024}'; \
 	   exit 1; \
 	 fi; \
@@ -113,7 +114,7 @@ measure: env-check redis-check ## Gate a MEASURED run (proposal 7 validity rule)
 dev: redis-check ## Run redis + rag service + gateway locally (FUNCTIONAL — numbers not citable)
 	@command -v redis-stack-server >/dev/null || command -v redis-server >/dev/null \
 	  || { echo "redis missing — make setup"; exit 1; }
-	@pgrep -q ollama || { echo "FAIL — ollama not running; start it first (ADR-021)"; exit 1; }
+	@pgrep -q ollama || { echo "FAIL — ollama not running; start it first"; exit 1; }
 	@avail=$$(sysctl -n kern.memorystatus_level); \
 	 if [ "$$avail" -lt 25 ]; then \
 	   echo "FAIL — only $${avail}% memory available; the models need ~2.1 GB resident"; \
@@ -140,13 +141,13 @@ ask: ## One query end to end.  make ask Q="can I return this laptop?"
 	  -d '{"question":"$(Q)"}' | jq .
 
 # Restore a known-cold state so a rehearsal starts where the demo script assumes it does
-# (defense_demo.md 4). A warm cache turns step 1 into TIER1_HIT and collapses all four steps
+#. A warm cache turns step 1 into TIER1_HIT and collapses all four steps
 # at once, live -- so this runs BEFORE every rehearsal, not once.
 #
 # FLUSHALL, never FT.DROPINDEX. Dropping the index leaves the t2:* hashes behind; the gateway
 # re-creates idx:cache at startup (EnsureCacheIndex) and RediSearch re-indexes those orphans,
 # giving a warm cache that PRESENTS as cold -- the exact failure this target exists to prevent.
-demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing (defense_demo.md section 4)
+demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing
 	@redis-cli PING >/dev/null 2>&1 || { echo "FAIL -- redis not reachable (see CLAUDE.md)"; exit 1; }
 	@lsof -ti tcp:8080 >/dev/null 2>&1 && { \
 	   echo "FAIL -- the gateway is still listening on :8080. Stop it first, THEN reset."; \
@@ -156,7 +157,7 @@ demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing (defense_demo.
 	   echo "       never reaches TIER2_HIT and NOTHING reports an error."; \
 	   echo "       Order is: stop dev -> make demo-reset -> make dev."; \
 	   exit 1; } || true
-	@pgrep -q ollama || { echo "FAIL -- ollama not running; the re-ingest needs nomic-embed-text (ADR-003)"; exit 1; }
+	@pgrep -q ollama || { echo "FAIL -- ollama not running; the re-ingest needs nomic-embed-text"; exit 1; }
 	@foreign=$$(redis-cli --scan | grep -cvE '^(corpus:|t1:|t2:|dep:|entry:|lru:)' || true); \
 	 if [ "$$foreign" != "0" ]; then \
 	   echo "FAIL -- $$foreign key(s) here do not belong to the thesis."; \
@@ -196,14 +197,13 @@ demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing (defense_demo.
 # The four demo questions, pinned. They are NOT interchangeable with paraphrases of
 # themselves: the trap (Q4) clears tau=0.85 by only 0.019 and fails theta=0.60, and an
 # off-hand rewording drops it below tau -- at which point a fixed threshold refuses it too
-# and step 4 proves nothing (defense_demo.md 4). Re-derived and verified 2026-09-05;
-# the record is .docs/work/archive/mvp-advisor-demo/plan.md 1b.
+# and step 4 proves nothing. Re-derived and verified 2026-09-05.
 DEMO_Q1 := Am I entitled to a full refund on my headphones 30 days after delivery?
 DEMO_Q3 := Is a full refund possible for my headphones 30 days after delivery?
 DEMO_Q4 := Am I entitled to a full refund on my sofa 30 days after delivery?
 DEMO_PAUSE ?= 2
 
-demo: ## Rehearse the four demo steps against a cold cache (defense_demo.md section 4)
+demo: ## Rehearse the four demo steps against a cold cache
 	@command -v jq >/dev/null || { echo "FAIL -- jq not installed"; exit 1; }
 	@lsof -ti tcp:8080 >/dev/null 2>&1 || { echo "FAIL -- gateway not listening on :8080. Run: make dev"; exit 1; }
 	@warm=$$(( $$(redis-cli --scan --pattern 't1:*' | wc -l) + $$(redis-cli --scan --pattern 't2:*' | wc -l) )); \
@@ -283,13 +283,13 @@ verify: lint ## Full verification: lint + build + test (see /verify)
 	cd $(GATEWAY) && go build ./...
 	@$(MAKE) --no-print-directory test
 
-load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement -- ADR-012)
+load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
 	@lsof -ti tcp:8080 >/dev/null 2>&1 || { echo "FAIL -- no gateway on :8080 (make dev)"; exit 1; }
 	@echo "  ┌─────────────────────────────────────────────────────────────┐"
 	@echo "  │  SHAKEDOWN ONLY. The load generator is CO-HOSTED with the    │"
 	@echo "  │  system under test, so these numbers are NOT citable.        │"
-	@echo "  │  A real run drives :8080 from a second machine (ADR-012):    │"
+	@echo "  │  A real run drives :8080 from a second machine:    │"
 	@echo "  │    see experiments/k6/README.md                              │"
 	@echo "  └─────────────────────────────────────────────────────────────┘"
 	k6 run -e RATE_RPS=2 -e VUS=4 -e DURATION=20s experiments/k6/ask.js
@@ -299,7 +299,7 @@ load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement -
 #
 #   make gate-corpus                       # G1..G4 against data/v1 -- needs redis + ollama + ingest
 #   make gate-corpus STRUCTURAL=1          # G3/G4 only -- the loop to run while authoring
-#   make gate-corpus VERSION=dev-v0 ...    # shakedown; dev-v0 is NOT gated (ADR-020)
+#   make gate-corpus VERSION=dev-v0 ...    # shakedown; dev-v0 is NOT gated
 VERSION ?= v1
 WORKLOAD ?= data/workload-$(VERSION).json
 gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the snapshot hash
@@ -312,12 +312,12 @@ gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the sna
 	$(PY) experiments/scripts/corpus_gate.py --version $(VERSION) --workload $(WORKLOAD) \
 	  $(if $(STRUCTURAL),--structural-only,) $(if $(REPORT),--report $(REPORT),)
 
-mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement -- ADR-012)
+mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
 	@lsof -ti tcp:8080 >/dev/null 2>&1 || { echo "FAIL -- no gateway on :8080 (make dev)"; exit 1; }
 	@echo "  ┌─────────────────────────────────────────────────────────────┐"
 	@echo "  │  SHAKEDOWN ONLY -- CO-HOSTED generator, numbers NOT citable. │"
-	@echo "  │  mu_hit decides whether S1's wording stands (ADR-027), so    │"
+	@echo "  │  mu_hit decides whether S1's wording stands, so    │"
 	@echo "  │  the RECORDED probe must run from a second machine:          │"
 	@echo "  │    k6 run -e GATEWAY_URL=http://<sut-ip>:8080 \\              │"
 	@echo "  │           experiments/k6/mu_hit.js                           │"
@@ -325,10 +325,10 @@ mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement -- 
 	k6 run -e MODE=$${MODE:-tier1} -e RATE_RPS=$${RATE_RPS:-60} -e VUS=$${VUS:-20} \
 	  -e DURATION=$${DURATION:-20s} -e PROBE_SIZE=$${PROBE_SIZE:-5} experiments/k6/mu_hit.js
 
-ui: ## Build the demo UI bundle (docs/defense_demo.md 3). Node is BUILD-time only.
+ui: ## Build the demo UI bundle. Node is BUILD-time only.
 	@command -v npm >/dev/null || { echo "SKIPPED -- npm not installed"; exit 0; }
 	@echo "  Building to ui/dist. The gateway serves it; no dev server runs at demo time,"
-	@echo "  so nothing competes with the model for the memory envelope (ADR-017)."
+	@echo "  so nothing competes with the model for the memory envelope."
 	cd ui && npm install --no-audit --no-fund && npm run build
 	@echo "  OK -- restart 'make dev' to pick it up, then open http://localhost:8080"
 
@@ -340,14 +340,12 @@ figures: ## Regenerate every figure from raw/ (raw is write-once)
 # pass, which is the exact failure mode this repo's verification discipline forbids.
 DOCSRC := $(shell find docs -name '*.md' -not -path 'docs/archive/*') README.md CLAUDE.md
 
-check: ## Documentation consistency sweep (see /consistency)
+check: ## Documentation consistency sweep
 	@echo "--- dropped scope appearing as a live commitment ---"
 	@grep -n -E 'learned predictor|predictor-gated|semantic routing' $(DOCSRC) || echo "  clean"
 	@echo "--- approximate index must always say never mid-study ---"
 	@grep -n 'HNSW' $(DOCSRC) || echo "  clean"
 	@echo "--- stale schedule references ---"
 	@grep -n -E 'Sep 13|W5.W9|W10.W22|W9 report' $(DOCSRC) || echo "  clean"
-	@echo "--- frozen-value lists must agree across the three sources ---"
-	@grep -c . .docs/ai/frozen-values.txt >/dev/null || { echo "  MISSING frozen-values.txt"; exit 1; }
 	@echo "--- untracked files ---"
 	@git status --short

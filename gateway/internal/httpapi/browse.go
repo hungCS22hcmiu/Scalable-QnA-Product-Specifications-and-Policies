@@ -8,7 +8,7 @@ import (
 	"github.com/hung/thesis/gateway/internal/catalog"
 )
 
-// Endpoints the demo UI needs and nothing else does (docs/defense_demo.md §3).
+// Endpoints the demo UI needs and nothing else does (the demo UI contract).
 //
 // ⚠️ Neither is on a measured path. `/stats` in particular is NOT the measurement channel: every
 // reported number comes from the per-request evaluation log (interfaces.md §H), which is
@@ -56,7 +56,7 @@ type statsResponse struct {
 
 	// HitRate excludes shed requests from the denominator: a shed request was never served, so
 	// counting it as a miss would let the hit rate be improved by shedding harder
-	// (experiment-protocol.md §4 keeps goodput and sheds separate for the same reason).
+	// (the evaluation keeps goodput and sheds separate for the same reason).
 	HitRate float64 `json:"hit_rate"`
 }
 

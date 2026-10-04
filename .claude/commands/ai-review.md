@@ -12,16 +12,16 @@ the prompt.** Point them at the files so there is one place to update.
 
    | Diff touches | Agent | Reads |
    | :--- | :--- | :--- |
-   | `contracts/`, `interfaces.md` surfaces, Redis schema, wire fields | `contract-reviewer` | `docs/interfaces.md`, `.docs/ai/rules.md`, `.docs/ai/review-checklist.md` |
-   | `experiments/`, metrics, judging, manifests, thresholds | `experiment-reviewer` | `docs/experiment-protocol.md`, `docs/Final_Proposal.md` §9, same rules files |
+   | `contracts/`, `interfaces.md` surfaces, Redis schema, wire fields | `contract-reviewer` | `docs/contracts/interfaces.md`, `docs/architecture.md` |
+   | a scope-L design, before implementation | `design-reviewer` | the task trail, `docs/super-plan.md` |
 
-   If neither applies, run `contract-reviewer` in a general pass over `.docs/ai/architecture-guardrails.md`.
+   If neither applies, run `contract-reviewer` in a general pass over `docs/architecture.md`.
 
 3. **Findings must be actionable.** Each one names file, line, and the rule or doc section violated.
    Reject style opinions. Report only what would **fail silently** or **produce a wrong number** — those
    are this repo's real failure modes.
 
-4. **Write results to `.docs/work/<task>/review.md`**, most severe first, each marked
+4. **Write results to `docs/work/<task>/review.md`**, most severe first, each marked
    `CONFIRMED` or `PLAUSIBLE`.
 
 5. **Resolve each finding** before `/done`: fix it, or record why it is accepted. An unresolved finding

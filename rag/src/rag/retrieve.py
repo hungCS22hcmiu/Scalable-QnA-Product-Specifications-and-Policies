@@ -23,7 +23,7 @@ class RetrievedChunk:
 def fetch_by_ids(chunk_ids: list[str]) -> tuple[list[RetrievedChunk], int]:
     """Load chunks the CALLER already retrieved, preserving its rank order.
 
-    This is the second half of ADR-033: the gateway retrieves once, concurrently with its
+    This is the second half of single-retrieval: the gateway retrieves once, concurrently with its
     embedding, and hands the ids here so Answer does not retrieve again. The saving is not the
     vector search — it is the query EMBEDDING that a second retrieval would redo.
 
@@ -31,7 +31,7 @@ def fetch_by_ids(chunk_ids: list[str]) -> tuple[list[RetrievedChunk], int]:
     so this does not couple generation to the library's storage layout.
 
     ⚠️ Rank order is the caller's and must be preserved: generation is order-sensitive, and the
-    reuse rule's namespace is derived from the RANK-1 document of each kind (ADR-030). Sorting or
+    reuse rule's namespace is derived from the RANK-1 document of each kind. Sorting or
     de-duplicating here would silently repartition the cache.
 
     A chunk id that is absent is DROPPED rather than substituted. Fabricating a chunk would put
@@ -75,7 +75,7 @@ def _to_chunks(nodes) -> list[RetrievedChunk]:
 
 
 def _drop_other_products(nodes: list, product_id: str) -> list:
-    """Post-filter, not pre-filter (ADR-034, corrected). Drops only a chunk that belongs to a
+    """Post-filter, not pre-filter (corrected). Drops only a chunk that belongs to a
     DIFFERENT product; everything else -- including any policy chunk -- keeps the natural rank
     order and composition the unscoped search actually produced. Policy content survives here
     only because it genuinely ranked, never because a blanket eligibility filter forced it in.
@@ -88,7 +88,8 @@ def _drop_other_products(nodes: list, product_id: str) -> list:
     policy doc ranked first -- a namespace shared by every OTHER product asked a similar
     question. Confirmed live 2026-09-10: product-kitchen-05 (Air Fryer XL, has a real 1800W
     power spec) was served product-laptops-02's "no power info" cached answer this way -- a
-    genuine cross-product false hit, worse than the bug ADR-034 set out to close. Filtering
+    genuine cross-product false hit, worse than the bug product scoping set out to
+    close. Filtering
     AFTER ranking instead of before it removes the failure mode at its source.
     """
     return [
@@ -102,8 +103,9 @@ def _drop_other_products(nodes: list, product_id: str) -> list:
 
 
 def _ensure_own_chunk(index, nodes: list, query: str, product_id: str, top_k: int) -> list:
-    """If product_id's own chunk did not naturally rank -- the generic-phrasing failure ADR-034
-    exists to close -- fetch it with one small, product-scoped search and splice it in, dropping
+    """If product_id's own chunk did not naturally rank -- the generic-phrasing
+    failure product scoping exists to close -- fetch it with one small,
+    product-scoped search and splice it in, dropping
     the lowest-ranked survivor to stay within top_k. Never force-includes anything else: only
     ever the ONE chunk this specific product owns, so this can only ever push PolicyFraction
     down (a product chunk added to the denominator) or leave it unchanged, never up.

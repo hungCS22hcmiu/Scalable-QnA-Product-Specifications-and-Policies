@@ -6,7 +6,7 @@ import "testing"
 // equality test -- no similarity check, no containment check", so a normalization change that
 // merges two queries with different correct answers serves the wrong one "permanently, with
 // nothing to detect it", and the resulting false hit is charged to a reuse rule that never ran.
-// These cases are therefore the executable statement of ADR-015, not incidental coverage.
+// These cases are therefore the executable statement of the Tier-1 normalization contract, not incidental coverage.
 func TestNormalize(t *testing.T) {
 	cases := []struct {
 		name string
@@ -38,7 +38,7 @@ func TestNormalize(t *testing.T) {
 	}
 }
 
-// ADR-015 requires the identical function on the read and write paths. Store.Get and Store.Put
+// the Tier-1 normalization contract requires the identical function on the read and write paths. Store.Get and Store.Put
 // both call Key(Normalize(q)); idempotence is what makes that safe if a normalized string is
 // ever re-normalized in between (e.g. a value read back out of Redis and fed forward).
 func TestNormalizeIsIdempotent(t *testing.T) {
@@ -87,7 +87,7 @@ func TestNormalizeDoesNotStemOrDropStopwords(t *testing.T) {
 }
 
 // interfaces.md §D: KEY t1:{sha256(normalized_query "\x00" product_id)}. ⚠️ BYPASS 2026-09-09,
-// reverses ADR-028's "product_id in the Tier-1 key -- Rejected" -- see cache.Key.
+// reverses the "product_id in the Tier-1 key -- Rejected" -- see cache.Key.
 func TestKey(t *testing.T) {
 	const q = "how long is the warranty"
 
@@ -106,7 +106,7 @@ func TestKey(t *testing.T) {
 	}
 }
 
-// The read/write-path invariant of ADR-015, stated end to end: spellings that differ only in
+// The read/write-path invariant of the Tier-1 normalization contract, stated end to end: spellings that differ only in
 // case, spacing or punctuation must reach the same Redis key, or the Tier-1 hit rate is
 // understated and configuration 2's "literal-repeat share" measurement (proposal §2b row 7)
 // is wrong. Fixed at one product_id, so this also asserts stability holds WITHIN a product.
@@ -128,7 +128,7 @@ func TestKeyIsStableAcrossTrivialSpellingVariants(t *testing.T) {
 
 // TestKeyIsScopedByProductID is the bug this bypass fixes: two literally identical questions
 // asked about different products must NOT collide -- see the conversation in
-// .docs/work/two-lane-cache/approvals.md and ADR-028's now-reversed rejection.
+// the now-reversed rejection.
 func TestKeyIsScopedByProductID(t *testing.T) {
 	const q = "how long is the battery life"
 

@@ -13,7 +13,7 @@ import (
 // The Tier-2 cascade lives here, not in cache/ or reuse/, and that placement is load-bearing.
 // httpapi is the leftmost package and may import rightward; reuse/ may not touch Redis or gRPC,
 // because keeping it infrastructure-free is what lets C1 be falsified in isolation
-// (docs/design/architecture.md 2). So: reuse/ owns the DECISION, this file owns the PLUMBING.
+// (docs/architecture.md 2). So: reuse/ owns the DECISION, this file owns the PLUMBING.
 
 // stageTimings is interfaces.md F's required decomposition. Four numbers rather than one total,
 // because the embedding round-trip sits on the hit path and bounds mu_hit -- a single figure
@@ -48,7 +48,7 @@ type tier2Outcome struct {
 	Candidate   cache.Candidate
 	Decision    reuse.Decision
 
-	// --- two-lane experiment (.docs/work/two-lane-cache) ---
+	// --- two-lane experiment ---
 	// The rule under test decides with NSDecision. Decision above is kept and still computed on
 	// every banded request as the containment COUNTERFACTUAL, so one run yields both verdicts.
 	NSDecision reuse.NamespaceDecision
@@ -69,7 +69,7 @@ type tier2Outcome struct {
 //
 // Every failure degrades to a miss rather than an error. A Tier-2 outage should cost hit rate,
 // not availability, and a 500 here would be a served-request outcome fitting none of
-// experiment-protocol.md 4's categories -- it would leak out of both the goodput numerator and
+// the evaluation's categories -- it would leak out of both the goodput numerator and
 // the shed denominator.
 func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32, retrieved *ragclient.RetrieveResult, t *stageTimings) tier2Outcome {
 	if vec == nil {
@@ -98,7 +98,7 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 	}
 	// TauHigh: serve on similarity ALONE, consulting no provenance (Pre-Thesis 3.2.3 Fig 3.2).
 	// Disabled by default -- see reuse.Thresholds.TauHigh for the measured reason. EnteredBand
-	// stays false so experiment-protocol.md 4 can report short-circuit and band hits separately.
+	// stays false so the evaluation can report short-circuit and band hits separately.
 	if h.Thresholds.TauHigh > 0 && nearest.Similarity >= h.Thresholds.TauHigh {
 		out.NSDecision = reuse.NamespaceDecision{Reuse: true, Rule: reuse.RuleSimilarityOnly}
 		return out
@@ -117,7 +117,7 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 
 	// The lane is read from what retrieval returned for THIS query. Never predicted from the
 	// query text: a classifier error would land in the false-hit metric with no bucket to hold
-	// it (ADR-018's reason for dropping the bypass classifier).
+	// it (the reason for dropping the bypass classifier).
 	out.QueryLane = reuse.Classify(retrieved.ChunkIDs, h.LaneBand)
 	out.QueryNS = reuse.Namespace(out.QueryLane, retrieved.ChunkIDs, productID)
 

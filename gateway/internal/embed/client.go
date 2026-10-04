@@ -11,18 +11,18 @@ import (
 
 // queryPrefix is mandatory and exact. nomic-embed-text is trained with asymmetric prefixes --
 // "search_query: " for queries, "search_document: " for indexed text -- and omitting it does not
-// error, it just quietly produces worse similarities (rag/src/rag/embedding.py, ADR-003). Since
+// error, it just quietly produces worse similarities (rag/src/rag/embedding.py). Since
 // the corpus was indexed WITH the document prefix by the Python side, a query embedded without
 // this prefix lands in a different region of the space and every Tier-2 lookup degrades with no
 // signal that anything is wrong.
 const queryPrefix = "search_query: "
 
-// Dim is the ONLY Go-side definition of the frozen embedding width (ADR-003). cache/ receives it
+// Dim is the ONLY Go-side definition of the frozen embedding width. cache/ receives it
 // through main.go rather than importing embed/, so interfaces.md F's "dims must equal the Tier-2
 // index DIM" holds by construction instead of by two constants agreeing.
 const Dim = 768
 
-// Model is frozen by ADR-003 alongside Dim; the two must move together or not at all.
+// Model is frozen by the frozen embedding model alongside Dim; the two must move together or not at all.
 const Model = "nomic-embed-text"
 
 // Client calls Ollama's embedding endpoint. It deliberately mirrors rag/src/rag/embedding.py
@@ -90,7 +90,7 @@ func (c *Client) Query(ctx context.Context, text string) ([]float32, error) {
 	// error -- the write would be rejected by the index and every Tier-2 lookup would simply
 	// miss forever. Fail loudly here instead.
 	if got := len(out.Embeddings[0]); got != Dim {
-		return nil, fmt.Errorf("embed: model %q returned %d dims, expected %d (ADR-003)", c.model, got, Dim)
+		return nil, fmt.Errorf("embed: model %q returned %d dims, expected %d", c.model, got, Dim)
 	}
 
 	// Redis stores FLOAT32 (interfaces.md D). Narrowing here rather than at the Redis boundary

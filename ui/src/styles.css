@@ -1,4 +1,4 @@
-/* Debug-view styling, not consumer styling. defense_demo.md 3: "A debug view beats a polished
+/* Debug-view styling, not consumer styling. The demo contract: "A debug view beats a polished
    consumer UI at a defense: it makes the contribution observable." Dark, dense, high contrast --
    readable from the back of a room on a projector. */
 
@@ -95,7 +95,7 @@ a { color: var(--accent); text-decoration: none; }
 }
 .composer button:disabled { opacity: .4; cursor: default; }
 
-/* ---- counters sidebar (defense_demo.md 3: REQUIRED) ---- */
+/* ---- counters sidebar (REQUIRED by the demo contract) ---- */
 .counters { background: var(--panel); border-left: 1px solid var(--line); padding: 24px 20px; position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; }
 .counters h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 18px; }
 .counters-scope { display: block; text-transform: none; letter-spacing: 0; color: var(--dim); font-weight: 400; font-size: 11px; margin-top: 3px; }
