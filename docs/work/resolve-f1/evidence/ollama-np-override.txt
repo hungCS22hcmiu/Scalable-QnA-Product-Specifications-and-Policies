@@ -1,0 +1,30 @@
+# F1 evidence — excerpt preserved 2026-10-04 from the RUNNING Ollama server's log
+# Source: /private/tmp/claude-502/-Users-hung-Desktop-thesis/907ad004-d3d6-4326-9948-78eae97816a2/scratchpad/ollama.log
+#   (written by an earlier Claude session; /private/tmp is cleared on reboot, hence this copy)
+# Server: 'ollama serve', pid 19379, started 2026-09-06 12:51:43 (PPID 1: launched detached from that session, stdout/stderr redirected to the file above); ollama 0.33.2
+# Log size at capture: 75383800 bytes, 912909 lines
+# Redactions: model blob hashes -> <blob>; home dir -> ~
+
+## Server environment (selected keys from the 'server config' line)
+OLLAMA_CONTEXT_LENGTH:0
+OLLAMA_FLASH_ATTENTION:false
+OLLAMA_KEEP_ALIVE:5m0s
+OLLAMA_MAX_LOADED_MODELS:0
+OLLAMA_MAX_QUEUE:512
+OLLAMA_NUM_PARALLEL:4
+OLLAMA_SCHED_SPREAD:false
+
+## Counts over the whole log
+qwen35 loads (general.architecture = qwen35):           26
+WARN "does not currently support parallel" (qwen35):   26
+llama-server starts with -c 8192 -np 1:                26
+llama-server starts with -np other than 1:             0
+srv load_model n_slots = 1, n_ctx_slot = 8192:         26
+srv load_model n_slots other than 1:                   0
+nomic-bert (embedding) starts with -np 1:              48
+
+## First qwen35 load, verbatim (lines 551-554, 604, 938)
+time=2026-09-06T12:52:33.073+07:00 level=WARN source=sched.go:509 msg="model architecture does not currently support parallel requests" architecture=qwen35
+time=2026-09-06T12:52:33.095+07:00 level=INFO source=llama_server.go:433 msg="starting llama-server" cmd="/Applications/Ollama.app/Contents/Resources/llama-server --model ~/.ollama/models/blobs/<blob> --port 59534 --host 127.0.0.1 --no-webui --offline -c 8192 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --mmproj ~/.ollama/models/blobs/<blob> --flash-attn auto -b 1024 -ub 1024 --context-shift --keep 4"
+llama_model_loader: - kv   0:                       general.architecture str              = qwen35
+srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'

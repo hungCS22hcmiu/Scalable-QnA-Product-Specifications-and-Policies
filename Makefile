@@ -19,11 +19,20 @@ PY := python3
 # been invisible that way. Presence and outcome are now separate: if/else, never `||`.
 export PATH := $(PATH):$(shell $(PY) -m site --user-base)/bin
 
-# Frozen: mu_gen = 28.2 tok/s was measured at this value, so it must be pinned and
-# reported per run or no two runs are comparable. Exported here so a
-# terminal-launched Ollama is pinned even if the shell predates the launchctl setenv
-# (~/Library/LaunchAgents/com.thesis.ollama-env.plist covers GUI/login launches).
-export OLLAMA_NUM_PARALLEL := 4
+# The frozen generation envelope (ADR-003). One block: env-check verifies all three against the
+# LIVE runner, and every recipe inherits them.
+#
+# OLLAMA_NUM_PARALLEL is the slot count the runner ACTUALLY SERVES, not a request to Ollama.
+# Ollama 0.33.2 runs the qwen35 architecture at one slot whatever is requested (finding F1), and
+# the launchd pin that requested 4 was removed (ADR-003, A2). The consumer of this export is the
+# gateway, which reads it as its admission permit count when launched through make
+# (gateway/cmd/gateway/main.go). The pool it sizes bounds queueing delay, not memory.
+export OLLAMA_NUM_PARALLEL := 1
+# The server build and the weights are part of the envelope too: the one-slot rule is a
+# version-specific scheduler rule (Ollama.app auto-updated 0.32.13 -> 0.33.2 unattended on
+# 2026-09-01; auto-update is now off), and `ollama pull` can re-point a tag at new weights.
+OLLAMA_VERSION := 0.33.2
+LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
 .PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui
@@ -38,33 +47,16 @@ setup: ## Report the tooling /verify needs but cannot find (W5 setup task)
 	@echo "  cd $(RAG) && pip3 install -e '.[dev]'"
 
 spike: ## Feasibility spike — measure the memory envelope. SPENT: already frozen
-	@echo "Envelope frozen at num_ctx=8192, OLLAMA_NUM_PARALLEL=4. Re-run only on a"
+	@echo "Envelope frozen at num_ctx=8192, one generation slot (ADR-003). Re-run only on a"
 	@echo "hardware change, and re-freeze deliberately if the numbers move."
 	@echo "Baseline:"; vm_stat | head -4; sysctl hw.memsize; sysctl vm.swapusage
 
 ingest: ## Build the index from the current corpus
 	cd $(RAG) && $(PY) -m rag.ingest
 
-env-check: ## Verify the frozen envelope is actually pinned in the running environment
-	@printf 'OLLAMA_NUM_PARALLEL  make=%s  launchd=%s  (frozen: 4)\n' \
-	  "$(OLLAMA_NUM_PARALLEL)" "$$(launchctl getenv OLLAMA_NUM_PARALLEL || echo unset)"
-	@test "$$(launchctl getenv OLLAMA_NUM_PARALLEL)" = "4" || { \
-	  echo "  FAIL — launchd value is not 4. Ollama reads this at START, so a mismatch means"; \
-	  echo "         measurements describe a different configuration than the one reported."; \
-	  echo "         Fix: launchctl load -w ~/Library/LaunchAgents/com.thesis.ollama-env.plist"; \
-	  echo "         then RESTART Ollama (it does not re-read the value while running)."; \
-	  exit 1; }
-	@pgrep -q ollama && { \
-	  echo "  FAIL — ollama is already running, so the value it is SERVING is unknown."; \
-	  echo "         It reads OLLAMA_NUM_PARALLEL at process start only, and macOS does not let"; \
-	  echo "         us read it back: 'ps eww' on an owned process returns zero environment"; \
-	  echo "         tokens. Unverifiable must not read as verified — this used to be a NOTE"; \
-	  echo "         that exited 0, which let a run report the memory envelope value while serving another."; \
-	  echo "         Fix: pkill -f 'ollama serve', then start it again (2 seconds)."; \
-	  echo "         See also review.md F1: for qwen3.5 this variable currently has NO effect at"; \
-	  echo "         all — ollama overrides it to -np 1. Resolve that ADR before trusting a 4."; \
-	  exit 1; } || true
-	@echo "  OK"
+env-check: ## Verify the frozen envelope against the LIVE runner (ADR-003) -- loads both models, ~2.1 GB
+	@$(PY) experiments/scripts/env_check.py --frozen-np $(OLLAMA_NUM_PARALLEL) \
+	  --ollama-version $(OLLAMA_VERSION) --llm-blob $(LLM_BLOB)
 
 redis-check: ## Verify the cache/dependency eviction split is safe (interfaces.md D)
 	@redis-cli PING >/dev/null 2>&1 || { echo "redis not reachable — start it (see CLAUDE.md)"; exit 1; }

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Pins OLLAMA_NUM_PARALLEL to the value frozen by ADR-017 (thesis: Scalable QA Platform).
+
+  Why this exists: experiment-protocol.md §1 requires OLLAMA_NUM_PARALLEL to be pinned and
+  reported per run, and mu_gen = 28.2 tok/s was measured at NUM_PARALLEL=4. Before this agent
+  the value lived only in documentation -- Ollama ran at its own auto-selected default, so the
+  measured envelope did not necessarily describe the running system. That is a silent failure:
+  no error, just numbers that describe a different configuration than the one reported.
+
+  Ollama reads this at server start, so it must be set BEFORE Ollama launches. RunAtLoad puts
+  it in the launchd session at login, which is early enough for the Ollama.app.
+
+  Load:   launchctl load -w ~/Library/LaunchAgents/com.thesis.ollama-env.plist
+  Verify: launchctl getenv OLLAMA_NUM_PARALLEL   ->  4
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.thesis.ollama-env</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/launchctl</string>
+    <string>setenv</string>
+    <string>OLLAMA_NUM_PARALLEL</string>
+    <string>4</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>

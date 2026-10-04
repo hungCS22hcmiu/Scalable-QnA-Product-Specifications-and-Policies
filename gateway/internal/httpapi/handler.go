@@ -60,7 +60,8 @@ type Handler struct {
 	Embed      *embed.Client
 	Thresholds reuse.Thresholds
 
-	// Admission bounds in-flight generations to the memory envelope and sheds the rest. It must
+	// Admission bounds in-flight generations to the slots the model server serves (one, ADR-003),
+	// queues a bounded number behind them, and sheds the rest. It must
 	// be the SOLE place a permit is acquired (architecture-guardrails.md), which is why the miss
 	// path has exactly one call site.
 	Admission *admission.Pool

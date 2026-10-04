@@ -14,9 +14,9 @@ func spinUntil(cond func() bool) {
 	}
 }
 
-// The envelope bound. If more than `permits` generations can be in flight at once, the gateway is
-// not governing anything and a run can swap -- which proposal 7 makes an invalid run, discovered
-// only afterwards from the pressure log.
+// The slot bound. If more than `permits` generations can be in flight at once, the surplus queues
+// invisibly inside the model server, which serves only its fixed slots (ADR-003), and every shed
+// rate then describes that hidden queue instead of the gateway.
 func TestNeverAdmitsMoreThanPermits(t *testing.T) {
 	const permits = 4
 	p := New(permits, 64)

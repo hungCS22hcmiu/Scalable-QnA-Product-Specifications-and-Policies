@@ -60,7 +60,7 @@ export default function Counters({ intervalMs = 1000 }) {
       <p className="counters-note">
         <b>coalesced</b> — duplicates that arrived while an identical question was still
         generating, and were served its result. <b>shed</b> — refused with{' '}
-        <code>503 busy, retry</code> rather than admitted past the memory envelope.
+        <code>503 busy, retry</code> rather than queued invisibly behind the model's one generation slot.
       </p>
     </aside>
   )

@@ -12,8 +12,10 @@
 # Usage:
 #   GATEWAY_URL=http://localhost:8080 ./experiments/scripts/verify_admission.sh
 #
-# To reproduce the exact "4x200 / 4x503" split from slide 5, start the gateway with
-# GEN_QUEUE_BUDGET=0 (main.go defaults it to 2x permits, which QUEUES instead of shedding):
+# Since ADR-003 the gateway grants ONE permit (the one slot Ollama serves), so with
+# GEN_QUEUE_BUDGET=0 the N_DISTINCT=8 burst splits 1x200 / 7x503. The "4x200 / 4x503" split
+# on slide 5 was taken with 4 permits, before ADR-003. main.go defaults the queue to
+# 2x permits, which QUEUES instead of shedding, so set it to 0 to see pure shedding:
 #   cd gateway && GEN_QUEUE_BUDGET=0 go run ./cmd/gateway
 
 set -euo pipefail

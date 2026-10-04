@@ -119,8 +119,9 @@ stale — report it rather than acting on it.
 Two-tier cache in front of a RAG pipeline, decoupled by language and responsibility:
 
 - **Go gateway** (the contribution) — concurrent request handling; a **bounded generation-concurrency
-  pool** (semaphore) sized to the memory envelope; **backpressure / graceful load shedding**
-  (`503 busy, retry`) so overload never swaps or OOMs; Tier-1 exact-match cache; Tier-2 semantic
+  pool** (semaphore) sized to the slots the model server actually serves, which is one
+  (ADR-003); **backpressure / graceful load shedding** (`503 busy, retry`) so overload surfaces as
+  counted shedding instead of queueing invisibly inside Ollama; Tier-1 exact-match cache; Tier-2 semantic
   cache (embed + similarity search + the source-overlap reuse rule); request coalescing
   (`singleflight`); and a **thread-safe source→entry dependency map** for invalidation (read-mostly,
   `atomic.Pointer` copy-on-write, mutated out-of-band by a channel-fed writer goroutine).
@@ -144,9 +145,12 @@ Two-tier cache in front of a RAG pipeline, decoupled by language and responsibil
 - **Bounded cache**: fixed capacity, LRU eviction, always. Capacity is derived as `0.25 × K` from
   the frozen workload's distinct-query count, and the **gateway** enforces it — Redis evicts
   nothing.
-- **Hardware envelope**: a single MacBook M1, 16 GB unified memory, `OLLAMA_NUM_PARALLEL` pinned
-  and reported (**frozen at 4**, with `num_ctx = 8192`; μ_gen ≈ 28.2 tok/s aggregate at that pair,
-  measured under green pressure). This machine also runs unrelated projects, so the real ceiling is
+- **Hardware envelope**: a single MacBook M1, 16 GB unified memory, **one generation slot**
+  (ADR-003: Ollama serves Qwen 3.5 at one slot whatever `OLLAMA_NUM_PARALLEL` requests, so the old
+  "frozen at 4" was never served), with `num_ctx = 8192`, Ollama **0.33.2** and the weights blob
+  pinned, all verified against the live runner by `make env-check`. μ_gen ≈ 28.2 tok/s is a
+  one-slot **planning figure** until Phase 7 re-measures it. **Ollama.app auto-update stays off**,
+  and the Ollama app is not used during a run. This machine also runs unrelated projects, so the real ceiling is
   ~9–10 GB used / ~5–6 GB free before any Ollama test — materially tighter than "16 GB nominal".
 - **Load generation is co-hosted, and reported as such.** A second machine was required by the
   original decision and none exists. The headline capacity claim survives because it is an
@@ -154,9 +158,11 @@ Two-tier cache in front of a RAG pipeline, decoupled by language and responsibil
   co-hosted figure is a **lower bound** on both. What it does **not** rescue: any number presented
   as a ceiling (the Tier-1 `μ_hit` probe especially), and p95 at high offered rate. See
   `docs/super-plan.md` "Measuring without a second machine".
-- **Govern admission to the memory envelope.** Bound in-flight generations to what unified memory
-  can hold and shed with backpressure rather than admit work that swaps. Runs are valid only in
-  macOS green pressure.
+- **Govern admission to the served slots.** Bound in-flight generations to the slots the model
+  server actually serves (one, ADR-003), and shed with backpressure rather than let work queue
+  invisibly inside Ollama. The pool bounds **queueing delay and goodput**. Memory is fixed when
+  Ollama loads the runner, and admitting requests adds none. Runs are valid only in macOS green
+  pressure.
 - **Provenance-first, and deterministic.** The reuse decision is four conjuncts:
   `sim(q,e) ≥ τ  ∧  namespace(q) = namespace(e)  ∧  overlap(retrieve(q), sources(e)) ≥ θ  ∧
   support(answer(e), text(retrieve(q)))`. It is a **rule computed in Go** — set intersection over

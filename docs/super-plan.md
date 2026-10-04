@@ -37,7 +37,8 @@ identifiable should not be in a plan at all.
 ## The spine — why safety and throughput are one problem here
 
 `Final_Proposal.md` §3 fixes capacity as **λ_max = min( μ_gen / (1 − h) , μ_hit / h )**. `μ_gen` is
-frozen by the memory envelope at ≈ 0.19 req/s. So **`h`, the hit rate, is the only free variable that raises
+fixed by the envelope (one generation slot, ADR-003) and planned at ≈ 0.19 req/s, a projection from
+the spike that Phase 7 re-measures. So **`h`, the hit rate, is the only free variable that raises
 capacity** — and `h ≤ ρ` for any cache that serves no false hit, because `h > ρ` is reachable only
 by being wrong.
 
@@ -48,8 +49,9 @@ Three consequences, and they are why the phases are ordered the way they are:
    the support gate is the highest-value unbuilt item for **both** halves of the objective — it is not a
    correctness tax paid against throughput.
 2. **Admission control does not raise capacity; it protects it.** It is S2 (stability), not S1
-   (capacity), and it is **already built**. What is not done is establishing that the number it is
-   sized from is real — finding F1.
+   (capacity), and it is **already built**. It is sized to the one slot the model server actually
+   serves (ADR-003, which resolved finding F1), and it protects **queueing delay and goodput, not
+   memory**: memory is fixed when Ollama loads the runner.
 3. **Tier-1 promotion is an unmeasured throughput lever already in the tree.** μ_hit is ~8000 req/s
    on Tier 1 against ~61 on Tier 2, so the **tier mix** moves μ_hit more than any Tier-2
    micro-optimisation can. `handler.go` began promoting Tier-2 hits into Tier 1 on 2026-09-10 and
@@ -83,8 +85,10 @@ Two columns earn their place and are easy to skip:
 These are not items. They hold across all of them, and an item that violates one is wrong
 regardless of how well it is executed.
 
-1. **F1 sits above the order.** No admission-control number is citable until it resolves
-   It is item **1.1**, and it is open.
+1. ~~**F1 sits above the order.** No admission-control number is citable until it resolves.~~
+   **Resolved by ADR-003 (2026-10-04, item 1.1).** One slot is frozen, the gateway grants one permit,
+   and `make env-check` verifies the live runner. Admission numbers are citable from here on, subject
+   to the other constraints, and q is pre-registered per item 7.5.
 2. **The platform is the thesis.** Research work never starves platform work.
 3. **`dev-v0` is not citable in any result.** Only the frozen `v1`.
 4. **Runs taken under yellow or red memory pressure are discarded and repeated.** A run taken
@@ -110,7 +114,7 @@ valve, not these numbers.
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 1.1 | **Resolve F1.** Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for qwen3.5. Add a check that reads the **effective** slot count from the Ollama server log (`-np` / `n_slots`) rather than the requested value, and write the ADR deciding what μ_gen ≈ 28.2 tok/s means if it was a one-slot number recorded as a four-slot aggregate | S1, S2 | memory envelope, admission control | now | `make env-check` fails when effective ≠ frozen, and an ADR records the consequence for μ_gen |
+| 1.1 | **Resolve F1.** Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for qwen3.5. Add a check that reads the **effective** slot count from the live runner (its argv `-np` and its own `/props` `total_slots`; ADR-003 records why not the server log) rather than the requested value, and write the ADR deciding what μ_gen ≈ 28.2 tok/s means if it was a one-slot number recorded as a four-slot aggregate | S1, S2 | memory envelope, admission control | now | `make env-check` fails when effective ≠ frozen, and an ADR records the consequence for μ_gen |
 | 1.2 | **Tests for `httpapi/`.** The cascade, the miss path, coalescing-wraps-admission nesting, Tier-1 promotion, and the single-exit eval-record emit | C1, C3 | standing constraint 6 | now | Every exit path of `Ask` — TIER1_HIT, TIER2_HIT, MISS, SHED, ABANDONED, GENERATION_FAILED — has a test asserting its response **and** its eval record |
 | 1.3 | **Remove the retired cascade branch.** Delete the unfiltered cascade phase, `tau_high` / `REUSE_TAU_HIGH`, and `similarity_only_decision`. Correct the stale pinned default in `rule_test.go` (claims `1.0`; ships `math.Inf(1)`) | C1, C3 | retiring the unfiltered phase | 1.2 — do not delete branches that nothing tests | The cascade issues one scoped search; `grep -r tau_high` finds only history; §H no longer carries the retired field |
 | 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | 1.2 | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
@@ -207,7 +211,7 @@ valve, not these numbers.
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
 | 8.1 | Chapter skeleton, background and related work, architecture chapter | — | — | 6.4 | 50 % draft |
-| 8.2 | Evaluation chapter built around the two headline figures, with the limitations stated rather than defended — including everything measured co-hosted | — | — | 7.5 | Full draft to advisor |
+| 8.2 | Evaluation chapter built around the two headline figures, with the limitations stated rather than defended — including everything measured co-hosted, and that the backend serves **one generation stream** (ADR-003) | — | ADR-003 | 7.5 | Full draft to advisor, **and** the admission-control text frames the pool as queueing and shedding at one slot, never as a memory bound (ADR-003 — the reframing the W5 spike's no-go branch required) |
 | 8.3 | Revision, slides, rehearsal. **Buffer** | — | — | 8.2 | Submission-ready and rehearsed |
 
 ---

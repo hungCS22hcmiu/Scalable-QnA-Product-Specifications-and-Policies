@@ -29,17 +29,17 @@ destabilises the machine.
 deterministic, memory-bound cache lookups, and govern what little generation remains.
 
 The gateway is an **admission controller and resource governor**, not a proxy. It bounds in-flight
-generation to what unified memory can actually hold, sheds excess load explicitly rather than
-collapsing, and serves the redundant majority of traffic from a two-tier cache that never touches
+generation to the slots the model server actually serves (one, ADR-003), sheds excess load
+explicitly rather than letting it queue invisibly, and serves the redundant majority of traffic from a two-tier cache that never touches
 the LLM.
 
 Sustainable load is then:
 
 > **λ_max = min( μ_gen / (1 − h) , μ_hit / h )**  where *h* is the cache hit share
 
-μ_gen is frozen by the hardware envelope — a measured number, not an estimate: **28.2 tokens/sec
-aggregate** at `num_ctx = 8192`, `OLLAMA_NUM_PARALLEL = 4`, holding macOS green pressure at 1.7 GB
-resident. That leaves **h as the only free variable that raises capacity** — and `h ≤ ρ`, the true
+μ_gen is fixed by the hardware envelope. Ollama serves the frozen model at **one generation slot**
+(ADR-003), and the feasibility spike's **≈ 28.2 tokens/sec** at `num_ctx = 8192`, holding macOS green
+pressure at 1.7 GB resident, is a planning figure until it is re-measured under sustained load. That leaves **h as the only free variable that raises capacity** — and `h ≤ ρ`, the true
 redundancy of the workload, for any cache that serves no false hit, because exceeding it is only
 achievable by being wrong.
 
@@ -97,7 +97,7 @@ flowchart LR
 Three paths: a **Tier-1 hit** (hash lookup, no embedding), a **Tier-2 hit** (embed → vector search →
 the four-conjunct rule), and a **miss**, which must first acquire a generation permit before
 reaching the LLM. Without a permit inside budget the gateway returns `503 busy, retry` rather than
-admitting work the memory envelope cannot hold.
+letting the work queue invisibly inside the model server, which serves one generation slot (ADR-003).
 
 Cached answers are tagged with the source chunks that produced them, so when a policy document is
 edited the dependent entries are purged exactly — no waiting for a TTL, and no stale answers

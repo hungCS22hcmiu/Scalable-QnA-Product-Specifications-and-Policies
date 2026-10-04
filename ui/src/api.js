@@ -17,7 +17,7 @@ export async function fetchStats() {
 //
 // A 503 is NOT an error here, and separating `ok` from `status` is the whole point.
 // interfaces.md A's shed is designed behaviour: under enough concurrent tabs the gateway refuses
-// work rather than swapping, and a UI that rendered that as a failure would show the opposite of
+// work rather than queueing it without bound behind the one generation slot (ADR-003), and a UI that rendered that as a failure would show the opposite of
 // what happened.
 //
 // wallMs is measured in the BROWSER and is kept deliberately separate from the gateway's own

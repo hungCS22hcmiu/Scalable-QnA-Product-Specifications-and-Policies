@@ -152,24 +152,35 @@ func main() {
 		thresholds.Tau, thresholds.Theta, thresholds.TauHigh, band.Lo, band.Hi, embed.Dim,
 		cache.CacheIndexName, mixedLane, shortCircuit)
 
-	// Admission control. The permit count comes from OLLAMA_NUM_PARALLEL, frozen at 4 by the frozen envelope
-	// and pinned in the environment that `make env-check` verifies -- read here rather than
-	// re-declared, so the gateway can never bound concurrency to a different number than the one
-	// Ollama was started with and the run reports.
+	// Admission control. The permit count is the frozen generation slot count (ADR-003): the slots
+	// the model runner ACTUALLY serves, which `make env-check` verifies against the live runner.
+	// Ollama 0.33.2 serves the qwen35 architecture at one slot whatever is requested (finding F1),
+	// so the frozen value is 1. It arrives as OLLAMA_NUM_PARALLEL, exported by the Makefile's
+	// envelope block, and the fallback matches it for a gateway launched outside make.
 	//
-	// ⚠️ env-check records finding F1: for qwen3.5 this variable currently has NO effect, because
-	// ollama overrides it to -np 1. The permit pool is therefore bounding the gateway to a
-	// concurrency the model server does not actually offer, and surplus permits queue INSIDE
-	// ollama where this gateway cannot shed them. Resolve that ADR before reading any shed rate
-	// as a property of the gateway.
-	permits := getenvInt("OLLAMA_NUM_PARALLEL", 4)
+	// The permits must equal the served slots: any surplus queues INSIDE Ollama, where this
+	// gateway can neither see nor shed it, and every shed rate would then describe Ollama's queue.
+	//
+	// The variable is shared with Ollama's own, so a shell opened while launchd still exported the
+	// old 4 hands a gateway started outside make 4 permits with no error. That is F1 again, from
+	// the gateway's side. It is said loudly here rather than refused, because a demo may set a
+	// different pool on purpose; a measured run asserts permits == ENVELOPE np instead (P1).
+	const frozenSlots = 1 // ADR-003; must match the Makefile's OLLAMA_NUM_PARALLEL
+	permits := getenvInt("OLLAMA_NUM_PARALLEL", frozenSlots)
+	if permits != frozenSlots {
+		log.Printf("gateway: WARNING admission permits=%d but the model server serves %d slot(s) "+
+			"(ADR-003). Surplus permits queue invisibly inside Ollama, so no shed rate from this "+
+			"run describes the frozen gateway. OLLAMA_NUM_PARALLEL=%d came from the environment; "+
+			"launch through make, or unset it.", permits, frozenSlots, permits)
+	}
 	// Queue budget: how many callers may WAIT rather than be shed. Zero means shed immediately
-	// once the permits are gone. A DEMO value, swept like the rest.
+	// once the permits are gone. At one slot this choice sets the S2 shed rate directly, so it is
+	// a pre-registered parameter of item 7.5, recorded per run, and no shed rate is read at this
+	// default (ADR-003). The default 2 x permits allows about two service times of waiting.
 	queueBudget := getenvInt("GEN_QUEUE_BUDGET", 2*permits)
 	pool := admission.New(permits, queueBudget)
-	log.Printf("gateway: admission permits=%d queue_budget=%d  (permits from OLLAMA_NUM_PARALLEL, the frozen envelope;\n"+
-		"         see env-check F1 -- ollama may serve -np 1 regardless, in which case surplus\n"+
-		"         permits queue inside ollama and this gateway cannot shed them)",
+	log.Printf("gateway: admission permits=%d queue_budget=%d  (permits = the frozen served slot count,\n"+
+		"         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)",
 		permits, queueBudget)
 
 	// Bounded cache. the capacity ratio fixes capacity at round(0.25 * K) ENTRIES, where K is the frozen

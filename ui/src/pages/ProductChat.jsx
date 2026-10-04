@@ -116,7 +116,7 @@ function Turn({ turn, askedProduct }) {
           <span className="badge b-shed">503 SHED</span>
           <p>
             The generation pool was saturated, so the gateway refused this request instead of
-            admitting work that would push the machine into swapping.{' '}
+            letting it queue behind the model's one generation slot.{' '}
             <b>This is the designed behaviour under overload</b>, not an error.
           </p>
           <code>{turn.body?.reason ?? 'generation_pool_saturated'}</code>

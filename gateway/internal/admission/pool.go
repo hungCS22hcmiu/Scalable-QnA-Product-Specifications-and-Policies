@@ -1,5 +1,8 @@
-// Package admission bounds in-flight generations to what the memory envelope can hold, and sheds
-// the rest rather than admitting work that would swap or OOM.
+// Package admission bounds in-flight generations to the slots the model server actually serves,
+// queues a bounded number of callers behind them, and sheds the rest. It bounds queueing delay
+// and goodput, not memory: memory is fixed when Ollama loads the runner, at its slot count, and
+// admitting more requests adds none (ADR-003). Sizing the pool to the served slots is what keeps
+// the queue HERE, where it is counted and shed, instead of invisibly inside the model server.
 //
 // This is the 60 %-weighted contribution's mechanism (proposal 6.1/6.2): the gateway is
 // an active resource governor, not a proxy. A request that cannot be admitted is answered
