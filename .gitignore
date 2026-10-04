@@ -32,7 +32,7 @@ data/v1-draft/
 # dataset's own readme carries the ACM personal/classroom notice) and this remote
 # is public, so these never get tracked — permanently, not pending a licence check.
 # Not under data/v1/: rag.ingest globs that directory. Hashes live in
-# docs/work/pqa-category-choice/spec.md.
+# docs/work/2026-10-03-pqa-category-choice/spec.md.
 data/raw/
 
 # --- Build output --------------------------------------------------------------

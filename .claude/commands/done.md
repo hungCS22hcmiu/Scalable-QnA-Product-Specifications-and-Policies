@@ -36,3 +36,8 @@ Close the active task. Refuse to close if any check below fails — say which an
 6. **Check the phase exit criterion.** If this task completed it, say so — and run the
    `**Exit:**` line from `docs/super-plan.md` concretely rather than asserting it. There is no
    command for this since 2026-09-22; the criterion names a command or an artefact, so run that.
+
+7. **Mark the item in `docs/super-plan.md`**, if this task passed an item's "Done when" test. Its
+   "Unblocked when" cell becomes `✅ Done <date> — <ADR>, trail docs/work/<task>/`, every row that
+   lists it as a blocker marks it `✅`, and the phase's **Progress** line is updated. Do not mark
+   an item whose test was not actually run.

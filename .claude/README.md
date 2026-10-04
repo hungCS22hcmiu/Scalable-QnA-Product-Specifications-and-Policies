@@ -3,7 +3,9 @@
 Tooling is **tracked**; only `settings.local.json`, `state/` and `scheduled_tasks.lock` are ignored.
 The workflow is part of the thesis's reproducibility story, not personal config.
 
-> **Consolidated 2026-09-22.** Task trails live in `docs/work/<slug>/`. The two blocking hooks —
+> **Consolidated 2026-09-22.** Task trails live in `docs/work/<YYYY-MM-DD>-<slug>/`, dated by the
+> day the task opened (since 2026-10-04), so `ls docs/work` lists them in the order they were
+> started. The two blocking hooks —
 > `frozen-guard.sh` and `gate-check.sh` — were removed in the same pass, because both read files
 > that no longer exist and a guard that fails open silently is worse than no guard: it still reads
 > as protection. **Rigor is now a convention these commands describe, not a
@@ -35,7 +37,7 @@ anytime     /task-status
 
 ## The scope ladder
 
-Written to `docs/work/<slug>/SCOPE` by the opener.
+Written to `docs/work/<YYYY-MM-DD>-<slug>/SCOPE` by the opener.
 
 | Scope | Design documents first | Use when |
 | :---: | :--- | :--- |

@@ -1,4 +1,4 @@
-"""Tests for the envelope check (ADR-003, `docs/work/resolve-f1/design.md` §4).
+"""Tests for the envelope check (ADR-003, `docs/work/2026-10-04-resolve-f1/design.md` §4).
 
 The check decides whether a measurement may run, so its expensive failure is a false OK: an
 envelope reported as frozen while the live runner serves something else. That is exactly how
@@ -8,7 +8,7 @@ wrong reason, or fail open.
 
 No Ollama and no `rag` are needed. The decision functions are pure, and the I/O wiring (`observe`,
 `main`) runs against faked HTTP, `ps` and `lsof` plus a stand-in `rag.config`. Fixtures are cut from
-what the live machine printed on 2026-10-04 (`docs/work/resolve-f1/evidence/`), with the home
+what the live machine printed on 2026-10-04 (`docs/work/2026-10-04-resolve-f1/evidence/`), with the home
 directory replaced.
 """
 

@@ -64,7 +64,7 @@ unrelated) and `docs/architecture.md` (no value; `:49` "permit pool" is generic)
 **Historical, leave:**
 - `gateway/internal/admission/pool_test.go:21` (`const permits = 4`): a mechanism test independent
   of the frozen value, and tests are immutable.
-- `docs/work/pqa-category-choice/spec.md:307-308` (closed trail).
+- `docs/work/2026-10-03-pqa-category-choice/spec.md:307-308` (closed trail).
 - Git history: old ADR-017/022/027, W05/W06/W08 worklogs, the w6 review.
 - `docs/learning/Pre-Thesis_Report_Full.md:460, :969` and `Slim.md:632`: submitted Aug 31,
   gitignored.

@@ -1,7 +1,7 @@
 # Review — pqa-category-choice
 
 **Date:** 2026-10-04 · **Diff:** `.gitignore`, `docs/data-card.md`, `docs/decisions.md`, plus the
-untracked trail `docs/work/pqa-category-choice/`. Nothing under `gateway/`, `rag/`, `contracts/` or
+untracked trail `docs/work/2026-10-03-pqa-category-choice/`. Nothing under `gateway/`, `rag/`, `contracts/` or
 `experiments/` changed.
 
 **Reviewers.** Neither routing rule applied: no `interfaces.md` surface was touched, and this is not a

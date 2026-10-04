@@ -1,6 +1,6 @@
 # Super Plan — execution to submission
 
-**Status:** in force · **Created:** 2026-09-21 · **Revised:** 2026-09-22
+**Status:** in force · **Created:** 2026-09-21 · **Revised:** 2026-10-04
 **Companion to:** `contracts/requirements.md` (what must be true), `decisions.md` (why),
 `Final_Proposal.md` §12 (drop order) and §13 (deliverables).
 
@@ -75,6 +75,9 @@ Two columns earn their place and are easy to skip:
 - **"Unblocked when"** is what makes the order *derivable* rather than asserted. An item whose
   blocker is another item creates the sequence automatically; an item blocked by a human decision
   says so, by name, so it is visible that it is waiting on a person rather than on work.
+  **Once an item's "Done when" test passes**, its own cell becomes `✅ Done <date>`, followed by
+  its ADR, if any, and its trail. Every other row that lists it as a blocker marks it `✅` too
+  (`7.1, 1.1 ✅`), so the column shows at a glance what is finished and what still blocks.
 - **"Done when"** is a **binary test**. "Improved", "hardened" and "investigated" are not
   done-conditions. An item is not finished because its time is spent.
 
@@ -112,14 +115,29 @@ valve, not these numbers.
 
 *Nothing measured before this closes is evidence of anything.* ~25 h.
 
+**Progress, 2026-10-04:** 1 of 6 exit clauses met, the `env-check` clause, by item 1.1. 1.2, 1.5 and
+1.6 are unblocked; 1.3 and 1.4 wait on 1.2.
+
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 1.1 | **Resolve F1.** Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for qwen3.5. Add a check that reads the **effective** slot count from the live runner (its argv `-np` and its own `/props` `total_slots`; ADR-003 records why not the server log) rather than the requested value, and write the ADR deciding what μ_gen ≈ 28.2 tok/s means if it was a one-slot number recorded as a four-slot aggregate | S1, S2 | memory envelope, admission control | now | `make env-check` fails when effective ≠ frozen, and an ADR records the consequence for μ_gen |
+| 1.1 | **Resolve F1.** Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for qwen3.5. Add a check that reads the **effective** slot count from the live runner (its argv `-np` and its own `/props` `total_slots`; ADR-003 records why not the server log) rather than the requested value, and write the ADR deciding what μ_gen ≈ 28.2 tok/s means if it was a one-slot number recorded as a four-slot aggregate | S1, S2 | memory envelope, admission control | ✅ **Done 2026-10-04** — ADR-003, trail `docs/work/2026-10-04-resolve-f1/` | `make env-check` fails when effective ≠ frozen, and an ADR records the consequence for μ_gen |
 | 1.2 | **Tests for `httpapi/`.** The cascade, the miss path, coalescing-wraps-admission nesting, Tier-1 promotion, and the single-exit eval-record emit | C1, C3 | standing constraint 6 | now | Every exit path of `Ask` — TIER1_HIT, TIER2_HIT, MISS, SHED, ABANDONED, GENERATION_FAILED — has a test asserting its response **and** its eval record |
 | 1.3 | **Remove the retired cascade branch.** Delete the unfiltered cascade phase, `tau_high` / `REUSE_TAU_HIGH`, and `similarity_only_decision`. Correct the stale pinned default in `rule_test.go` (claims `1.0`; ships `math.Inf(1)`) | C1, C3 | retiring the unfiltered phase | 1.2 — do not delete branches that nothing tests | The cascade issues one scoped search; `grep -r tau_high` finds only history; §H no longer carries the retired field |
 | 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | 1.2 | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
 | 1.5 | **Answer-text storage.** §H stores `answer_sha256`, never the text, and judging runs offline with the generator unloaded. Recovering text from a bounded LRU afterwards is unsound. Content-addressed `raw/answers/{answer_sha256}.txt` | C3 | needs a numbered decision — it changes §H, which is frozen | now | A run's answers are reconstructable from `raw/` alone, with the cache flushed |
 | 1.6 | **Characterise the load generator's footprint** and **record the co-hosted-measurement decision** as the first entry in `decisions.md` (see "Measuring without a second machine") | S1, S2 | measurement validity | now | k6's CPU and RSS at the sweep's actual rates are recorded, with the SUT's pressure zone alongside, and the ADR states what is citable co-hosted and what is not |
+
+**Found while closing 1.1, not yet items — each waits on the author's decision:**
+
+- **`rag-server-reuseport`.** `rag/src/rag/server.py:50-52` binds with gRPC's default
+  `SO_REUSEPORT`, so a second server silently shares port 50051 and a run can be answered by a stale
+  instance (six were found on 2026-10-03). It is instrument integrity, so it belongs in Phase 1 as
+  either an item with its own exit clause or a bugfix outside the exit line.
+- **Generation determinism (U8).** The Modelfile sets `temperature 1` and `generate.py` does not
+  override it, so the same miss can produce different answers from run to run. It bears on judging
+  (5.1) and on reproducibility. It needs an investigation before 1.5 or 5.1 is built on it.
+- **For the advisor:** withdraw the proposal's `OLLAMA_NUM_PARALLEL` sweep (§6.2), which cannot run
+  on this model and stack (ADR-003). This is a human decision, and it must be settled before Phase 7.
 
 ### Phase 2 — The support gate
 
@@ -197,10 +215,10 @@ valve, not these numbers.
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
 | 7.1 | **Redundancy × load sweep**, co-hosted. Three Zipf skews, cache-on against cache-off, ≥3 repetitions per point, pressure sampled at ≥1 Hz | S1, S2 | measurement validity as amended, capacity ratio | 1.6, 6.2 | Curves exist at every point and the **hit-rate spread across the three skews is non-zero** — a flat spread means capacity was mis-derived, not that the cache does not work |
-| 7.2 | **μ_hit in both modes, reported as a lower bound.** Tier-1 and Tier-2 are different ceilings and the tier mix is itself a function of redundancy, so the second term of λ_max is evaluated **per sweep point**, never once from an average | S1 | capacity ratio, `interfaces.md` §F | 7.1 | Both figures recorded with the co-hosting bias direction stated; `h*` at the lower bound compared against the reachable range of `h` |
+| 7.2 | **μ_hit in both modes, reported as a lower bound.** Tier-1 and Tier-2 are different ceilings and the tier mix is itself a function of redundancy, so the second term of λ_max is evaluated **per sweep point**, never once from an average. `nomic-embed-text` also serves one slot (resolve-f1, U7), so the embedding round-trip may be what bounds Tier-2 μ_hit | S1 | capacity ratio, `interfaces.md` §F | 7.1 | Both figures recorded with the co-hosting bias direction stated; `h*` at the lower bound compared against the reachable range of `h` |
 | 7.3 | **Measure the Tier-1 promotion effect on tier mix** — a built, unmeasured throughput lever, and the cheapest remaining way to raise μ_hit | S1 | — needs no new decision; the code shipped 2026-09-10 | 7.1 | The tier mix with promotion on and off is reported at matched workload |
 | 7.4 | **Invalidation under load**, fast-path p99 and reader stall while purges fire | C2, S4 | invalidation under load | 4.2, 7.1 | The read fast path does not stall behind an invalidation, or the stall is measured and reported |
-| 7.5 | **Saturation analysis and freeze.** Shed rate and permit-queue depth at saturation; goodput never counts sheds | S1, S2 | admission control, `Final_Proposal.md` §3 | 7.1, 1.1 | Headline A exists; measured λ_max plotted against the model; all results frozen and every figure regenerable |
+| 7.5 | **Saturation analysis and freeze.** Shed rate and permit-queue depth at saturation; goodput never counts sheds. State which μ_gen is reported: the permit also covers the Answer RPC and write-back, so a gateway-measured μ_gen ≤ Ollama's (resolve-f1, N7) | S1, S2 | admission control, `Final_Proposal.md` §3, ADR-003 | 7.1, 1.1 ✅ | Headline A exists; measured λ_max plotted against the model; the queue budget q was pre-registered before the first saturation run and is recorded per run (ADR-003); all results frozen and every figure regenerable |
 
 ### Phase 8 — Write-up and defence
 

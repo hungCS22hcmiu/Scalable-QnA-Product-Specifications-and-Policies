@@ -1,5 +1,5 @@
 ---
-description: Open a task with a durable design trail under docs/work/<slug>/
+description: Open a task with a durable design trail under docs/work/<YYYY-MM-DD>-<slug>/
 argument-hint: <task-slug> <L|M|S> [one-line description]
 ---
 
@@ -20,12 +20,16 @@ design work is required before source edits unlock. **If you are between two, ta
 | **M** | spec → impact → plan | Ordinary code: a package, a handler, a script |
 | **S** | spec (one paragraph) | Tests, docs, comments, a one-line fix |
 
-Write the letter to `docs/work/$1/SCOPE`. **Every scope still ends at `/approve implementation`** —
+Write the letter to the trail's `SCOPE` (step 1 below). **Every scope still ends at `/approve implementation`** —
 S is cheap because it needs one document, not because it skips the human.
 
 ## The trail
 
-1. **Create `docs/work/$1/`**, write `SCOPE`, and set `.claude/state/active-task` to `$1`.
+1. **Create `docs/work/<YYYY-MM-DD>-$1/`**, where the date is today's (`date +%F`) — the day the
+   task opens, never changed afterwards, so `ls docs/work` reads in the order work began. If that
+   folder already exists, stop and say so. Write `SCOPE`, and set `.claude/state/active-task` to
+   the **full folder name** (`<YYYY-MM-DD>-$1`), not the bare slug: every `docs/work/<task>/` path
+   in the other commands and in `lib.sh` resolves through it.
 
 2. **`spec.md`** — all scopes:
    - The change in one sentence.
@@ -69,4 +73,4 @@ S is cheap because it needs one document, not because it skips the human.
    Nothing reads this file automatically since 2026-09-22 — it is the human record of what was
    reviewed, and it is the only such record now that the hooks no longer gate.
 
-Report the slug, the scope and why that scope, and the outstanding phases. Then stop.
+Report the trail folder, the scope and why that scope, and the outstanding phases. Then stop.

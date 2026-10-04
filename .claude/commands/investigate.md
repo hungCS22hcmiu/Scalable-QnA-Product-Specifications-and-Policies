@@ -5,7 +5,7 @@ argument-hint: <slug> [the question]
 
 Open an **investigation**: a question to answer, not work to ship.
 
-1. Create `docs/work/$1/` with `SCOPE` = **S** and a `spec.md` whose first line is **the question**,
+1. Create `docs/work/<YYYY-MM-DD>-$1/`, dated today as `/task` does, with `SCOPE` = **S** and a `spec.md` whose first line is **the question**,
    stated so that it has a checkable answer. "Is X slow?" is not one. "Is the Tier-2 hit path
    bounded by the embedding round-trip or by Retrieve?" is.
 2. **Do not set `READY_TO_IMPLEMENT`, and do not edit source.** The gate will refuse anyway; that

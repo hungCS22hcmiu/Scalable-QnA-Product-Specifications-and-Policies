@@ -82,7 +82,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 not yet written.*
 
 ### ADR-002 — `v1` draws from six Amazon-PQA leaves, mapped onto four departments
-**Decided (data)** · 2026-10-04 · *`data-card.md` §1–§3, `docs/work/pqa-category-choice/`*
+**Decided (data)** · 2026-10-04 · *`data-card.md` §1–§3, `docs/work/2026-10-03-pqa-category-choice/`*
 
 `v1`'s product catalog and question workload come from six Amazon-PQA leaf files, mapped onto four
 store departments. The department is the `category` value that product and policy records share —
@@ -151,7 +151,7 @@ they are fixed at `super-plan.md` item 3.2.
 
 
 ### ADR-003 — The generation envelope serves one slot; the admission pool bounds queueing, not memory
-**Decided (frozen)** · 2026-10-04 · *`Makefile` envelope block, `experiments/scripts/env_check.py`, `gateway/cmd/gateway/main.go`, `admission/pool.go`, `interfaces.md` Versioning, `CLAUDE.md`, `README.md`, `super-plan.md`; trail `docs/work/resolve-f1/`*
+**Decided (frozen)** · 2026-10-04 · *`Makefile` envelope block, `experiments/scripts/env_check.py`, `gateway/cmd/gateway/main.go`, `admission/pool.go`, `interfaces.md` Versioning, `CLAUDE.md`, `README.md`, `super-plan.md`; trail `docs/work/2026-10-04-resolve-f1/`*
 
 The frozen generation slot count is **1**, meaning the slots the model runner actually serves, which
 `make env-check` verifies against the live runner. The gateway grants one admission permit. Ollama
@@ -163,7 +163,7 @@ unchanged. The Ollama server version (**0.33.2**) and the LLM weights blob
 `env-check`.
 
 - **Rationale:**
-  - **F1, confirmed 2026-10-04 (`resolve-f1/evidence/`).**
+  - **F1, confirmed 2026-10-04 (`docs/work/2026-10-04-resolve-f1/evidence/`).**
     - The live server ran with `OLLAMA_NUM_PARALLEL:4`. In 26 / 26 `qwen35` loads it logged
       `"model architecture does not currently support parallel requests"` and launched
       `-np 1`, with `n_slots = 1`.

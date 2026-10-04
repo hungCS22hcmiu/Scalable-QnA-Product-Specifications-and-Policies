@@ -69,8 +69,8 @@ stale — report it rather than acting on it.
   prints in the session banner; run it **by hand** to close a phase — each criterion names a command
   or an artefact, never a judgement.
 - **Changes:** open with `/feature` · `/bugfix` · `/refactor` · `/investigate`, or
-  `/task <slug> <L|M|S>`. Each writes a durable trail under `docs/work/<slug>/` and a `SCOPE`. Then
-  `/verify` → `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then `/rca`.
+  `/task <slug> <L|M|S>`. Each writes a durable trail under `docs/work/<YYYY-MM-DD>-<slug>/` and
+  a `SCOPE`. Then `/verify` → `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then `/rca`.
   **Tests are immutable** unless an RCA proves staleness and the human confirms.
 - **The scope ladder** — `L` (`docs/contracts/interfaces.md`, the `.proto`, `reuse/`, anything
   measured) needs spec → impact → design → **opus design-review** → plan; `M` (ordinary code) needs
@@ -109,8 +109,10 @@ stale — report it rather than acting on it.
   has **five** criteria (G1–G5). G5 is condition-splitting: **no two opposing conditions of the
   same kind share a `doc_id`** — the only lever against the support gate's residual, and it exists
   only before the corpus freeze.
-- **`docs/work/`** — task trails. One directory per task: `SCOPE`, `spec.md`, `impact.md`,
-  `design.md`, `review.md`, `plan.md`, `approvals.md`, `READY_TO_IMPLEMENT`.
+- **`docs/work/`** — task trails. One directory per task, named `<YYYY-MM-DD>-<slug>` after the
+  day it opened, so a listing reads oldest first; `.claude/state/active-task` holds the full name
+  of the one in progress. Each holds `SCOPE`, `spec.md`, `impact.md`, `design.md`, `review.md`,
+  `plan.md`, `approvals.md`, `READY_TO_IMPLEMENT`.
 - **`docs/learning/`** — submitted prose and study notes. **Gitignored**, same reason as above.
 - **`README.md`** (repo root) — landing page.
 
