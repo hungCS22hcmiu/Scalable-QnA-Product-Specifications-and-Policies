@@ -24,10 +24,11 @@ type askRequest struct {
 }
 
 // askResponse is POST /ask's success response (interfaces.md §A). similarity and
-// source_overlap are pointers, not `omitempty`, so the JSON literally renders `null` on
-// TIER1_HIT/MISS -- the contract calls out showing them side by side as the whole
-// observability point of the pair (a high-similarity, low-overlap miss is the lookalike trap
-// C1 exists to catch), so `null` must render, not be silently dropped.
+// source_overlap are pointers, not `omitempty`, so the JSON literally renders `null` where there
+// is no value -- the contract calls out showing them side by side as the whole observability point
+// of the pair, so `null` must render, not be silently dropped. A lookalike from another namespace
+// is a MISS with similarity null; inside a namespace, a TIER2_HIT with overlap_decision: false is a
+// reuse the containment conjunct would have refused.
 type askResponse struct {
 	Answer        string   `json:"answer"`
 	Cache         string   `json:"cache"` // TIER1_HIT | TIER2_HIT | MISS | BYPASS
@@ -52,11 +53,12 @@ type askResponse struct {
 	// share of the false-hit rate could not be attributed to it.
 	ReuseRule string `json:"reuse_rule,omitempty"`
 
-	// OverlapDecision is the COUNTERFACTUAL: what the containment rule (Thresholds.Decide,
-	// the pre-existing C1 rule) would have decided on the same request. It must be captured at
-	// decision time -- it cannot be reconstructed later against cache state that no longer
-	// exists, which is the same argument interfaces.md §H makes for similarity_only_decision.
-	// Carrying both is what makes the two rules comparable without a second run.
+	// OverlapDecision is the COUNTERFACTUAL: what the containment rule (Thresholds.Decide) would
+	// have decided on the candidate the served rule judged -- configuration 4's support-off rule,
+	// since that candidate is already in the query's namespace. Null unless the candidate cleared
+	// tau. It must be captured at decision time: it cannot be reconstructed later against cache
+	// state that no longer exists (interfaces.md §H). Carrying both is what makes the two rules
+	// comparable without a second run.
 	OverlapDecision *bool `json:"overlap_decision"`
 }
 

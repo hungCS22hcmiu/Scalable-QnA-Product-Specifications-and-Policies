@@ -1,0 +1,15 @@
+# Acceptance 7 — startup guard, 2026-10-05T08:53:21Z
+# binary: go build ./cmd/gateway from the working tree (base 5854cbe, uncommitted 1.3 edits)
+# every address points at a closed port; no Redis, Ollama or rag.server is contacted
+
+$ REUSE_TAU_HIGH=0.95 REDIS_URL=127.0.0.1:1 RAG_GRPC_ADDR=127.0.0.1:1 HTTP_ADDR=127.0.0.1:1 OLLAMA_BASE_URL=http://127.0.0.1:1 gateway
+2026/10/05 15:53:21 gateway: REUSE_TAU_HIGH is retired (interfaces.md v0.10, ADR-004): the gateway no longer serves on similarity alone. Unset it. Configuration 3 has no code path yet
+exit=1
+
+$ REUSE_TAU_HIGH= (empty) REDIS_URL=127.0.0.1:1 RAG_GRPC_ADDR=127.0.0.1:1 HTTP_ADDR=127.0.0.1:1 OLLAMA_BASE_URL=http://127.0.0.1:1 gateway
+redis: 2026/10/05 15:53:22 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+redis: 2026/10/05 15:53:22 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+redis: 2026/10/05 15:53:23 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+redis: 2026/10/05 15:53:23 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+2026/10/05 15:53:23 gateway: creating idx:cache: dial tcp 127.0.0.1:1: connect: connection refused
+exit=1   (past the guard: it reached the Redis dial, which the closed port refuses)

@@ -111,8 +111,7 @@ defect even if the compiler accepts it.
 | Path | Flow | Cost |
 | :--- | :--- | :--- |
 | **Tier-1 hit** | `httpapi → cache.tier1` (hash lookup) | ~ms, no embedding, no search |
-| **Tier-2 hit (short-circuit)** | `→ embed → cache.tier2` kNN `→ reuse` (similarity resolves it) | ~tens of ms |
-| **Tier-2 hit (cascade band)** | `→ ragclient.Retrieve → reuse` (overlap ∧ similarity) | + one gRPC round-trip; **reported separately** (proposal §9.2) |
+| **Tier-2 hit** | `→ embed ∥ ragclient.Retrieve` (concurrent) `→ reuse` lane + namespace `→ cache.tier2` kNN **scoped to that namespace** (one search) `→ reuse.DecideLane` | ~tens of ms: the slower of embed and retrieve, plus one search. The unfiltered short-circuit phase is retired (ADR-004) |
 | **Miss** | `→ admission.Acquire → ragclient.Answer → LLM →` write back **both** tiers + `t1_key` + epoch | seconds |
 | **Shed** | permit unavailable inside budget → `503 busy, retry` | counted as graceful degradation, never as served load |
 | **Invalidation** | edit → channel → single writer → COW swap → Redis purge (both tiers), **off** the critical path | — |

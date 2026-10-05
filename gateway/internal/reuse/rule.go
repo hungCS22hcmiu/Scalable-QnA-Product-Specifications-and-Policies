@@ -84,57 +84,22 @@ func Jaccard(a, b []string) float64 {
 type Thresholds struct {
 	Tau   float64 // similarity floor
 	Theta float64 // overlap floor
-
-	// TauHigh is the short-circuit ceiling of Pre-Thesis 3.2.3 Figure 3.2: at or above it the
-	// cascade serves on similarity ALONE, consulting no provenance -- it runs in cascade.go
-	// BEFORE Classify/Namespace, so a fired short-circuit bypasses the lane rule entirely, not
-	// just the containment counterfactual.
-	//
-	// It ships DISABLED (+Inf, cascade.go's default) and the default is pinned by a test, for
-	// three measured reasons:
-	//
-	//  1. There is no safe window on dev-v0. Across 17 labelled probes the traps and the
-	//     legitimate hits INTERLEAVE: the worst trap scored 0.9685 while only one of seven
-	//     correct reuses (0.9899) sat above it. Any TauHigh low enough to short-circuit an
-	//     appreciable share of hits also serves lookalikes, on similarity alone, with the
-	//     provenance rule never running.
-	//  2. Since the gateway began retrieving concurrently with embedding, a short-circuit saves
-	//     no latency anyway -- retrieval has already completed by the time this gate is reached.
-	//     What was an optimisation is now purely a rule variant, and it is kept only so the
-	//     frontier has the point.
-	//  3. The default used to be 1.0 on the theory that cosine similarity "reaches it only on an
-	//     identical vector" and that was an unreachable edge case. Discovered live 2026-09-09:
-	//     it is not unreachable -- asking the byte-identical question about two different
-	//     products embeds to the same vector both times, similarity is exactly 1.0, and the old
-	//     default fired, serving one product's cached answer for a different product's question
-	//     with no namespace check. +Inf is unreachable by construction (cosine is capped at 1.0);
-	//     1.0 was only unreachable by assumption.
-	TauHigh float64
 }
 
 // Decision records what the rule concluded and enough to reconstruct why.
 type Decision struct {
 	Reuse   bool
 	Overlap float64
-
-	// SimilarityOnly is the counterfactual: what a fixed-threshold baseline (config 3, which is
-	// also GPTCache's rule) would have decided on similarity alone. interfaces.md H requires it
-	// recorded AT DECISION TIME because it cannot be reconstructed afterwards against cache
-	// state that no longer exists -- and without it the pre-registered null of
-	// the evaluation is uninterpretable.
-	SimilarityOnly bool
 }
 
 // Decide applies overlap ≥ theta ∧ similarity ≥ tau.
 func (t Thresholds) Decide(similarity float64, retrieved, entrySources []string) Decision {
 	o := Overlap(retrieved, entrySources)
-	simOK := similarity >= t.Tau
 	return Decision{
 		// Inclusive on both bounds. A pair landing exactly on theta reuses -- a real, measured
 		// case on this corpus, and a false hit inside the delta budget. Flipping to > would make
 		// that limitation vanish from the numbers without an ADR.
-		Reuse:          simOK && o >= t.Theta,
-		Overlap:        o,
-		SimilarityOnly: simOK,
+		Reuse:   similarity >= t.Tau && o >= t.Theta,
+		Overlap: o,
 	}
 }

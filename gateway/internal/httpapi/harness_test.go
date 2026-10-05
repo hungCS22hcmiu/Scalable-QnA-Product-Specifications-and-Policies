@@ -57,8 +57,7 @@ const (
 	testEpoch = uint64(7)
 	testModel = "qwen3.5-2b"
 
-	// Thresholds as cmd/gateway/main.go configures them. TauHigh is never named: its zero value
-	// leaves the branch disabled, and this literal keeps compiling after 1.3 deletes the field.
+	// Thresholds as cmd/gateway/main.go configures them.
 	testTau   = 0.85
 	testTheta = 0.60
 
@@ -239,6 +238,10 @@ type fakeStore struct {
 	calls            map[string]int // every call, by method, including ones that returned an injected error
 	failing          map[string]error
 	injectedReturned int
+
+	// namespaces is NearestTier2InNamespace's namespace argument, per call and in order, so a test
+	// can tell a search scoped to the query's namespace from one widened to match more.
+	namespaces []string
 }
 
 type tier2Row struct {
@@ -313,18 +316,10 @@ func (s *fakeStore) PutTier2(_ context.Context, e cache.Tier2Entry, vec []float3
 	return nil
 }
 
-func (s *fakeStore) NearestTier2(_ context.Context, vec []float32, k int) ([]cache.Candidate, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.enter("NearestTier2"); err != nil {
-		return nil, err
-	}
-	return s.nearest(vec, k, func(cache.Tier2Entry) bool { return true }), nil
-}
-
 func (s *fakeStore) NearestTier2InNamespace(_ context.Context, vec []float32, namespace string, k int) ([]cache.Candidate, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.namespaces = append(s.namespaces, namespace)
 	if err := s.enter("NearestTier2InNamespace"); err != nil {
 		return nil, err
 	}
@@ -408,6 +403,12 @@ func (s *fakeStore) callCount(method string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calls[method]
+}
+
+func (s *fakeStore) namespacesSearched() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.namespaces...)
 }
 
 func (s *fakeStore) injectedCount() int {

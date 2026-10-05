@@ -53,7 +53,6 @@ type cacheStore interface {
 	Get(ctx context.Context, query, productID string) (*cache.Entry, bool, error)
 	Put(ctx context.Context, query, productID string, e cache.Entry) error
 	PutTier2(ctx context.Context, e cache.Tier2Entry, vec []float32) error
-	NearestTier2(ctx context.Context, vec []float32, k int) ([]cache.Candidate, error)
 	NearestTier2InNamespace(ctx context.Context, vec []float32, namespace string, k int) ([]cache.Candidate, error)
 	BumpHitCount(ctx context.Context, entryID string) error
 	Touch(ctx context.Context, entryID string, nowUnixNano int64) error
@@ -228,8 +227,8 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	// maximum. They are independent: the embedding is of the query text, the retrieval is over
 	// the corpus, and neither reads the other's output.
 	//
-	// Retrieval is speculative -- it now runs even for a request whose similarity will fall below
-	// tau and short-circuit. That is cheap but NOT free until the miss path stops retrieving a
+	// Retrieval is speculative -- it now runs even for a request that will find no candidate above
+	// tau. That is cheap but NOT free until the miss path stops retrieving a
 	// second time inside Answer (rag/src/rag/server.py Answer -> retrieve.retrieve). Until that
 	// lands, a below-tau miss performs two retrievals where it previously performed one. The
 	// trade is deliberate: ~18 ms of retrieval against a multi-second generation.
@@ -273,8 +272,8 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	// --- Tier 2: nearest neighbour, then the lane rule. ---
 	t2 := h.tryTier2(ctx, req.ProductID, vec, retrieved, &timings)
 
-	// Both numbers travel to the response whether the rule accepted or refused. On a refusal
-	// they are the evidence FOR the refusal, which is the one thing the demo must show.
+	// The similarity travels on any judged candidate, served or refused. The overlap travels only
+	// on a banded one, which while the served rule is similarity AND namespace is always a hit.
 	var similarity, sourceOverlap *float64
 	var overlapDecision *bool
 	if t2.Found {
@@ -284,9 +283,9 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	if t2.EnteredBand {
 		o := t2.Decision.Overlap
 		sourceOverlap = &o
-		// The counterfactual travels on every banded response, hit or miss. A refusal is
-		// exactly where the two rules are most likely to disagree, so dropping it there would
-		// discard the comparison at the moment it is most informative.
+		// The counterfactual travels on every banded response. While F-K stands -- theta is not
+		// in the served decision -- that is every TIER2_HIT, and overlap_decision: false marks a
+		// reuse the containment conjunct would have refused.
 		d := t2.Decision.Reuse
 		overlapDecision = &d
 	}
@@ -298,12 +297,6 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		rec.RetrievedChunkIDs = retrieved.ChunkIDs
 		epoch := retrieved.DatasetEpoch
 		rec.DatasetEpoch = &epoch
-	}
-	if t2.EnteredBand {
-		// ⚠️ Recorded AT DECISION TIME because it cannot be reconstructed later against cache
-		// state that no longer exists -- interfaces.md H, and the metric that makes the
-		// pre-registered null of the evaluation interpretable.
-		rec.SimilarityOnlyDecision = hitOrMiss(t2.Decision.SimilarityOnly)
 	}
 
 	// The two-lane rule decides. Containment is computed but not consulted -- it is the
@@ -560,14 +553,6 @@ func msPtr(d time.Duration) *float64 {
 	}
 	v := durMS(d)
 	return &v
-}
-
-func hitOrMiss(b bool) *string {
-	s := "MISS"
-	if b {
-		s = "HIT"
-	}
-	return &s
 }
 
 // sha256Hex hashes the answer AS SERVED. interfaces.md H is explicit that it must be taken at

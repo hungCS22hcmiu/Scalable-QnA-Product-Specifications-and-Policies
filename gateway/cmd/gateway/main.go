@@ -4,8 +4,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,6 +42,20 @@ func getenvFloat(key string, def float64) float64 {
 	return def
 }
 
+// retiredEnv refuses a setting that no longer does anything. REUSE_TAU_HIGH was the similarity-only
+// short-circuit, retired with the unfiltered cascade phase (interfaces.md v0.10, ADR-004). Setting
+// it was the only way to make this gateway serve on similarity alone, so an operator who sets it
+// expects a configuration-3 baseline; ignoring it would hand them a provenance run labelled as
+// one. Non-empty rather than merely set: getenvFloat reads "" as unset, so an empty value never
+// enabled the short-circuit.
+func retiredEnv(getenv func(string) string) error {
+	if getenv("REUSE_TAU_HIGH") != "" {
+		return errors.New("REUSE_TAU_HIGH is retired (interfaces.md v0.10, ADR-004): the gateway no " +
+			"longer serves on similarity alone. Unset it. Configuration 3 has no code path yet")
+	}
+	return nil
+}
+
 func getenvInt(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -71,6 +85,10 @@ func spaHandler(dir string) http.Handler {
 }
 
 func main() {
+	if err := retiredEnv(os.Getenv); err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
+
 	redisAddr := getenv("REDIS_URL", "localhost:6379")
 	ollamaURL := getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 	ragGRPCAddr := getenv("RAG_GRPC_ADDR", "localhost:50051")
@@ -101,17 +119,6 @@ func main() {
 	thresholds := reuse.Thresholds{
 		Tau:   getenvFloat("REUSE_TAU", 0.85),
 		Theta: getenvFloat("REUSE_THETA", 0.60),
-		// +Inf DISABLES the short-circuit. This used to default to 1.0 on the assumption that
-		// cosine similarity reaches it "only on an identical vector" and that case was
-		// unreachable in practice -- WRONG, discovered live 2026-09-09: asking the byte-identical
-		// question about two different products embeds to the same vector both times, so
-		// similarity is exactly 1.0 and the short-circuit fired, serving one product's cached
-		// answer for another's question with no provenance/namespace check at all (it runs before
-		// Classify/Namespace). +Inf is unreachable by construction, not just "unreachable in
-		// practice" -- cosine similarity is capped at 1.0. Measured on dev-v0, no lower value is
-		// safe either -- traps and correct reuses interleave, the worst trap scoring 0.9685
-		// against only one correct reuse above it.
-		TauHigh: getenvFloat("REUSE_TAU_HIGH", math.Inf(1)),
 	}
 	// The lane band is the two-lane experiment's selector, same DEMO-value status as tau/theta
 	//. LANE_SIGMA = 0.2 sits in the gap measured on dev-v0
@@ -139,18 +146,10 @@ func main() {
 	if band.Hi > band.Lo {
 		mixedLane = "ENABLED -- must be pre-registered before any reported run"
 	}
-	// > 1.0, not >= 1.0: cosine similarity's ceiling IS 1.0, reachable on an identical vector
-	// (e.g. the same question text asked about two different products) -- see the TauHigh
-	// comment above. A threshold of exactly 1.0 is NOT disabled.
-	shortCircuit := "DISABLED"
-	if thresholds.TauHigh <= 1.0 {
-		shortCircuit = "ENABLED -- hits at or above tau_high are served on SIMILARITY ALONE, with no provenance check"
-	}
-	log.Printf("gateway: tau=%.3f theta=%.2f tau_high=%.3f lane_band=[%.2f,%.2f) dim=%d index=%s  (all DEMO values, swept later)\n"+
-		"         MIXED lane: %s\n"+
-		"         short-circuit: %s",
-		thresholds.Tau, thresholds.Theta, thresholds.TauHigh, band.Lo, band.Hi, embed.Dim,
-		cache.CacheIndexName, mixedLane, shortCircuit)
+	log.Printf("gateway: tau=%.3f theta=%.2f lane_band=[%.2f,%.2f) dim=%d index=%s  (all DEMO values, swept later)\n"+
+		"         MIXED lane: %s",
+		thresholds.Tau, thresholds.Theta, band.Lo, band.Hi, embed.Dim,
+		cache.CacheIndexName, mixedLane)
 
 	// Admission control. The permit count is the frozen generation slot count (ADR-003): the slots
 	// the model runner ACTUALLY serves, which `make env-check` verifies against the live runner.

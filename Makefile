@@ -258,10 +258,13 @@ demo: ## Rehearse the four demo steps against a cold cache
 	   + ["", "    retrieved now (sofa):"] \
 	   + ($$got | map("      " + (if (. as $$c | $$src | index($$c)) then "\u2713 " else "  " end) + .)) \
 	   | .[]' "$$tmp/4.json"; \
-	 shared=$$(jq -r --slurpfile e "$$tmp/1.json" '[.sources[] | select(. as $$c | $$e[0].sources | index($$c))] | length' "$$tmp/4.json"); \
-	 total=$$(jq -r '.sources | length' "$$tmp/1.json"); \
-	 printf '\n    overlap = %s shared / %s entry sources = %.2f  <  theta %s   →  REFUSE, generate instead\n' \
-	   "$$shared" "$$total" "$$(jq -r .source_overlap "$$tmp/4.json")" "$$theta"; \
+	 ov=$$(jq -r .source_overlap "$$tmp/4.json"); \
+	 if [ "$$ov" = null ]; then \
+	   printf '\n    no cached entry in the namespace this question resolves to  →  MISS, generate instead\n'; \
+	 else \
+	   printf '\n    cache %s  ·  overlap_decision %s  ·  source_overlap %s\n' \
+	     "$$(jq -r .cache "$$tmp/4.json")" "$$(jq -r .overlap_decision "$$tmp/4.json")" "$$(num "$$ov" '%.2f')"; \
+	 fi; \
 	 \
 	 hits=$$(cat $$tmp/[1-4].json | jq -r 'select(.cache|test("HIT")) | .cache' | wc -l | tr -d ' '); \
 	 printf '\n\033[1m── Counters\033[0m\n    requests 4  ·  hits %s  ·  hit rate %s%%  ·  generations avoided %s\n\n' \

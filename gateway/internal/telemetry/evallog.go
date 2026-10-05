@@ -2,9 +2,9 @@
 //
 // Four metrics in the evaluation are NOT COMPUTABLE without this record: decisions
 // changed by provenance, % entering the cascade band, false hits by cause, and the hit-path
-// latency decomposition. Two of its fields cannot be reconstructed after the fact at all --
-// similarity_only_decision (it would need replaying against cache state that no longer exists)
-// and answer_sha256 (it must hash what was SERVED, not a possibly re-generated answer).
+// latency decomposition. answer_sha256 cannot be reconstructed after the fact at all: it must hash
+// what was SERVED, not a possibly re-generated answer. similarity_only_decision, the other such
+// field, was retired with the unfiltered cascade phase that produced it (interfaces.md §H, ADR-004).
 package telemetry
 
 import (
@@ -31,11 +31,10 @@ type Record struct {
 	T1Key           string  `json:"t1_key"`
 	Stratum         *string `json:"stratum"`
 
-	Cache                  string   `json:"cache"`
-	Similarity             *float64 `json:"similarity"`
-	SourceOverlap          *float64 `json:"source_overlap"`
-	EnteredBand            bool     `json:"entered_band"`
-	SimilarityOnlyDecision *string  `json:"similarity_only_decision"`
+	Cache         string   `json:"cache"`
+	Similarity    *float64 `json:"similarity"`
+	SourceOverlap *float64 `json:"source_overlap"`
+	EnteredBand   bool     `json:"entered_band"`
 
 	RetrievedChunkIDs []string `json:"retrieved_chunk_ids"`
 	EntrySources      []string `json:"entry_sources"`
@@ -61,9 +60,10 @@ type Record struct {
 	// distinct from cache hits and not derivable from the frozen fields, because a coalesced
 	// request is a MISS by every field the schema has. Promoting it needs an ADR.
 	Coalesced bool `json:"coalesced,omitempty"`
-	// ReuseRule names which term of the lane rule decided (two-lane experiment). Also an
-	// extension; it is what keeps a similarity-only short-circuit from being charged to the
-	// provenance rule that never ran.
+	// ReuseRule names the rule variant that judged the Tier-2 candidate (two-lane experiment):
+	// present iff a candidate was judged, refusals included, so its presence is not a hit. Also an
+	// extension, but "% reaching the provenance check" is computed from it (ADR-004), so dropping
+	// it voids that metric silently.
 	ReuseRule string `json:"reuse_rule,omitempty"`
 	// ProductID records the request's product scope now that it is part of the Tier-1 key
 	// (⚠️ BYPASS 2026-09-09, reverses the rejection -- cache.Key). Required, not optional,

@@ -26,151 +26,121 @@ type stageTimings struct {
 	Tier1 time.Duration
 	Embed time.Duration
 
-	// Search is the SUM of two independently measured vector searches: the unfiltered k=1 that
-	// works the tau gate, and the namespace-scoped k=1 that follows retrieval. Summing two
-	// measured spans is not the same thing as deriving one by subtraction, which the note above
-	// forbids -- both addends are timed directly and neither absorbs another stage.
+	// Search is the one namespace-scoped vector search. It stays zero -- rendered null -- when no
+	// search ran: an embedding or a retrieval failed, or the query's namespace came out empty.
 	Search time.Duration
-	// Overlap is the Retrieve RPC span. It used to be measured inside the cascade and so was
-	// zero whenever the request short-circuited below tau; retrieval now runs concurrently with
-	// the embedding for every Tier-1 miss, so this is non-zero even on a short-circuit. Read
-	// EnteredBand -- not this -- to tell a banded request from a short-circuited one.
+	// Overlap is the Retrieve RPC span. Retrieval runs concurrently with the embedding for every
+	// Tier-1 miss, so this is non-zero whether or not a candidate cleared tau. Read EnteredBand --
+	// not this -- to tell a banded request from one that was not.
 	Overlap time.Duration
 }
 
-// tier2Outcome is returned even when the rule REFUSES. That is deliberate and is the demo's
-// whole point: a refusal must still carry its similarity and overlap to the response, so the
-// audience sees a high similarity sitting next to a low overlap and watches the refusal happen.
-// A refusal that renders both as null shows nothing.
+// tier2Outcome is returned even when the rule REFUSES. A refusal carries its similarity, never an
+// overlap: the containment counterfactual is computed only for a candidate that cleared tau, and
+// while the served rule is similarity AND namespace that candidate is always served. A lookalike
+// from another namespace is a plain MISS -- the scoped search never returns it (interfaces.md §A).
 type tier2Outcome struct {
-	Found       bool
-	EnteredBand bool // similarity cleared tau, so the cascade paid for retrieval
+	Found bool
+	// EnteredBand: a same-namespace candidate cleared tau. While the served rule is similarity AND
+	// namespace this equals TIER2_HIT; the two disagreeing means the Redis TAG filter and Go's
+	// MatchNamespace disagree.
+	EnteredBand bool
 	Candidate   cache.Candidate
 	Decision    reuse.Decision
 
 	// --- two-lane experiment ---
-	// The rule under test decides with NSDecision. Decision above is kept and still computed on
-	// every banded request as the containment COUNTERFACTUAL, so one run yields both verdicts.
+	// The rule under test decides with NSDecision. Decision above is the containment
+	// COUNTERFACTUAL, computed on every banded request, so one run yields both verdicts.
 	NSDecision reuse.NamespaceDecision
 	QueryLane  reuse.Lane
 	QueryNS    string
 }
 
-// tryTier2 runs: unfiltered search -> tau gate -> lane + namespace -> namespace-scoped search ->
-// the two-lane rule, computing the containment rule alongside it as the counterfactual.
+// tryTier2 runs: lane + namespace -> one namespace-scoped search -> the two-lane rule, computing
+// the containment rule alongside it as the counterfactual when the candidate cleared tau.
 //
-// It no longer calls Retrieve: the caller runs that concurrently with the embedding and passes the
+// It does not call Retrieve: the caller runs that concurrently with the embedding and passes the
 // result in, which is what turns the hit path from the SUM of those two round-trips into their
 // maximum.
 //
-// Two searches, not one, because the namespace that scopes the second is derived from retrieval.
-// The alternative -- one over-fetch filtered in Go -- needs an arbitrary fan-out constant whose
-// horizon silently drops reusable entries as the cache fills (cache.NearestTier2InNamespace).
+// ONE search, and only after retrieval, because the namespace that scopes it is derived from
+// retrieval. The unfiltered search that used to run first was retired (interfaces.md v0.9,
+// ADR-004): it searched outside the namespace the rule enforces, so it could only report an entry
+// the rule would refuse. The alternative to a scoped search -- one over-fetch filtered in Go --
+// needs an arbitrary fan-out constant whose horizon silently drops reusable entries as the cache
+// fills (cache.NearestTier2InNamespace).
 //
 // Every failure degrades to a miss rather than an error. A Tier-2 outage should cost hit rate,
 // not availability, and a 500 here would be a served-request outcome fitting none of
 // the evaluation's categories -- it would leak out of both the goodput numerator and
 // the shed denominator.
 func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32, retrieved *ragclient.RetrieveResult, t *stageTimings) tier2Outcome {
-	if vec == nil {
+	// Retrieval is checked FIRST, before anything derives a namespace. Deriving one without it
+	// would let the spec lane fall back to productID alone and serve an entry with no evidence
+	// behind the decision.
+	if vec == nil || retrieved == nil {
 		return tier2Outcome{}
 	}
-
-	// PHASE 1 -- unfiltered, k=1, purely to work the tau gate. The namespace is not known yet
-	// (it comes from retrieval, which happens below), so this search cannot be filtered.
-	searchStart := time.Now()
-	candidates, err := h.Cache.NearestTier2(ctx, vec, 1)
-	t.Search = time.Since(searchStart)
-	if err != nil {
-		log.Printf("gateway: tier-2 search failed, degrading to MISS: %v", err)
-		return tier2Outcome{}
-	}
-	if len(candidates) == 0 {
-		return tier2Outcome{}
-	}
-
-	// The nearest entry overall. It is what the tau gate judges, and it stays the entry reported
-	// on a refusal so the response can show a high similarity next to the reason it was refused.
-	nearest := candidates[0]
-	out := tier2Outcome{Found: true, Candidate: nearest}
-	if nearest.Similarity < h.Thresholds.Tau {
-		return out
-	}
-	// TauHigh: serve on similarity ALONE, consulting no provenance (Pre-Thesis 3.2.3 Fig 3.2).
-	// Disabled by default -- see reuse.Thresholds.TauHigh for the measured reason. EnteredBand
-	// stays false so the evaluation can report short-circuit and band hits separately.
-	if h.Thresholds.TauHigh > 0 && nearest.Similarity >= h.Thresholds.TauHigh {
-		out.NSDecision = reuse.NamespaceDecision{Reuse: true, Rule: reuse.RuleSimilarityOnly}
-		return out
-	}
-	out.EnteredBand = true
-
-	// Retrieval already ran, concurrently with the embedding (see Ask). A nil result means it
-	// failed and was logged there; degrade to MISS rather than decide on half the evidence.
-	if retrieved == nil {
-		return out
-	}
-
-	// The counterfactual, on the NEAREST candidate -- that is the entry the containment rule
-	// would have judged, so the comparison stays apples-to-apples with the pre-existing rule.
-	out.Decision = h.Thresholds.Decide(nearest.Similarity, retrieved.ChunkIDs, nearest.Entry.SourceChunkIDs)
 
 	// The lane is read from what retrieval returned for THIS query. Never predicted from the
 	// query text: a classifier error would land in the false-hit metric with no bucket to hold
 	// it (the reason for dropping the bypass classifier).
-	out.QueryLane = reuse.Classify(retrieved.ChunkIDs, h.LaneBand)
+	out := tier2Outcome{QueryLane: reuse.Classify(retrieved.ChunkIDs, h.LaneBand)}
 	out.QueryNS = reuse.Namespace(out.QueryLane, retrieved.ChunkIDs, productID)
 
-	// PHASE 2 -- now the namespace IS known, so ask Redis for the nearest entry INSIDE it rather
-	// than over-fetching and filtering in Go. k=1 suffices: the rule accepts or refuses on
-	// namespace equality, which every candidate in this result satisfies, so the most similar one
-	// is the best one and the rest could only lose on tau.
-	//
-	// This replaces a fan-out of 10 whose horizon was a silent false-miss source -- see
-	// cache.NearestTier2InNamespace. An empty namespace returns nothing, never everything.
-	search2Start := time.Now()
+	// An empty namespace matches nothing, so there is nothing to search. Return before the call
+	// rather than let the store answer it: a timed no-op would leave a span of a few microseconds
+	// that msPtr renders as a measurement instead of null.
+	if out.QueryNS == "" {
+		return out
+	}
+
+	// Ask Redis for the nearest entry INSIDE the namespace rather than over-fetching and filtering
+	// in Go. k=1 suffices: the rule accepts or refuses on namespace equality, which every
+	// candidate in this result satisfies, so the most similar one is the best one and the rest
+	// could only lose on tau.
+	searchStart := time.Now()
 	scoped, err := h.Cache.NearestTier2InNamespace(ctx, vec, out.QueryNS, 1)
-	t.Search += time.Since(search2Start)
+	t.Search = time.Since(searchStart)
 	if err != nil {
 		log.Printf("gateway: tier-2 namespace search failed, degrading to MISS: %v", err)
+		return out
+	}
+	if len(scoped) == 0 {
 		return out
 	}
 
 	// The rule still runs in reuse/ over whatever came back. The filter above is an optimisation
 	// and this is the enforcement: if the two ever disagree, the Go check refuses.
-	served, nsDecision := nearest, reuse.NamespaceDecision{Lane: out.QueryLane, QueryNS: out.QueryNS}
-	if len(scoped) > 0 {
-		c := scoped[0]
-		d := h.Thresholds.DecideLane(reuse.LaneInput{
-			Similarity: c.Similarity,
-			QueryLane:  out.QueryLane,
-			QueryNS:    out.QueryNS,
-			EntryLane:  reuse.Lane(c.Entry.Lane),
-			EntryNS:    c.Entry.Namespace,
-		})
-		if d.Reuse {
-			served, nsDecision = c, d
-		} else {
-			nsDecision = d
-		}
+	c := scoped[0]
+	out.Found, out.Candidate = true, c
+	out.NSDecision = h.Thresholds.DecideLane(reuse.LaneInput{
+		Similarity: c.Similarity,
+		QueryLane:  out.QueryLane,
+		QueryNS:    out.QueryNS,
+		EntryLane:  reuse.Lane(c.Entry.Lane),
+		EntryNS:    c.Entry.Namespace,
+	})
+
+	// The band, written in the positive form so that a NaN similarity stays out of it, agreeing
+	// with DecideLane's >=. The counterfactual is configuration 4's support-off rule, computed on
+	// the candidate the served rule judged, once.
+	if c.Similarity >= h.Thresholds.Tau {
+		out.EnteredBand = true
+		out.Decision = h.Thresholds.Decide(c.Similarity, retrieved.ChunkIDs, c.Entry.SourceChunkIDs)
+		out.NSDecision.Overlap = out.Decision.Overlap
 	}
 
-	// The containment counterfactual for the entry actually SERVED, computed once here rather
-	// than inside the decision, which would run it per candidate and discard all but this one.
-	nsDecision.Overlap = reuse.Overlap(retrieved.ChunkIDs, served.Entry.SourceChunkIDs)
-	out.Candidate, out.NSDecision = served, nsDecision
-
-	// The two verdicts side by side ARE the experiment. similarity_only is the third rule
-	// (config 3, GPTCache's), kept so all three are readable from one line. rule= names which
-	// TERM produced the lane verdict, so a MIXED composite hit is never confused with a pure-lane
-	// namespace hit when the false-hit rate is attributed per lane.
+	// The two verdicts side by side ARE the experiment. rule= names which TERM judged the lane
+	// verdict, so a MIXED composite hit is never confused with a pure-lane namespace hit when the
+	// false-hit rate is attributed per lane.
 	log.Printf("gateway: cascade lane=%s ns=%s entry_lane=%s entry_ns=%s sim=%.4f\n"+
-		"          ns_decision=%v (rule=%s lane_match=%v)  overlap_decision=%v (overlap=%.2f)  similarity_only=%v\n"+
+		"          ns_decision=%v (rule=%s lane_match=%v)  band=%v overlap_decision=%v (overlap=%.2f)\n"+
 		"          retrieved=%v\n          entry_sources=%v",
-		out.QueryLane, out.QueryNS, served.Entry.Lane, served.Entry.Namespace, served.Similarity,
-		nsDecision.Reuse, nsDecision.Rule, nsDecision.LaneMatch,
-		out.Decision.Reuse, out.Decision.Overlap, out.Decision.SimilarityOnly,
-		retrieved.ChunkIDs, served.Entry.SourceChunkIDs)
+		out.QueryLane, out.QueryNS, c.Entry.Lane, c.Entry.Namespace, c.Similarity,
+		out.NSDecision.Reuse, out.NSDecision.Rule, out.NSDecision.LaneMatch,
+		out.EnteredBand, out.Decision.Reuse, out.Decision.Overlap,
+		retrieved.ChunkIDs, c.Entry.SourceChunkIDs)
 
 	return out
 }

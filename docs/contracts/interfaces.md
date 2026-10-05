@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.9 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-09-21
+**Status:** Draft v0.10 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-05
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -43,6 +43,16 @@
 > short-circuit that produced it; the counterfactual becomes a cross-configuration join
 > on the static-cache arm. Additive at §B — an absent `texts` is today's behaviour exactly — but
 > **removing** at §H, which is why retiring the unfiltered phase carries the reasoning rather than this note.
+
+> **v0.10 changes.** The retirement v0.9 described is now **executed in code** and ratified
+> (**ADR-004**, `super-plan.md` item 1.3). Configuration 4's cascade issues **at most one
+> namespace-scoped search**; there is no global search and no `τ_high`. No field is added or removed
+> here — `similarity_only_decision` left the schema at v0.9 and leaves the code now — but four keep
+> their names and **change meaning**: `similarity` (§A, §H) is the nearest entry *within the query's
+> namespace*, `source_overlap` is null unless that entry cleared τ, `entered_band` equals the
+> TIER2_HIT indicator while θ is outside the served decision, and `t_search_ms` is one span. The
+> extension field `reuse_rule` is now named in §H, because *% reaching the provenance check* is
+> computed from it. **Never mix logs from either side of the 1.3 commit in one figure.**
 
 > **v0.8 changes.** `RetrieveRequest` and `AnswerRequest` gain `product_id` (§B). When
 > set, retrieval runs its normal unscoped search first, then drops any chunk belonging to a
@@ -116,8 +126,8 @@ Success response (`200 application/json`) — the six fields the debug UI needs 
   "answer": "Returns are accepted within 30 days of delivery...",
   "cache": "TIER2_HIT",                    // TIER1_HIT | TIER2_HIT | MISS | BYPASS
   "latency_ms": 48,
-  "similarity": 0.93,                       // Tier-2 embedding similarity; null on TIER1/BYPASS
-  "source_overlap": 0.80,                   // overlap rule score (Contribution 1); null unless the cascade ran
+  "similarity": 0.93,                       // nearest Tier-2 entry in the query's namespace; null when none was judged (v0.10)
+  "source_overlap": 0.80,                   // containment of that entry (Contribution 1); null unless it cleared τ (v0.10)
   "sources": ["policy-returns#chunk-2"],    // provenance tags (Contribution 2); [] on BYPASS
   "model_used": "qwen3.5-2b",                // constant for now (routing rejected)
   "request_id": "01J..."                    // extension: correlation id for tracing/eval
@@ -129,13 +139,15 @@ Success response (`200 application/json`) — the six fields the debug UI needs 
 | `answer` | string | Final answer text. |
 | `cache` | enum | `TIER1_HIT` \| `TIER2_HIT` \| `MISS` \| `BYPASS`. Drives the debug-UI badge colors (debug UI §3). |
 | `latency_ms` | int | Gateway-internal wall time; the eval also records off-box end-to-end separately (an evaluation rule, not an error path). |
-| `similarity` | float\|null | Cosine similarity of the matched Tier-2 entry. |
-| `source_overlap` | float\|null | Fraction of the candidate entry's `source_chunk_ids` also returned by retrieval on the incoming query — the rule's score, compared against θ. `null` when the cascade short-circuited on similarity alone. |
+| `similarity` | float\|null | Cosine similarity of the nearest Tier-2 entry **within the query's namespace** (v0.10, ADR-004). `null` on TIER1_HIT and BYPASS, when the embedding or retrieval failed, and on a MISS whose namespace holds no entry — a lookalike in another namespace is never searched, so it reports no similarity. |
+| `source_overlap` | float\|null | Fraction of the candidate entry's `source_chunk_ids` also returned by retrieval on the incoming query — the rule's score, compared against θ. `null` unless retrieval succeeded and a same-namespace candidate cleared τ (v0.10). While θ is outside the served decision (the served rule is similarity ∧ namespace), such a candidate is always served, so a refusal never carries an overlap. |
 | `sources` | string[] | Chunk IDs (§C) that grounded the answer. |
 | `model_used` | string\|null | Constant (`qwen3.5-2b`) — retained for forward compatibility with routing (future work). |
 | `request_id` | string | Optional; ULID for joining logs to eval records. |
 
 Showing `similarity` and `source_overlap` **side by side** is what makes the contribution observable: a high-similarity, low-overlap miss is the lookalike trap the rule exists to catch (debug UI §4 step 4).
+
+> ⚠️ **v0.10.** With the unfiltered phase retired (ADR-004), a lookalike from **another namespace** is a MISS with `similarity: null`: the scoped search never returns it, so no high similarity appears beside the refusal. Inside a namespace, while θ is outside the served decision, the pairing that remains is a **TIER2_HIT whose `source_overlap` is below θ** — a reuse the containment conjunct would have refused.
 
 ### Streaming variant (MISS path — SSE) — *optional, not in scope*
 
@@ -429,6 +441,10 @@ classify(query) -> { "route": "cacheable" | "bypass", "reason": "<label>" }
 
 Four evaluation metrics are **not computable without this record**: *decisions changed by provenance*, *% entering the cascade band*, *false hits by cause*, and the hit-path latency decomposition.
 
+**v0.10 — the two band-shaped metrics, each with the expression that computes it (ADR-004):**
+- ***% reaching the provenance check*** (`Final_Proposal.md` §9): among records with `similarity != null`, the share with `reuse_rule` ∈ {`namespace`, `composite`}. It is **1.0 by construction** once the unfiltered phase is retired, and it is kept as an **invariant check**: a gate re-added before the lane rule leaves `reuse_rule` empty on the requests it settles, and drops the share below 1.0. It is *not* `retrieved_chunk_ids != null`, which reads the same before and after the retirement and measures only retrieval availability.
+- ***% entering the cascade band***: among records past Tier 1, the share with `entered_band: true`. While θ and the support gate are outside the served decision it **equals the TIER2_HIT share** (see the `entered_band` note).
+
 ```json
 {
   "request_id": "01J...",              // ULID, joins to /ask (§A)
@@ -444,8 +460,8 @@ Four evaluation metrics are **not computable without this record**: *decisions c
 
   "cache": "TIER2_HIT",                 // TIER1_HIT | TIER2_HIT | MISS
   "similarity": 0.91,
-  "source_overlap": 0.80,               // null when the cascade short-circuited
-  "entered_band": true,                 // consulted provenance — see the field note, v0.6
+  "source_overlap": 0.80,               // null unless a same-namespace candidate cleared τ (v0.10)
+  "entered_band": true,                 // a same-namespace candidate cleared τ — see the field note, v0.10
   "refusal_cause": "SUPPORT",           // v0.9 — null when reuse was served; see below
   "support_lex": 0.21,                  // v0.9 — null when the gate arm is off
   "support_numeric_ok": false,          // v0.9 — null when the gate arm is off
@@ -474,7 +490,7 @@ Four evaluation metrics are **not computable without this record**: *decisions c
 
 > ⚠️ **`answer_sha256` cannot be reconstructed after the fact.** It is the `sha256` of the served answer text. The evaluation keys judge verdicts by `sha256(query ‖ candidate_answer)` to keep judging affordable, and the hash must be taken when the answer is served rather than recomputed from a possibly re-generated answer.
 >
-> ⚠️ **`similarity_only_decision` is RETIRED at v0.9.** It recorded what a fixed-threshold baseline *would* have decided, inline, because re-deriving it would have required replaying against cache state that no longer exists. It was produced by the unfiltered similarity-only cascade phase, and it is retired **with** that phase. *Decisions changed by provenance* is now a **cross-configuration join** of configurations 3 and 4 on `request_id`'s query identity — valid only on the **static-cache** arm, where both runs are guaranteed identical cache state, which is why retiring the unfiltered phase moves that arm into the non-negotiable list. A log written before v0.9 carries the old field; do not mix the two derivations in one figure.
+> ⚠️ **`similarity_only_decision` is RETIRED at v0.9.** It recorded what a fixed-threshold baseline *would* have decided, inline, because re-deriving it would have required replaying against cache state that no longer exists. It was produced by the unfiltered similarity-only cascade phase, and it is retired **with** that phase. *Decisions changed by provenance* is now a **cross-configuration join** of configurations 3 and 4 on `request_id`'s query identity — valid only on the **static-cache** arm, where both runs are guaranteed identical cache state, which is why retiring the unfiltered phase moves that arm into the non-negotiable list. A log written before the **1.3 commit** carries the old field — the code emitted it until then (ADR-004), so a log dated after v0.9 can still carry it; do not mix the two derivations in one figure.
 
 Field notes:
 
@@ -482,10 +498,11 @@ Field notes:
 | :--- | :--- |
 | `stratum` | Carried from the workload record (`data-card.md` §2). Enables the frontier to be reported per sub-stratum, which is what answers the product-ID objection |
 | `t1_key` | Recording it lets the Tier-1 collision invariant be re-verified from run output, not only at corpus-freeze time |
-| `entered_band` | Distinguishes short-circuit hits from cascade-band hits; the evaluation requires their latencies reported separately. ⚠️ **v0.6 restates what this measures.** It was *"paid for retrieval — the rule's cost driver"*. Since the gateway issues retrieval **concurrently with the embedding**, every Tier-1 miss pays for retrieval whether or not it enters the band, so this now records **how often the rule consulted provenance** and no longer bounds what the rule costs. Read `t_overlap_ms` for the cost, and note it is wall-clock-concurrent with `t_embed_ms` |
-| `refusal_cause` | **v0.9.** Why a Tier-2 candidate was refused: `SIMILARITY` \| `NAMESPACE` \| `CONTAINMENT` \| `SUPPORT` \| `NONE` (reuse served). Without it a support refusal is indistinguishable from a namespace refusal and the adopted gate's contribution cannot be attributed — which is the exact methodological gap this study records against the source paper's conjunctive reporting |
+| `entered_band` | ⚠️ **v0.10 (ADR-004) restates it again: a same-namespace candidate cleared τ.** The band is [τ, 1], because `τ_high` is retired, so it no longer separates short-circuit hits from band hits — there is no short-circuit. While the served rule is similarity ∧ namespace (θ and the support gate outside it), it **equals the TIER2_HIT indicator**, so *% entering the cascade band* is the Tier-2 hit share until either joins. That gives an invariant: `entered_band ∧ cache ≠ TIER2_HIT` never occurs, and one would mean the Redis TAG filter and Go's `MatchNamespace` disagree. *History:* it first distinguished short-circuit hits from cascade-band hits. ⚠️ **v0.6 restates what this measures.** It was *"paid for retrieval — the rule's cost driver"*. Since the gateway issues retrieval **concurrently with the embedding**, every Tier-1 miss pays for retrieval whether or not it enters the band, so this now records **how often the rule consulted provenance** and no longer bounds what the rule costs. Read `t_overlap_ms` for the cost, and note it is wall-clock-concurrent with `t_embed_ms` |
+| `refusal_cause` | **v0.9.** Why a Tier-2 candidate was refused: `SIMILARITY` \| `NAMESPACE` \| `CONTAINMENT` \| `SUPPORT` \| `NONE` (reuse served). Without it a support refusal is indistinguishable from a namespace refusal and the adopted gate's contribution cannot be attributed — which is the exact methodological gap this study records against the source paper's conjunctive reporting. ⚠️ **v0.10:** in configuration 4 the namespace is enforced **by the search, not by a refusal** (ADR-004). A request whose namespace holds no candidate is a MISS with no candidate, and **is not a `NAMESPACE` refusal** — coding it as one would turn a cold cache or an empty namespace into namespace refusals in *false hits by cause*. `NAMESPACE` is reachable only if the Redis filter and Go's check disagree. The namespace conjunct's effect is counted by the configurations 3 ⋈ 4 join, not by this field |
+| `reuse_rule` | **Extension field, named here at v0.10** (not in the example above). The rule variant that judged the Tier-2 candidate: `namespace` (SPEC, POLICY) or `composite` (MIXED). **Present iff a candidate was judged, refusals below τ included, so its presence is not a hit.** *% reaching the provenance check* is computed from it (ADR-004), so it must not be dropped as an optional extension |
 | `support_lex` / `support_numeric_ok` | **v0.9.** The two gate arms, **reported separately and never summed**. `support_lex` is the fraction of the cached answer's content tokens present in the fresh evidence; `support_numeric_ok` is the fail-closed numeric check. Both null on the gate-off arm of configuration 4, which is how the two arms are told apart in the log itself |
-| `t_*_ms` | Null where the stage did not run. Sum need not equal `t_total_ms` — the difference is gateway overhead and is reported as such |
+| `t_*_ms` | Null where the stage did not run. Sum need not equal `t_total_ms` — the difference is gateway overhead and is reported as such. ⚠️ **v0.10:** `t_search_ms` is **one** namespace-scoped search, no longer the sum of a global and a scoped one. It is null **exactly when no search ran**: the embedding or retrieval failed, or the query's namespace resolved to the empty string. A search that ran and found nothing (a cold cache) or errored still carries its span, so a MISS can show `similarity: null` beside a non-null `t_search_ms`. It is not comparable across the 1.3 commit |
 | `writeback_discarded` | A nonzero count under load is evidence the epoch guard is working, not a bug (§E) |
 
 `raw/` is write-once, so this file is immutable once a run completes.
@@ -496,10 +513,11 @@ Field notes:
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, or the Redis schema is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.9** (2026-09-21).
+**Current version: v0.10** (2026-10-05).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.10** | 2026-10-05 | The v0.9 retirement is **executed in code** and ratified by **ADR-004**: configuration 4's cascade issues at most one namespace-scoped search, with no global search and no `τ_high`. No wire field is added or removed. `similarity`, `source_overlap`, `entered_band` and `t_search_ms` keep their names and **change meaning** (§A, §H); `refusal_cause`'s `NAMESPACE` is restated; the extension `reuse_rule` is named in §H. §B, §C, §D, §E and the `.proto` are unchanged. Logs from either side of the 1.3 commit must not be mixed |
 | **v0.9** | 2026-09-21 | §B `RetrieveResponse` gains **`texts`**, positionally aligned with `chunk_ids` — the support gate compares a cached answer against chunk text the gateway had never held, so without this it cannot run at all. §H gains **`refusal_cause`** and the two support-arm fields, making the gate's contribution attributable rather than inferred from a conjunction. §H's `similarity_only_decision` is **retired** together with the unfiltered cascade phase and the `tau_high` knob that produced it, which moves *decisions changed by provenance* to a cross-configuration join valid only on the static-cache arm |
 | v0.8 | 2026-09-10 | §B gains an optional `product_id`, scoping `Retrieve`/`Answer`'s own corpus search to the asked-about product plus all policy content. It closes a cross-product grounding failure that unscoped search could not avoid on a flat corpus, and it is **never a reuse-decision signal**. `Answer` may accept pre-retrieved chunks, so a request retrieves once rather than twice |
 | v0.6 | 2026-08-2× | §A gains an optional `product_id`; §C fixes the `policy-` / `product-` doc-id kind prefix; §D moves eviction into the gateway; §H restates what `entered_band` measures |

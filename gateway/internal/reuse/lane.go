@@ -243,8 +243,9 @@ type NamespaceDecision struct {
 	EntryNS string
 	Match   bool
 
-	// Rule names which TERM produced Reuse, so a run can tell a namespace hit from a
-	// containment hit without re-deriving it from Lane. Without this the mixed lane's hits and
+	// Rule names which TERM judged the candidate, so a run can tell a namespace hit from a
+	// containment hit without re-deriving it from Lane. It is set on a refusal as well as a hit,
+	// so its presence is not a hit. Without this the mixed lane's hits and
 	// the pure lanes' hits are indistinguishable in the log, and the fallback's contribution to
 	// the false-hit rate cannot be attributed -- which would put it outside
 	// the evaluation's two-cause split -- the same defect that got the bypass
@@ -256,29 +257,19 @@ type NamespaceDecision struct {
 	EntryLane Lane
 	LaneMatch bool
 
-	// Overlap is the containment COUNTERFACTUAL for the candidate actually served: what the rule
-	// this one replaced would have scored. DecideLane does not compute it -- the cascade fills it
-	// in once, for the served candidate only. Computing it inside the decision would run it for
-	// every candidate in the fan-out and discard all but one, and containment over two chunk sets
-	// allocates.
+	// Overlap is the containment COUNTERFACTUAL for the judged candidate. DecideLane does not
+	// compute it: the cascade copies it from Thresholds.Decide's result, so it duplicates
+	// Decision.Overlap and is zero unless that candidate cleared tau (entered_band). Nothing
+	// serialises it; the response and the record read Decision.Overlap.
 	//
-	// It must still be captured at DECISION time, because it cannot be reconstructed later against
-	// cache state that no longer exists -- the same argument interfaces.md H makes for
-	// similarity_only_decision, and what lets a run re-derive the 2026-09-06 finding rather than
-	// cite a session log.
+	// It must be captured at DECISION time, because it cannot be reconstructed later against
+	// cache state that no longer exists (interfaces.md §H).
 	Overlap float64
 }
 
 const (
 	RuleNamespace = "namespace"
 	RuleComposite = "composite"
-
-	// RuleSimilarityOnly marks a TauHigh short-circuit: served WITHOUT consulting provenance.
-	// It must be distinguishable in the log from the other two, because a false hit produced this
-	// way was not the provenance rule's fault -- the provenance rule never ran -- and charging it
-	// to that rule is exactly the mis-attribution the evaluation's two-cause split
-	// exists to prevent.
-	RuleSimilarityOnly = "similarity_only"
 )
 
 // DecideNamespace applies similarity >= tau AND namespace equality.
@@ -287,8 +278,8 @@ const (
 // and containment disagreed four times and namespace equality was right every time -- notably on
 // two cases containment cannot get right at all: same-policy-different-product (containment
 // refuses a safe reuse, costing capacity) and same-product-different-policy (containment reuses
-// and is wrong). Containment is still computed on every request as the counterfactual baseline;
-// see Thresholds.Decide and the cascade's log line.
+// and is wrong). Containment is still computed, as the counterfactual baseline, on every request
+// whose candidate cleared tau; see Thresholds.Decide and the cascade's log line.
 func (t Thresholds) DecideNamespace(similarity float64, lane Lane, queryNS, entryNS string) NamespaceDecision {
 	match := MatchNamespace(queryNS, entryNS)
 	return NamespaceDecision{

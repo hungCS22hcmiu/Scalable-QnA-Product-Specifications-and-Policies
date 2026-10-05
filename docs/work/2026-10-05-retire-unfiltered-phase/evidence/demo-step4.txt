@@ -1,0 +1,24 @@
+# Acceptance 8 — demo step 4's formatting fragment, run offline (2026-10-05T08:54:08Z)
+# Extracted from the Makefile itself, as make hands it to the shell: $$ → $, the leading tab
+# dropped, backslash-newline continuations kept (the last line's, which joins the next recipe
+# line, is dropped). Run with bash; no gateway runs.
+
+## fragment
+ num() { case "$1" in null) printf '%s' "—";; *) printf "$2" "$1";; esac; }; \
+ ov=$(jq -r .source_overlap "$tmp/4.json"); \
+ if [ "$ov" = null ]; then \
+   printf '\n    no cached entry in the namespace this question resolves to  →  MISS, generate instead\n'; \
+ else \
+   printf '\n    cache %s  ·  overlap_decision %s  ·  source_overlap %s\n' \
+     "$(jq -r .cache "$tmp/4.json")" "$(jq -r .overlap_decision "$tmp/4.json")" "$(num "$ov" '%.2f')"; \
+ fi;
+
+## input s4null: {"cache":"MISS","source_overlap":null,"overlap_decision":null,"similarity":null}
+
+    no cached entry in the namespace this question resolves to  →  MISS, generate instead
+exit=0
+
+## input s4num: {"cache":"TIER2_HIT","source_overlap":0.25,"overlap_decision":false,"similarity":0.91}
+
+    cache TIER2_HIT  ·  overlap_decision false  ·  source_overlap 0.25
+exit=0

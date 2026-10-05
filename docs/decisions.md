@@ -43,6 +43,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-001 | *Reserved* — co-hosted load generation and the load generator's footprint (`super-plan.md` item 1.6; named by Phase 1's exit criterion) | not yet written | — |
 | ADR-002 | `v1` draws from six Amazon-PQA leaves mapped onto four departments | in force | none — no runs yet |
 | ADR-003 | The generation envelope serves one slot; the admission pool bounds queueing, not memory | in force | no `run_id`; relabels μ_gen as a one-slot planning figure; voids the spike grid's `NUM_PARALLEL` axis |
+| ADR-004 | The unfiltered Tier-2 phase is retired in code | in force | none — no runs yet; logs written before the 1.3 commit carry the old meanings under the same keys |
 
 ---
 
@@ -262,3 +263,89 @@ unchanged. The Ollama server version (**0.33.2**) and the LLM weights blob
   - **Void:** the W5 spike grid's `NUM_PARALLEL` axis, and the memory-proxy rationale built on it.
   - **No admission number is voided,** because none was recorded. The only one, a 4×200 / 4×503
     mechanism check on `dev-v0`, was never citable.
+
+### ADR-004 — The unfiltered Tier-2 phase is retired in code
+**Decided (method)** · 2026-10-05 · *`gateway/internal/httpapi/cascade.go`, `handler.go`, `types.go`, `reuse/rule.go`, `reuse/lane.go`, `telemetry/evallog.go`, `cmd/gateway/main.go`, `Makefile` (demo step 4), `interfaces.md` v0.10; trail `docs/work/2026-10-05-retire-unfiltered-phase/`*
+
+Configuration 4's Tier-2 cascade issues **at most one** vector search, scoped to the query's
+namespace, which is derived from that request's retrieval. The unfiltered (global) k=1 search that
+used to work the τ gate is removed, together with the `τ_high` short-circuit (`REUSE_TAU_HIGH`)
+and the inline `similarity_only_decision` record field. The gateway refuses to start when
+`REUSE_TAU_HIGH` is non-empty. This ratifies the retirement that `interfaces.md` v0.9 described and
+`Final_Proposal.md` named as awaiting a decision record.
+
+**What this does not ratify.** The served rule stays **similarity ∧ namespace**: θ is computed but
+not consulted (finding F-K, `super-plan.md`), and the support gate is not built. `overlap_decision`
+is configuration 4's support-off verdict, logged as a counterfactual. A run's TIER2_HIT count is
+therefore **not** configuration 4's until F-K is fixed.
+
+- **Rationale:**
+  - **v0.9 had already retired the phase in the contract, but the code still ran it.** It searched
+    outside the namespace the rule enforces, so on a refusal it could only report an entry the rule
+    would never serve. It also cost a second Redis search on every Tier-2 hit.
+  - **No served decision changes**, checked twice rather than argued.
+    - **Why it holds.** The scoped candidates are a subset of the global ones, and the frozen FLAT
+      index is exact. So the scoped nearest's similarity is at most the global nearest's.
+    - **The checks.** The impact analysis deleted the phase in a scratch copy. The design review
+      implemented the final contract as written. Both ran the item 1.2 suite. Only two reported
+      fields of one declared test changed, and every cache outcome, status, answer and side effect
+      held.
+    - **Preconditions:** one cache snapshot; `REUSE_TAU_HIGH` unset (it was, everywhere); the FLAT
+      index. Under HNSW the subset argument fails.
+  - **Two reporting defects close with it:**
+    - **F-E:** a failed retrieval reported a band entry with a zero overlap.
+    - **F-G:** the counterfactual was computed on the global nearest rather than the served entry.
+  - **Why `τ_high` was disabled before this:** the reasons `reuse/rule.go` carried, kept here when
+    the field went. They were measured on **dev-v0 and are not citable**:
+    - across 17 labelled probes, traps and correct reuses interleaved: the worst trap scored
+      0.9685, and only one of seven correct reuses (0.9899) sat above it;
+    - once retrieval ran concurrently with the embedding, a short-circuit saved no latency;
+    - on 2026-09-09, the old default of 1.0 fired live. The byte-identical question asked about two
+      products embeds to the same vector (similarity exactly 1.0), and one product's answer was
+      served for the other's question with no namespace check.
+- **Alternatives:**
+  - **Keep the phase, disabled.** Rejected: it still runs the global search and still reports the
+    global nearest on every refusal, which the rule never judges.
+  - **Keep a display-only global search** so a cross-namespace lookalike still shows a high
+    similarity in the demo. Rejected by the author (D1): it would pay a search on every request to
+    report a number no decision uses.
+  - **Retire `entered_band`** instead of restating it. Rejected: it breaks two item-1.2 tests outside
+    the two that 1.2 declared 1.3 may change.
+  - **Build configuration 3 now.** Out of scope: that is configuration selection, F-K's item.
+- **Consequences:**
+  - **What the reported fields now mean** (D1–D7, under unchanged key names):
+    - `similarity` is the nearest entry within the query's namespace, or null.
+    - `entered_band` means a same-namespace candidate cleared τ.
+    - `source_overlap` and `overlap_decision` are computed only for that candidate. They are null on
+      a retrieval failure, and on every refusal.
+    - `t_search_ms` is one span, null where no search ran.
+    - `reuse_rule` in the §H record appears on below-τ refusals too. The HTTP response carries it
+      only on a TIER2_HIT.
+  - **`entered_band` ≡ TIER2_HIT** while θ and the support gate are outside the served decision.
+    This yields two invariants:
+    - **I1, the metric.** *% reaching the provenance check* = among records with
+      `similarity != null`, the share with `reuse_rule` ∈ {`namespace`, `composite`}. It is 1.0 by
+      construction, so a gate re-added before the lane rule drops it.
+    - **I2.** `entered_band ∧ cache ≠ TIER2_HIT` never occurs. One would mean the Redis TAG filter
+      and Go's `MatchNamespace` disagree.
+
+    I1 rests on the extension field `reuse_rule`, which v0.10 names in §H so that it is not dropped.
+    `Final_Proposal.md`'s *"1.0 by construction"* stays true and is not edited.
+  - **`refusal_cause = NAMESPACE`** is unreachable in configuration 4 except through a filter/Go
+    disagreement. "No in-namespace candidate" is not a namespace refusal (item 2.3 must not code it
+    as one).
+  - **Configuration 3 has no code path.** `REUSE_TAU_HIGH` was the only way to serve on similarity
+    alone over the whole cache. `cache.Store.NearestTier2` is kept as configuration 3's primitive.
+    Configuration 3's served rule, the static-cache arm and the join script that *decisions changed
+    by provenance* needs have no `super-plan.md` item yet. Until they exist, that metric has no
+    derivation.
+  - **A filter that matches nothing now looks like a cold cache** (`similarity` null, no Tier-2 hits).
+    On a warm cache with a Tier-2 hit rate ≈ 0, rule out the filter first. `make demo` step 3 is its
+    live witness.
+  - **`make demo` step 4** prints only what the response carries. Its header and its UI hint still
+    tell the old cross-namespace story, and are left for a demo pass.
+- **Invalidates:** **none — no runs yet.** `experiments/results/` holds no run. Logs written before
+  the 1.3 commit carry the old meanings under the same keys, and the `similarity_only_decision` key
+  is the only in-log discriminator until P1's manifest records the gateway SHA. **Never mix the two
+  in one figure.** The Tier-2 planning figure (≈ 61 req/s) stays a valid lower bound: removing a
+  search cannot lower μ_hit.

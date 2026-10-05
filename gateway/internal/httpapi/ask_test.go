@@ -284,11 +284,11 @@ func TestTier2RefusesAnEntryFromAnotherNamespace(t *testing.T) {
 	resp := c.response(t)
 	resp.str("cache", "MISS")
 	resp.str("answer", kettle.answer)
-	resp.notNull("similarity")
+	resp.null("similarity")
 
 	rec := c.record(t)
 	rec.str("cache", "MISS")
-	rec.boolean("entered_band", true)
+	rec.boolean("entered_band", false)
 	if n := len(hs.rag.answerCalls()); n != 1 {
 		t.Errorf("Answer called %d times, want 1: a refusal must generate", n)
 	}

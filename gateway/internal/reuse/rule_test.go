@@ -1,7 +1,6 @@
 package reuse
 
 import (
-	"math"
 	"testing"
 )
 
@@ -80,24 +79,20 @@ func TestDecideRequiresBothConditions(t *testing.T) {
 	quarter := []string{"a", "b"} // 2/5 = 0.4, below theta
 
 	cases := []struct {
-		name        string
-		sim         float64
-		retrieved   []string
-		wantReuse   bool
-		wantSimOnly bool
+		name      string
+		sim       float64
+		retrieved []string
+		wantReuse bool
 	}{
-		{"both pass", 0.965, full, true, true},
-		{"the trap: similarity passes, overlap does not", 0.851, quarter, false, true},
-		{"unrelated: neither passes", 0.532, quarter, false, false},
-		{"high overlap cannot rescue low similarity", 0.400, full, false, false},
+		{"both pass", 0.965, full, true},
+		{"the trap: similarity passes, overlap does not", 0.851, quarter, false},
+		{"unrelated: neither passes", 0.532, quarter, false},
+		{"high overlap cannot rescue low similarity", 0.400, full, false},
 	}
 	for _, c := range cases {
 		got := r.Decide(c.sim, c.retrieved, full)
 		if got.Reuse != c.wantReuse {
 			t.Errorf("%s: Reuse = %v, want %v", c.name, got.Reuse, c.wantReuse)
-		}
-		if got.SimilarityOnly != c.wantSimOnly {
-			t.Errorf("%s: SimilarityOnly = %v, want %v", c.name, got.SimilarityOnly, c.wantSimOnly)
 		}
 	}
 }
@@ -115,21 +110,6 @@ func TestDecideBoundariesAreInclusive(t *testing.T) {
 	}
 	if d := r.Decide(0.8499, exactlyTheta, sources); d.Reuse {
 		t.Error("similarity just below tau must refuse")
-	}
-}
-
-func TestSimilarityOnlyIsTheBaselineCounterfactual(t *testing.T) {
-	// This field is what makes the pre-registered null interpretable: it records what a fixed
-	// threshold WOULD have done, at the moment the rule ran. It must not depend on overlap.
-	r := Thresholds{Tau: 0.85, Theta: 0.6}
-	sources := []string{"a", "b", "c", "d", "e"}
-
-	d := r.Decide(0.90, nil, sources) // overlap 0 -> rule refuses
-	if d.Reuse {
-		t.Error("rule should refuse at zero overlap")
-	}
-	if !d.SimilarityOnly {
-		t.Error("similarity-only baseline should have reused — this disagreement is the signal C1 measures")
 	}
 }
 
@@ -172,43 +152,5 @@ func TestJaccardOfTwoEmptySetsIsZeroNotOne(t *testing.T) {
 	}
 	if got := Jaccard([]string{"a"}, nil); got != 0 {
 		t.Fatalf("Jaccard with one empty side = %v, want 0", got)
-	}
-}
-
-// TauHigh must default to disabled. A short-circuit serves on similarity alone with the
-// provenance rule never running, so a default that fires would silently turn config 4 into
-// config 3 for part of the traffic -- and the resulting false hits would be charged to a rule
-// that did not make them.
-func TestTauHighDefaultIsDisabled(t *testing.T) {
-	// This mirrors cmd/gateway/main.go's default. Cosine similarity reaches 1.0 only on an
-	// identical vector, so the branch is unreachable in practice.
-	th := Thresholds{Tau: 0.85, Theta: 0.60, TauHigh: 1.0}
-	for _, sim := range []float64{0.86, 0.95, 0.9899, 0.99999} {
-		if sim >= th.TauHigh {
-			t.Fatalf("similarity %v would short-circuit at the default tau_high=%v", sim, th.TauHigh)
-		}
-	}
-	// The measured worst trap on dev-v0. Any tau_high at or below it serves a lookalike on
-	// similarity alone.
-	const worstTrap = 0.9685
-	if worstTrap >= th.TauHigh {
-		t.Fatal("the default tau_high would short-circuit the measured worst trap")
-	}
-}
-
-// Regression for a live false hit found 2026-09-09: asking the byte-identical question about
-// two different products embeds to the same vector both times, so similarity is exactly 1.0 --
-// not merely close to it. A TauHigh of exactly 1.0 (the old default) treated that as
-// "unreachable in practice" and was wrong; cascade.go's short-circuit fired, serving one
-// product's cached answer for a different product's question with no namespace check. The
-// default must be unreachable BY CONSTRUCTION, not by assumption -- so it must reject a
-// similarity of exactly 1.0, the actual ceiling of cosine similarity, not just values below it.
-func TestTauHighDefaultSurvivesIdenticalVector(t *testing.T) {
-	th := Thresholds{Tau: 0.85, Theta: 0.60, TauHigh: math.Inf(1)}
-	const identicalVectorSimilarity = 1.0
-	if identicalVectorSimilarity >= th.TauHigh {
-		t.Fatalf("similarity %v (an identical vector, e.g. the same question text asked about "+
-			"two different products) would short-circuit at tau_high=%v -- this is the exact bug "+
-			"found live 2026-09-09 with the old default of 1.0", identicalVectorSimilarity, th.TauHigh)
 	}
 }

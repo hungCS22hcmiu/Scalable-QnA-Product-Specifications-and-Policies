@@ -66,7 +66,7 @@ func TestNullableFieldsRenderAsNull(t *testing.T) {
 		t.Fatalf("record is not valid JSON: %v", err)
 	}
 	for _, k := range []string{
-		"similarity", "source_overlap", "similarity_only_decision", "stratum",
+		"similarity", "source_overlap", "stratum",
 		"t_embed_ms", "t_search_ms", "t_overlap_ms", "t_permit_wait_ms", "t_generate_ms",
 		"dataset_epoch_at_retrieval",
 	} {
