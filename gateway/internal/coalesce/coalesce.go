@@ -91,6 +91,11 @@ func (g *Group[T]) inflight() int {
 	return len(g.m)
 }
 
+// Waiters reports how many callers are blocked on key's in-flight call. A test seam for packages
+// that coalesce through a Group (httpapi's coalescing test); never call it on a request path,
+// since it takes the group's lock.
+func (g *Group[T]) Waiters(key string) int { return g.waiters(key) }
+
 // waiters reports how many callers are blocked on key. Test seam, same reason.
 func (g *Group[T]) waiters(key string) int {
 	g.mu.Lock()

@@ -115,15 +115,15 @@ valve, not these numbers.
 
 *Nothing measured before this closes is evidence of anything.* ~25 h.
 
-**Progress, 2026-10-04:** 1 of 6 exit clauses met, the `env-check` clause, by item 1.1. 1.2, 1.5 and
-1.6 are unblocked; 1.3 and 1.4 wait on 1.2.
+**Progress, 2026-10-04:** 2 of 6 exit clauses met: the `env-check` clause by item 1.1, and the
+`httpapi` clause by item 1.2. 1.3, 1.4, 1.5 and 1.6 are all unblocked.
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
 | 1.1 | **Resolve F1.** Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for qwen3.5. Add a check that reads the **effective** slot count from the live runner (its argv `-np` and its own `/props` `total_slots`; ADR-003 records why not the server log) rather than the requested value, and write the ADR deciding what μ_gen ≈ 28.2 tok/s means if it was a one-slot number recorded as a four-slot aggregate | S1, S2 | memory envelope, admission control | ✅ **Done 2026-10-04** — ADR-003, trail `docs/work/2026-10-04-resolve-f1/` | `make env-check` fails when effective ≠ frozen, and an ADR records the consequence for μ_gen |
-| 1.2 | **Tests for `httpapi/`.** The cascade, the miss path, coalescing-wraps-admission nesting, Tier-1 promotion, and the single-exit eval-record emit | C1, C3 | standing constraint 6 | now | Every exit path of `Ask` — TIER1_HIT, TIER2_HIT, MISS, SHED, ABANDONED, GENERATION_FAILED — has a test asserting its response **and** its eval record |
-| 1.3 | **Remove the retired cascade branch.** Delete the unfiltered cascade phase, `tau_high` / `REUSE_TAU_HIGH`, and `similarity_only_decision`. Correct the stale pinned default in `rule_test.go` (claims `1.0`; ships `math.Inf(1)`) | C1, C3 | retiring the unfiltered phase | 1.2 — do not delete branches that nothing tests | The cascade issues one scoped search; `grep -r tau_high` finds only history; §H no longer carries the retired field |
-| 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | 1.2 | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
+| 1.2 | **Tests for `httpapi/`.** The cascade, the miss path, coalescing-wraps-admission nesting, Tier-1 promotion, and the single-exit eval-record emit | C1, C3 | standing constraint 6 | ✅ **Done 2026-10-04** — no ADR (no frozen value or contract changed), trail `docs/work/2026-10-04-httpapi-tests/` | Every exit path of `Ask` — TIER1_HIT, TIER2_HIT, MISS, SHED, ABANDONED, GENERATION_FAILED — has a test asserting its response **and** its eval record |
+| 1.3 | **Remove the retired cascade branch.** Delete the unfiltered cascade phase, `tau_high` / `REUSE_TAU_HIGH`, and `similarity_only_decision`. Correct the stale pinned default in `rule_test.go` (claims `1.0`; ships `math.Inf(1)`) | C1, C3 | retiring the unfiltered phase | 1.2 ✅ — do not delete branches that nothing tests. 1.2's trail names the only two of its tests 1.3 may change (`approvals.md`, item 2) | The cascade issues one scoped search; `grep -r tau_high` finds only history; §H no longer carries the retired field |
+| 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | 1.2 ✅ | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
 | 1.5 | **Answer-text storage.** §H stores `answer_sha256`, never the text, and judging runs offline with the generator unloaded. Recovering text from a bounded LRU afterwards is unsound. Content-addressed `raw/answers/{answer_sha256}.txt` | C3 | needs a numbered decision — it changes §H, which is frozen | now | A run's answers are reconstructable from `raw/` alone, with the cache flushed |
 | 1.6 | **Characterise the load generator's footprint** and **record the co-hosted-measurement decision** as the first entry in `decisions.md` (see "Measuring without a second machine") | S1, S2 | measurement validity | now | k6's CPU and RSS at the sweep's actual rates are recorded, with the SUT's pressure zone alongside, and the ADR states what is citable co-hosted and what is not |
 
@@ -138,6 +138,20 @@ valve, not these numbers.
   (5.1) and on reproducibility. It needs an investigation before 1.5 or 5.1 is built on it.
 - **For the advisor:** withdraw the proposal's `OLLAMA_NUM_PARALLEL` sweep (§6.2), which cannot run
   on this model and stack (ADR-003). This is a human decision, and it must be settled before Phase 7.
+
+**Found while closing 1.2, not yet items — each waits on the author's decision** (full list F-A to
+F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `approvals.md`, item 3):
+
+- **F-K: the served Tier-2 rule is similarity ∧ namespace, not the four claimed conjuncts.** θ
+  reaches only the logged counterfactual and `ConfigID` selects nothing, so **6.1's θ sweep would
+  move no served decision**. No ADR records the change. It needs an owner: an ADR that makes the
+  namespace rule the claim, or an item (probably in Phase 2) that puts θ into the served decision.
+- **F-A: most client abandonments are logged `GENERATION_FAILED`.** A cancellation that reaches a
+  gRPC call surfaces as a gRPC status, not `context.Canceled`. Fix it before 1.6 and before any
+  Phase 7 run.
+- **F-F: the eval log closes while shutdown is still draining.** Requests in flight at SIGTERM
+  vanish from `requests.jsonl` with `Dropped()` at 0. It is avoided by stopping the load before
+  SIGTERM, and the fix is cheap. Fix it before Phase 7.
 
 ### Phase 2 — The support gate
 

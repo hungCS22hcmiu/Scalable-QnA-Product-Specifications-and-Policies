@@ -19,7 +19,8 @@ Both services are real and running end-to-end.
   two-tier cache, the reuse rule with its three lanes, admission control and request coalescing are
   all built and tested.
 - **Not built:** `gateway/internal/deps/` is a one-line stub — **C2, source-aware invalidation,
-  does not exist**. `httpapi/` has **zero tests** despite every measured number passing through it.
+  does not exist**. `httpapi/` is tested on every exit path of `Ask` (item 1.2, 2026-10-04), against
+  fakes: Redis, Ollama and Python are not needed, and Redis semantics stay `cache/`'s to test.
 
 **Commands that work today:**
 - `cd rag && pip3 install -e '.[dev]'` — install the RAG service + dev tools.

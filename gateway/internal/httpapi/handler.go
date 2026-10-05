@@ -46,6 +46,22 @@ const modelUsedConstant = "qwen3.5-2b"
 // gateway has the least memory to spare.
 const bumpTimeout = 2 * time.Second
 
+// cacheStore is the part of *cache.Store that the request path uses. It exists so the tests can
+// drive every exit path of Ask without Redis: RediSearch indexes only DB 0, which the dev cache
+// occupies. *cache.Store is the only production implementation.
+type cacheStore interface {
+	Get(ctx context.Context, query, productID string) (*cache.Entry, bool, error)
+	Put(ctx context.Context, query, productID string, e cache.Entry) error
+	PutTier2(ctx context.Context, e cache.Tier2Entry, vec []float32) error
+	NearestTier2(ctx context.Context, vec []float32, k int) ([]cache.Candidate, error)
+	NearestTier2InNamespace(ctx context.Context, vec []float32, namespace string, k int) ([]cache.Candidate, error)
+	BumpHitCount(ctx context.Context, entryID string) error
+	Touch(ctx context.Context, entryID string, nowUnixNano int64) error
+	TrimToCapacity(ctx context.Context, capacity int) ([]cache.EvictedEntry, error)
+}
+
+var _ cacheStore = (*cache.Store)(nil) // the real store must keep satisfying it
+
 // Handler serves POST /ask: cache.Get -> miss -> ragclient.Answer -> cache.Put. Single call
 // site, so W16's admission control has exactly one place to insert later
 // (architecture-guardrails.md: admission/ must be the sole place a permit is acquired --
@@ -55,7 +71,7 @@ const bumpTimeout = 2 * time.Second
 // package and may import rightward; putting it here is what keeps reuse/ free of Redis, gRPC and
 // HTTP so C1 stays falsifiable in isolation (docs/architecture.md 2).
 type Handler struct {
-	Cache      *cache.Store
+	Cache      cacheStore
 	RAG        *ragclient.Client
 	Embed      *embed.Client
 	Thresholds reuse.Thresholds
@@ -97,7 +113,7 @@ type Handler struct {
 	Counters Counters
 }
 
-func NewHandler(c *cache.Store, r *ragclient.Client, e *embed.Client, t reuse.Thresholds, band reuse.LaneBand, pool *admission.Pool) *Handler {
+func NewHandler(c cacheStore, r *ragclient.Client, e *embed.Client, t reuse.Thresholds, band reuse.LaneBand, pool *admission.Pool) *Handler {
 	return &Handler{Cache: c, RAG: r, Embed: e, Thresholds: t, LaneBand: band, Admission: pool}
 }
 
