@@ -19,6 +19,7 @@
 | 2026-10-04 | **Hold the version pin with (i):** turn off Ollama.app's auto-update. The app stays, under the run rule "no use of the Ollama app during a run" | "(i) Turn off auto-update (Recommended)" | none |
 
 | 2026-10-04 | **Edit a comment in an immutable test file:** `gateway/internal/admission/pool_test.go:17-19`. Comment only, no code or assertion changed. The stale "a run can swap" memory claim is replaced by the ADR-003 slot-bound wording (`review.md`, implementation finding 2) | "ok sửa comment đi" | none. The test's behaviour is unchanged (`go test -count=1` passes) |
+| 2026-10-04, after close | **Edit the docstring of an immutable test file:** `experiments/tests/test_env_check.py:1` and `:11` now point to `docs/work/2026-10-04-resolve-f1/` after the trails were dated. Path text only, no code or assertion changed (commit `e47c206`) | "ok làm đi", to the proposal to commit with the docstring fix | none. `ruff check` passes |
 ## Open — needs the author
 
 *None. All three were decided on 2026-10-04; see Human decisions.*
