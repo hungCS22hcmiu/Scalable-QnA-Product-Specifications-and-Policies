@@ -37,6 +37,10 @@ Both services are real and running end-to-end.
   `launchctl list | grep redis-stack` and `redis-cli PING`.
 - `make ingest` — chunk + embed `data/dev-v0/*.json` into Redis.
 - `rag ask "<question>"` — retrieval-only CLI, prints top-k chunks with chunk IDs.
+- `make seam-check` — item 1.4's live check that `texts` reaches Go aligned with `chunk_ids`, with
+  Redis as the oracle. Starts its own `rag.server` on `:50052` from the working tree and loads the
+  embedding model, not the LLM. `make verify` never runs it: re-run it after any retrieval or
+  LlamaIndex change.
 - `make lint` / `make test` / `make verify` / `make check` — repo-wide checks. If `ruff`/`pytest`
   report `SKIPPED — not installed` despite being pip-installed, they likely landed in
   `~/Library/Python/3.13/bin` rather than on `PATH`.

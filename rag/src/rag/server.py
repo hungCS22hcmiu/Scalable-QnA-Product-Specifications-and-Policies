@@ -15,10 +15,14 @@ class RagServicer(rag_pb2_grpc.RagServiceServicer):
     def Retrieve(self, request, context):
         top_k = request.top_k or config.TOP_K
         chunks, epoch = retrieve.retrieve(request.query, top_k=top_k, product_id=request.product_id)
+        # texts[i] must be the text of chunk_ids[i] (interfaces.md B v0.9). All three arrays come
+        # from this one list; a shifted texts would score a cached answer against the wrong chunk
+        # with no error anywhere. Proved against Redis by `make seam-check`.
         return rag_pb2.RetrieveResponse(
             chunk_ids=[c.chunk_id for c in chunks],
             scores=[c.score for c in chunks],
             dataset_epoch=epoch,
+            texts=[c.text for c in chunks],
         )
 
     def Answer(self, request, context):

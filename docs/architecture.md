@@ -124,7 +124,7 @@ write-back) · resource governance → `admission/` · the measurement protocol 
 
 Use `make`; do not invent ad-hoc invocations. Targets: `spike` · `ingest` · `dev` · `ask` ·
 `demo-reset` · `proto` · `test` · `lint` · `verify` · `figures` ·
-`check`.
+`check` · `seam-check`.
 
 ## 5. Build order
 

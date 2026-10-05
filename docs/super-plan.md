@@ -115,15 +115,16 @@ valve, not these numbers.
 
 *Nothing measured before this closes is evidence of anything.* ~25 h.
 
-**Progress, 2026-10-04:** 2 of 6 exit clauses met: the `env-check` clause by item 1.1, and the
-`httpapi` clause by item 1.2. 1.3, 1.4, 1.5 and 1.6 are all unblocked.
+**Progress, 2026-10-05:** 3 of 6 exit clauses met: the `env-check` clause by item 1.1, the
+`httpapi` clause by item 1.2, and the `texts` alignment clause by item 1.4. 1.3, 1.5 and 1.6 are
+all unblocked.
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
 | 1.1 | **Resolve F1.** Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for qwen3.5. Add a check that reads the **effective** slot count from the live runner (its argv `-np` and its own `/props` `total_slots`; ADR-003 records why not the server log) rather than the requested value, and write the ADR deciding what μ_gen ≈ 28.2 tok/s means if it was a one-slot number recorded as a four-slot aggregate | S1, S2 | memory envelope, admission control | ✅ **Done 2026-10-04** — ADR-003, trail `docs/work/2026-10-04-resolve-f1/` | `make env-check` fails when effective ≠ frozen, and an ADR records the consequence for μ_gen |
 | 1.2 | **Tests for `httpapi/`.** The cascade, the miss path, coalescing-wraps-admission nesting, Tier-1 promotion, and the single-exit eval-record emit | C1, C3 | standing constraint 6 | ✅ **Done 2026-10-04** — no ADR (no frozen value or contract changed), trail `docs/work/2026-10-04-httpapi-tests/` | Every exit path of `Ask` — TIER1_HIT, TIER2_HIT, MISS, SHED, ABANDONED, GENERATION_FAILED — has a test asserting its response **and** its eval record |
 | 1.3 | **Remove the retired cascade branch.** Delete the unfiltered cascade phase, `tau_high` / `REUSE_TAU_HIGH`, and `similarity_only_decision`. Correct the stale pinned default in `rule_test.go` (claims `1.0`; ships `math.Inf(1)`) | C1, C3 | retiring the unfiltered phase | 1.2 ✅ — do not delete branches that nothing tests. 1.2's trail names the only two of its tests 1.3 may change (`approvals.md`, item 2) | The cascade issues one scoped search; `grep -r tau_high` finds only history; §H no longer carries the retired field |
-| 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | 1.2 ✅ | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
+| 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | ✅ **Done 2026-10-05** — no ADR (no frozen value or contract changed), trail `docs/work/2026-10-05-carry-chunk-text/`. Re-run `make seam-check` after any retrieval or LlamaIndex change: `make verify` never runs the live path | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
 | 1.5 | **Answer-text storage.** §H stores `answer_sha256`, never the text, and judging runs offline with the generator unloaded. Recovering text from a bounded LRU afterwards is unsound. Content-addressed `raw/answers/{answer_sha256}.txt` | C3 | needs a numbered decision — it changes §H, which is frozen | now | A run's answers are reconstructable from `raw/` alone, with the cache flushed |
 | 1.6 | **Characterise the load generator's footprint** and **record the co-hosted-measurement decision** as the first entry in `decisions.md` (see "Measuring without a second machine") | S1, S2 | measurement validity | now | k6's CPU and RSS at the sweep's actual rates are recorded, with the SUT's pressure zone alongside, and the ADR states what is citable co-hosted and what is not |
 
@@ -153,6 +154,20 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   vanish from `requests.jsonl` with `Dropped()` at 0. It is avoided by stopping the load before
   SIGTERM, and the fix is cheap. Fix it before Phase 7.
 
+**Found while closing 1.4, not yet items — each waits on the author's decision** (trail
+`docs/work/2026-10-05-carry-chunk-text/`, `approvals.md`):
+
+- **`make dev` may orphan `rag.server`.** Its trap kills `$!`, the PID of the subshell
+  `( cd rag && python3 -m rag.server ) &`, which bash does not reliably replace with Python. The
+  server can outlive the target, still bound to `:50051`, which is a plausible source of the six
+  stale servers of 2026-10-03. Unverified on `make dev` itself; `make seam-check` avoids it with
+  `exec`. It belongs with `rag-server-reuseport`, which should now close **before 2.1's live
+  reproduction and before any Phase 7 run**: a gRPC reconnect on a shared port can move a run
+  between instances, leaving it partly without `texts`.
+- **For 3.1:** the PQA builder must not emit text that redis-py's strict UTF-8 encoder rejects (a
+  lone surrogate from a JSON `\ud800` escape); it would fail `make ingest` (PLAUSIBLE; 1.4
+  `review.md` N5).
+
 ### Phase 2 — The support gate
 
 **Exit:** the gate refuses the measured warranty case and admits the measured paraphrase · every Tier-2 refusal carries a cause code · both arms are independently switchable and both are recorded per request · the decisive-similarity regression still reproduces.
@@ -161,7 +176,7 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 2.1 | **Lexical arm.** `S_lex(a,C) = \|content-tokens(a) ∩ tokens(C)\| / \|content-tokens(a)\|`, stop-words and tokens under three characters removed. `τ_s` **pinned at 0.6**, never swept | C1 | the support gate | 1.4 — the gate cannot run without chunk text | On the pair pinned in `lane_test.go` (0.9382 paraphrase, 0.9208 warranty, containment 0.80 each) the gate admits the first and refuses the second |
+| 2.1 | **Lexical arm.** `S_lex(a,C) = \|content-tokens(a) ∩ tokens(C)\| / \|content-tokens(a)\|`, stop-words and tokens under three characters removed. `τ_s` **pinned at 0.6**, never swept. ⚠️ **`RetrieveResult.Texts == nil` with `len(ChunkIDs) > 0` means the service sent no evidence text** (e.g. a stale pre-1.4 server): do not score it, do not refuse it as `SUPPORT`, and do not log it as the gate-off arm (`support_lex: null`) — each misattributes a stale server to the gate. Key on `len(ChunkIDs) > 0`, since an empty retrieval is nil too, and count the condition (1.4 trail, `review.md` S3) | C1 | the support gate | 1.4 ✅ — the gate cannot run without chunk text | On the pair pinned in `lane_test.go` (0.9382 paraphrase, 0.9208 warranty, containment 0.80 each) the gate admits the first and refuses the second |
 | 2.2 | **Numeric arm.** Every numeric literal and its unit in the cached answer must appear in the fresh evidence. **Fail-closed** | C1 | the support gate | 2.1 | A cached "30-day" answer is refused against evidence carrying only "14-day"; an unparseable number blocks rather than passes |
 | 2.3 | **Refusal cause code** in §H: `SIMILARITY` \| `NAMESPACE` \| `CONTAINMENT` \| `SUPPORT` \| `NONE`, plus `support_lex` and `support_numeric_ok` | C1, C3 | the support gate | 2.1 | Every Tier-2 decision in the log carries exactly one cause; a support refusal is distinguishable from a namespace refusal offline |
 | 2.4 | **Both arms switchable per run**, since configuration 4 is two arms rather than one | C1, C3 | the support gate, config × mutation grid | 2.2 | `support_gate` in the run manifest selects the arm, and the off-arm writes `null` for both support fields |

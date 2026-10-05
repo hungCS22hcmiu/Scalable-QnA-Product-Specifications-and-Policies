@@ -1,0 +1,28 @@
+# make seam-check — item 1.4 live evidence
+# date: 2026-10-05T03:57:16Z   HEAD: d67c8f7 + uncommitted 1.4 edits (server.py, retrieve.go, tests, Makefile)
+# author chose to run under pressure level 2 (urgent): deterministic pass/fail, no timing cited
+
+  memory pressure level: 2 (0 = green; recorded, not gated)
+  info: 0 process(es) listening on :50051 (rag-server-reuseport; not used by this check)
+  rag.server pid 1771 on 127.0.0.1:50052, started from the working tree
+=== RUN   TestSeam
+=== RUN   TestSeam/L1
+rag.server listening on 127.0.0.1:50052
+10:57:19 redisvl.index.index INFO   Index already exists, not overwriting.
+10:57:20 redisvl.index.index INFO   Index already exists, not overwriting.
+    seam_live_test.go:148: L1: 5 chunks [product-kitchen-09#chunk-0 product-kitchen-08#chunk-0 product-kitchen-07#chunk-0 product-kitchen-01#chunk-0 product-kitchen-10#chunk-0]
+=== RUN   TestSeam/L2
+10:57:20 redisvl.index.index INFO   Index already exists, not overwriting.
+    seam_live_test.go:166: L2: splice fired, 1 chunks [product-laptops-02#chunk-0]
+=== RUN   TestSeam/L3
+10:57:20 redisvl.index.index INFO   Index already exists, not overwriting.
+    seam_live_test.go:174: L3: 5 chunks [policy-returns-electronics#chunk-0 policy-returns-furniture#chunk-0 policy-shipping#chunk-0 product-furniture-03#chunk-0 product-furniture-07#chunk-0]
+=== RUN   TestSeam/shift
+--- PASS: TestSeam (0.24s)
+    --- PASS: TestSeam/L1 (0.17s)
+    --- PASS: TestSeam/L2 (0.04s)
+    --- PASS: TestSeam/L3 (0.02s)
+    --- PASS: TestSeam/shift (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/ragclient	0.796s
+  PASS — texts aligned with chunk_ids on L1-L3, splice fired, shift rejected. Log: /var/folders/wk/wqg1xf3130g_tcp6099t3kjh0000gp/T/seam-check.9tXrXSh9CD

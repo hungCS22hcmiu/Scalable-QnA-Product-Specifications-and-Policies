@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui seam-check
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -274,6 +274,50 @@ lint: ## Format check + vet + python lint
 verify: lint ## Full verification: lint + build + test (see /verify)
 	cd $(GATEWAY) && go build ./...
 	@$(MAKE) --no-print-directory test
+
+# Item 1.4: texts flows Python -> Go, positionally aligned, checked against Redis as the oracle
+# (docs/work/2026-10-05-carry-chunk-text/design.md 3d). Two guards make it a check that cannot pass
+# while proving nothing:
+#  - It OWNS its rag.server: started from the working tree on a private port and killed on exit,
+#    never whatever answers on :50051, which can be stale (rag-server-reuseport). `exec` makes
+#    $$! the server's own PID, so the trap kills the server, not just a subshell.
+#  - It fails unless the log shows every subtest PASS. `go test -run` with no match exits 0 and
+#    prints PASS, and so does a skip; -count=1 alone does not stop a cached result being read.
+# Loads nomic-embed-text (the query is embedded), not the LLM. Not a measurement: the pressure
+# level is recorded, not gated on. Pass SEAM_LOG=<path> to keep the log as evidence.
+SEAM_PORT ?= 50052
+SEAM_REDIS_URL ?= redis://localhost:6379/0
+SEAM_LOG ?=
+
+seam-check: ## Item 1.4: texts flow Python -> Go aligned, oracle = Redis (NOT a measurement)
+	@set -euo pipefail; \
+	 log="$(SEAM_LOG)"; [ -n "$$log" ] || log=$$(mktemp -t seam-check); \
+	 echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (0 = green; recorded, not gated)"; \
+	 redis-cli -u $(SEAM_REDIS_URL) PING >/dev/null 2>&1 || { echo "FAIL — redis unreachable at $(SEAM_REDIS_URL)"; exit 1; }; \
+	 n=$$( (lsof -t -nP -iTCP:50051 -sTCP:LISTEN 2>/dev/null || true) | sort -u | wc -l | tr -d ' '); \
+	 echo "  info: $$n process(es) listening on :50051 (rag-server-reuseport; not used by this check)"; \
+	 if lsof -t -nP -iTCP:$(SEAM_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+	   echo "FAIL — port $(SEAM_PORT) already has a listener; SO_REUSEPORT would share it"; exit 1; \
+	 fi; \
+	 ( cd $(RAG) && RAG_GRPC_ADDR=127.0.0.1:$(SEAM_PORT) REDIS_URL=$(SEAM_REDIS_URL) exec $(PY) -m rag.server ) & \
+	 rag_pid=$$!; \
+	 trap 'kill $$rag_pid 2>/dev/null || true' EXIT INT TERM; \
+	 for i in $$(seq 60); do \
+	   kill -0 $$rag_pid 2>/dev/null || { echo "FAIL — rag.server exited on startup"; exit 1; }; \
+	   if nc -z 127.0.0.1 $(SEAM_PORT) 2>/dev/null; then break; fi; \
+	   [ $$i -lt 60 ] || { echo "FAIL — rag.server not listening on $(SEAM_PORT) after 30 s"; exit 1; }; \
+	   sleep 0.5; \
+	 done; \
+	 echo "  rag.server pid $$rag_pid on 127.0.0.1:$(SEAM_PORT), started from the working tree"; \
+	 ( cd $(GATEWAY) && RAG_SEAM_ADDR=127.0.0.1:$(SEAM_PORT) REDIS_URL=$(SEAM_REDIS_URL) \
+	   go test -count=1 -v -run '^TestSeam$$' ./internal/ragclient/ ) 2>&1 | tee "$$log"; \
+	 for want in TestSeam TestSeam/L1 TestSeam/L2 TestSeam/L3 TestSeam/shift; do \
+	   grep -q -- "--- PASS: $$want (" "$$log" || { echo "FAIL — no '--- PASS: $$want' in $$log"; exit 1; }; \
+	 done; \
+	 if grep -qE -- '--- SKIP|no tests to run|\(cached\)' "$$log"; then \
+	   echo "FAIL — the test did not genuinely run (a skip, no matching test, or a cached result)"; exit 1; \
+	 fi; \
+	 echo "  PASS — texts aligned with chunk_ids on L1-L3, splice fired, shift rejected. Log: $$log"
 
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
