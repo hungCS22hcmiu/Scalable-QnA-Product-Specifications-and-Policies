@@ -1,0 +1,46 @@
+# rag-server-reuseport — reproductions, 2026-10-05 (before any fix)
+# No model loaded: a bare grpcio server and `sleep` stand in for rag.server.
+# Tooling: GNU bash 3.2.57(1)-release (arm64-apple-darwin25) = /bin/bash = the Makefile's SHELL;
+#          grpcio 1.83.0.
+
+## Cause (a): gRPC's default SO_REUSEPORT lets a second server share the port, silently
+
+Two processes, each grpc.server(...) + add_insecure_port("127.0.0.1:50077") + start():
+
+  options=[] (what rag/src/rag/server.py:54 does today)
+    default/first:  bound port=50077
+    default/second: bound port=50077          <- second server binds too; no error anywhere
+
+  options=[("grpc.so_reuseport", 0)]
+    noreuse/first:  bound port=50077
+    noreuse/second: FAILED to bind: RuntimeError: Failed to bind to address 127.0.0.1:50077
+                    (core: "Error in bind ... Address already in use")
+
+  Restart straight after a kill, options=[("grpc.so_reuseport", 0)]:
+    noreuse/A: bound port=50077   (killed)
+    noreuse/B: bound port=50077   <- SO_REUSEADDR is unaffected; a normal restart still works
+
+  Residual with so_reuseport=0 (BSD SO_REUSEADDR semantics, which gRPC always sets):
+    0.0.0.0:50078   then 0.0.0.0:50078   -> second FAILED   (the make dev case: same address)
+    0.0.0.0:50079   then 127.0.0.1:50079 -> both bound
+    127.0.0.1:50080 then 0.0.0.0:50080   -> both bound
+  So a wildcard and a specific address can still coexist. Reachable only with a non-default
+  RAG_GRPC_ADDR (config.py:47 defaults to 0.0.0.0:50051; the gateway dials localhost:50051,
+  main.go:76).
+
+## Cause (b): make dev's trap kills the subshell, not rag.server
+
+The dev recipe's shape, `( cd $(RAG) && $(PY) -m rag.server ) &` then `kill $rag_pid`
+(Makefile:122-124), with `sleep 300` standing in for the server:
+
+  $! = 7302 (/bin/bash)                     <- $! is the SUBSHELL under bash 3.2
+  children of $!:  7304 sleep
+  after kill $!: sleep still running? YES-orphaned
+
+  With exec, `( cd /tmp && exec sleep 301 ) &`:
+  $! = 7335 (sleep)                         <- $! is the command itself
+  after kill: still running? no
+
+An orphaned rag.server keeps 0.0.0.0:50051. Under cause (a) the next `make dev` then shares the
+port with it, and the gateway's connection may land on the stale one: the six stale instances
+found on 2026-10-03 (docs/work/2026-10-03-pqa-category-choice/plan.md:54-55).

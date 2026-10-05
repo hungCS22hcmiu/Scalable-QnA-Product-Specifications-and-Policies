@@ -103,6 +103,13 @@ measure: env-check redis-check ## Gate a MEASURED run (proposal 7 validity rule)
 	 fi; \
 	 echo "  OK — green. Record swap delta across the run; a run that swapped is invalid."
 
+# rag-server-reuseport (docs/work/2026-10-05-rag-server-reuseport/): three guards keep the gateway on
+# the rag.server started HERE. `exec` makes $$! the server's own PID (under /bin/bash 3.2 it was the
+# subshell, so the trap orphaned the server on :50051). The port pre-check refuses to start beside a
+# listener already there, since the gateway dials localhost:50051 and would reach that one instead.
+# And the gateway starts only once THIS PID listens on the port (`lsof -a -p` sees our own process
+# even where it cannot see another user's), replacing a fixed `sleep 2` that a server failing to
+# bind after 2 s slipped past.
 dev: redis-check ## Run redis + rag service + gateway locally (FUNCTIONAL — numbers not citable)
 	@command -v redis-stack-server >/dev/null || command -v redis-server >/dev/null \
 	  || { echo "redis missing — make setup"; exit 1; }
@@ -119,11 +126,26 @@ dev: redis-check ## Run redis + rag service + gateway locally (FUNCTIONAL — nu
 	 echo "  │  For a number that reaches the thesis, use: make measure     │"; \
 	 echo "  └─────────────────────────────────────────────────────────────┘"; \
 	 echo "  memory available: $${avail}% (floor 25%; models need ~2.1 GB of 16 GB)"; \
-	 ( cd $(RAG) && $(PY) -m rag.server ) & \
+	 rag_port=$${RAG_GRPC_ADDR:-0.0.0.0:50051}; rag_port=$${rag_port##*:}; \
+	 case "$$rag_port" in ''|*[!0-9]*) \
+	   echo "FAIL — RAG_GRPC_ADDR must end in :<port> (got '$${RAG_GRPC_ADDR}')"; exit 1;; esac; \
+	 held=$$(lsof -t -nP -iTCP:$$rag_port -sTCP:LISTEN 2>/dev/null | sort -u | tr '\n' ' '); \
+	 if [ -n "$$held" ]; then \
+	   echo "FAIL — :$$rag_port is already held by PID $$held(a stale rag.server?). The gateway would"; \
+	   echo "       dial it instead of the server started here. Stop it first."; \
+	   exit 1; \
+	 fi; \
+	 ( cd $(RAG) && exec $(PY) -m rag.server ) & \
 	 rag_pid=$$!; \
 	 trap 'kill $$rag_pid 2>/dev/null' EXIT INT TERM; \
-	 sleep 2; \
-	 kill -0 $$rag_pid 2>/dev/null || { echo "FAIL — rag.server exited on startup"; exit 1; }; \
+	 for i in $$(seq 60); do \
+	   kill -0 $$rag_pid 2>/dev/null || { echo "FAIL — rag.server exited on startup (if it could not bind, see"; \
+	     echo "       lsof -nP -iTCP:$$rag_port -sTCP:LISTEN)"; exit 1; }; \
+	   if lsof -a -p $$rag_pid -nP -iTCP:$$rag_port -sTCP:LISTEN >/dev/null 2>&1; then break; fi; \
+	   [ $$i -lt 60 ] || { echo "FAIL — rag.server not listening on :$$rag_port after 30 s"; exit 1; }; \
+	   sleep 0.5; \
+	 done; \
+	 echo "  rag.server pid $$rag_pid listening on :$$rag_port"; \
 	 cd $(GATEWAY) && RESULTS_DIR=$${RESULTS_DIR:-$(PWD)/experiments/results} \
 	   UI_DIR=$${UI_DIR:-$(PWD)/ui/dist} go run ./cmd/gateway
 

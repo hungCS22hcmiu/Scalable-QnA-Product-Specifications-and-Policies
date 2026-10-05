@@ -1,0 +1,15 @@
+# rag-server-reuseport — checks after the fix, 2026-10-05 (no model loaded)
+
+## (b) the fixed make dev shape, sleep standing in for rag.server, /bin/bash 3.2
+  $! = 9130 (sleep)
+  after the recipe shell exits (trap fired): orphan running? no
+
+## make dev with :50051 already held (nc as the stale listener)
+  maxmemory-policy=noeviction  maxmemory=0
+    OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)
+    memory available: 52% (floor 25%; models need ~2.1 GB of 16 GB)
+  FAIL — :50051 is already held by PID 9140 (a stale rag.server?). The gateway would
+         dial it instead of the server started here. Stop it first.
+  make: *** [dev] Error 1
+    make dev exit=2
+  rag.server started? no   gateway started? no

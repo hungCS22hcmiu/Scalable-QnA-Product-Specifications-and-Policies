@@ -1,0 +1,26 @@
+# make dev start-up checks with a stand-in server (PY=stub; -m site passes through to python3).
+# GATEWAY=/nonexistent-gateway-dir, so no gateway starts and nothing is written to experiments/results.
+# 2026-10-05, no model loaded. A first run without the -m site pass-through was discarded: the
+# Makefile's parse-time $(shell $(PY) -m site --user-base) ran the stub too and confounded timings.
+
+## slow bind (3 s, past the old sleep 2): must wait, then proceed (here: to the failing cd)
+    rag.server pid 11171 listening on :50061
+  /bin/bash: line 0: cd: /nonexistent-gateway-dir: No such file or directory
+  took 4 s; stub left running? no
+
+## server exits without binding: must FAIL
+  FAIL — rag.server exited on startup (if it could not bind, see
+  took 1 s; stub left running? no
+
+## host-only RAG_GRPC_ADDR: must FAIL before starting anything
+  FAIL — RAG_GRPC_ADDR must end in :<port> (got 'localhost')
+  took 0 s; stub left running? no
+
+## port already held: must FAIL at the pre-check, starting nothing
+  FAIL — :50061 is already held by PID 11302 (a stale rag.server?). The gateway would
+  took 0 s; stub left running? no
+
+## server alive but never binds: must FAIL after 30 s
+  FAIL — rag.server not listening on :50061 after 30 s
+  took 33 s; stub left running? no
+

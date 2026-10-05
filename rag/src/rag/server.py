@@ -50,10 +50,24 @@ class RagServicer(rag_pb2_grpc.RagServiceServicer):
         )
 
 
-def serve() -> None:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+def build_server(addr: str) -> tuple[grpc.Server, int]:
+    """The server serve() runs, bound to addr but not started. Returns it with its bound port.
+    Separate from serve() so tests can bind exactly what production binds.
+
+    SO_REUSEPORT is OFF. grpcio turns it on by default, which let a second rag.server bind the
+    address a stale one held, with the gateway's connections split between them silently. Off, the
+    second bind raises RuntimeError. SO_REUSEADDR is untouched, so a restart right after a kill
+    still binds."""
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4), options=[("grpc.so_reuseport", 0)]
+    )
     rag_pb2_grpc.add_RagServiceServicer_to_server(RagServicer(), server)
-    server.add_insecure_port(config.GRPC_ADDR)
+    port = server.add_insecure_port(addr)
+    return server, port
+
+
+def serve() -> None:
+    server, _ = build_server(config.GRPC_ADDR)
     server.start()
     print(f"rag.server listening on {config.GRPC_ADDR}")
     server.wait_for_termination()

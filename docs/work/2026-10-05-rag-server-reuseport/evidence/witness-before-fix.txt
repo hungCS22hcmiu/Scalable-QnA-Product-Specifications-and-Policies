@@ -1,0 +1,17 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+___________________ test_second_server_cannot_share_the_port ___________________
+
+    def test_second_server_cannot_share_the_port():
+        first, port = build_server("127.0.0.1:0")
+        first.start()
+        second = None
+        try:
+>           with pytest.raises(RuntimeError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/test_server_bind.py:20: Failed
+=========================== short test summary info ============================
+FAILED tests/test_server_bind.py::test_second_server_cannot_share_the_port - ...
+1 failed, 1 passed in 1.04s

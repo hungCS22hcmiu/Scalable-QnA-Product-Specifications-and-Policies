@@ -130,10 +130,13 @@ all unblocked.
 
 **Found while closing 1.1, not yet items — each waits on the author's decision:**
 
-- **`rag-server-reuseport`.** `rag/src/rag/server.py:50-52` binds with gRPC's default
-  `SO_REUSEPORT`, so a second server silently shares port 50051 and a run can be answered by a stale
-  instance (six were found on 2026-10-03). It is instrument integrity, so it belongs in Phase 1 as
-  either an item with its own exit clause or a bugfix outside the exit line.
+- ✅ **`rag-server-reuseport`, resolved 2026-10-05** as a bugfix outside the exit line (trail
+  `docs/work/2026-10-05-rag-server-reuseport/`). `rag/src/rag/server.py` bound with gRPC's default
+  `SO_REUSEPORT`, so a second server silently shared port 50051 and a run could be answered by a
+  stale instance (six were found on 2026-10-03). The server now binds with `SO_REUSEPORT` off, so a
+  second bind on the same address raises. **Residual, recorded rather than fixed:** a wildcard and a
+  specific address (`0.0.0.0:P` and `127.0.0.1:P`) can still coexist on macOS. That needs a
+  non-default `RAG_GRPC_ADDR`.
 - **Generation determinism (U8).** The Modelfile sets `temperature 1` and `generate.py` does not
   override it, so the same miss can produce different answers from run to run. It bears on judging
   (5.1) and on reproducibility. It needs an investigation before 1.5 or 5.1 is built on it.
@@ -157,13 +160,16 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 **Found while closing 1.4, not yet items — each waits on the author's decision** (trail
 `docs/work/2026-10-05-carry-chunk-text/`, `approvals.md`):
 
-- **`make dev` may orphan `rag.server`.** Its trap kills `$!`, the PID of the subshell
-  `( cd rag && python3 -m rag.server ) &`, which bash does not reliably replace with Python. The
-  server can outlive the target, still bound to `:50051`, which is a plausible source of the six
-  stale servers of 2026-10-03. Unverified on `make dev` itself; `make seam-check` avoids it with
-  `exec`. It belongs with `rag-server-reuseport`, which should now close **before 2.1's live
-  reproduction and before any Phase 7 run**: a gRPC reconnect on a shared port can move a run
-  between instances, leaving it partly without `texts`.
+- ✅ **`make dev` orphaned `rag.server`, resolved 2026-10-05** with `rag-server-reuseport`.
+  Confirmed under `/bin/bash` 3.2: `$!` was the subshell, so the trap left the server bound to
+  `:50051`. The fix has three parts:
+  - `make dev` now `exec`s the server, so `$!` is the server itself;
+  - it refuses to start if the port is already held;
+  - it starts the gateway only once its own server PID is listening, replacing a `sleep 2` that a
+    late bind failure slipped past.
+
+  2.1's obligation on nil `Texts` stands regardless: the gateway's own connection is still the only
+  check on the gateway's instance.
 - **For 3.1:** the PQA builder must not emit text that redis-py's strict UTF-8 encoder rejects (a
   lone surrogate from a JSON `\ud800` escape); it would fail `make ingest` (PLAUSIBLE; 1.4
   `review.md` N5).
