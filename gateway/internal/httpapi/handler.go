@@ -491,9 +491,24 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		log.Printf("gateway: request_id=%s cache=SHED in_flight=%d queued=%d",
 			requestID, h.Admission.InFlight(), h.Admission.Queued())
 		return
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		// The client left. Not a shed, not an error the gateway caused -- writing a body to a
-		// dead connection would only muddy the counts.
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
+		err != nil && ctx.Err() != nil:
+		// The client left. Under a load generator that is a timeout, and it counts against S2: it
+		// is not client behaviour to exclude. Nothing is written, because a body to a dead
+		// connection would only muddy the counts. A shed is above this case and an upstream error
+		// with a live client is below it.
+		//
+		// The last condition is why a client that left while Answer was in flight lands here:
+		// grpc-go reports a cancelled call as a *status.Error, which errors.Is does not match.
+		// ctx is THIS request's own context (r.Context(), set at the top of Ask). It is read here,
+		// after Do returns, and never inside the Do closure: the closure runs under the leader's
+		// context, and reading that would hand a coalesced follower the leader's cancellation
+		// (F-D). It is also never replaced by the status code, because rag.server can raise
+		// CANCELED and DEADLINE_EXCEEDED itself with the client still connected.
+		//
+		// This relies on the request context being cancelled only by the client. main.go sets no
+		// server timeout and no BaseContext. A future server-side deadline would be filed here as a
+		// client leaving; context.Cause is the tool if that ever stops holding.
 		rec.Cache = cacheAbandoned
 		log.Printf("gateway: request_id=%s abandoned while generating: %v", requestID, err)
 		return

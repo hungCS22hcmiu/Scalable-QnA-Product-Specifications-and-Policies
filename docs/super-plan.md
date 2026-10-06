@@ -155,9 +155,50 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   (global k=1 + τ over `cache.Store.NearestTier2`, kept for it), the static-cache arm and the
   3 ⋈ 4 join script have no item. *Decisions changed by provenance* has no derivation until they
   do, so the owner of F-K's configuration selection should own them before Phase 6.
-- **F-A: most client abandonments are logged `GENERATION_FAILED`.** A cancellation that reaches a
-  gRPC call surfaces as a gRPC status, not `context.Canceled`. Fix it before 1.6 and before any
-  Phase 7 run.
+- ✅ **F-A, resolved 2026-10-05** as a bugfix outside the exit line (trail
+  `docs/work/2026-10-05-fa-abandonment-classification/`; no ADR, no contract change). Most client
+  abandonments were logged `GENERATION_FAILED`: a cancellation that reaches a gRPC call surfaces as a
+  gRPC status, not `context.Canceled`. The outcome switch in `httpapi/handler.go` now also files
+  **`err != nil && ctx.Err() != nil`**, read from the request's own context, as `ABANDONED`. The
+  precedence is `SHED` > this request's client gone ⇒ `ABANDONED` > `GENERATION_FAILED`, and a
+  completed generation is always a `MISS`. **Read `ABANDONED` with the experiment record in that
+  trail's `approvals.md`:**
+  - under a load generator it is a **censored latency observation**, at least the client timeout,
+    and counts against S2. It is **never excluded as client behaviour**;
+  - an upstream hang mostly lands in it (k6's and `httpx`'s timeouts are both 120 s), so
+    `GENERATION_FAILED ≈ 0` does not show the upstream never hung, and `GENERATION_FAILED > 0` does
+    not show an upstream fault while F-D stands;
+  - it is at most k6's status-0 count, and only an **upper bound** on orphaned generations (F-L)
+    until F-H lands.
+- **F-L (new, found by F-A's impact analysis): `rag.server` keeps generating after its RPC is
+  cancelled.** Probed with a stubbed `generate` (no Ollama): the client cancelled at +0.20 s and the
+  stub ran on to +1.50 s. Nothing in `server.py` checks `is_active` or `add_callback`, and
+  `generate.py` blocks on `httpx` for up to 120 s. The gateway therefore releases its one permit
+  while Ollama's one slot is still busy, so the next admitted request **queues inside Ollama**,
+  which is what ADR-003 says admission exists to prevent. Its `t_generate_ms` absorbs the remainder
+  and the admitted-latency bound (1 + q) · S breaks. The F-A review recommends **gating Phase 7
+  (7.1, 7.5) on it, not item 1.6**: an orphan adds no memory (Ollama's footprint is fixed at load,
+  ADR-003), so it cannot move 1.6's CPU/RSS number (PLAUSIBLE). It can be closed by measurement if
+  abandonment during `Answer` is shown to be about zero, since k6's 120 s timeout sits far above
+  (1 + q) · S. Otherwise the fix's shape is known: check `context.is_active()` before generating,
+  and close a per-request streaming `httpx` response on cancel. **The author decides whether to fix
+  it before 1.6.**
+- **F-H, widened to `ABANDONED`: `t_generate_ms` is dropped on `GENERATION_FAILED` and now on
+  `ABANDONED`**, where most generation time spent on failures lands. Copying `generateMS` into the
+  `ABANDONED` case would let a non-null value mean *this request's own `Answer` was attempted* (a few
+  µs: the RPC never left; more: it reached `rag.server`) and so separate the orphan subset. **Recommended
+  as the next bugfix, before item 1.6 reports its `ABANDONED` count.**
+- **F-J / Phase 2 design input: write-back runs on the client's context, as two separate writes**
+  (`store.go:68`, `tier2.go:118`; F-A `review.md` N5). A client leaving between them leaves a Tier-1
+  entry with no Tier-2 record carrying its `t1_key`, which is invariant 2's silent purge miss once C2
+  exists. The window is one Redis round trip. Run write-back on `context.WithoutCancel(ctx)` with a
+  timeout, as the Tier-1 promotion already does.
+- **For item 1.6:**
+  - report the **`ABANDONED` count**, and read it as above;
+  - whether a k6 timeout closes the connection, so that `r.Context()` is cancelled, is proven only for
+    Go's own client (test T7). The first run with a `RUN_ID` settles it;
+  - **P1's manifest should record the gateway SHA**: nothing in §H identifies which side of the F-A
+    commit a log came from, and the `ABANDONED` / `GENERATION_FAILED` split is not comparable across it.
 - **F-F: the eval log closes while shutdown is still draining.** Requests in flight at SIGTERM
   vanish from `requests.jsonl` with `Dropped()` at 0. It is avoided by stopping the load before
   SIGTERM, and the fix is cheap. Fix it before Phase 7.
