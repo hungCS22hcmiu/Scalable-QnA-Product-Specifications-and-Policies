@@ -1,0 +1,53 @@
+{
+  "ollama_ps": "NAME                       ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nnomic-embed-text:latest    0a109f422b47    370 MB    100% GPU     2048       4 minutes from now    \nqwen3.5:2b-q4_K_M          124a03c34777    1.6 GB    100% GPU     8192       4 minutes from now    \n",
+  "vm_stat": {
+    "Pages free": 4355,
+    "Pages active": 178157,
+    "Pages inactive": 177158,
+    "Pages speculative": 726,
+    "Pages throttled": 0,
+    "Pages wired down": 298725,
+    "Pages purgeable": 2,
+    "\"Translation faults\"": 7167877518,
+    "Pages copy-on-write": 307221521,
+    "Pages zero filled": 6799548239,
+    "Pages reactivated": 1960064516,
+    "Pages purged": 222425323,
+    "File-backed pages": 105557,
+    "Anonymous pages": 250484,
+    "Pages stored in compressor": 1744856,
+    "Pages occupied by compressor": 353498,
+    "Decompressions": 1888402113,
+    "Compressions": 2178316727,
+    "Pageins": 168041583,
+    "Pageouts": 3602804,
+    "Swapins": 4706608,
+    "Swapouts": 7226038
+  },
+  "top5_cpu": [
+    " 19.6 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/152.0.7977.77/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper",
+    " 13.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer",
+    "  7.7 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/152.0.7977.77/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)",
+    "  7.5 /Applications/Zalo.app/Contents/Frameworks/Zalo Helper (Renderer).app/Contents/MacOS/Zalo Helper (Renderer)",
+    "  2.3 /System/Library/Frameworks/VideoToolbox.framework/Versions/A/XPCServices/VTDecoderXPCService.xpc/Contents/MacOS/VTDecoderXPCService"
+  ],
+  "memory_pressure": [
+    "Pages wired down: 298725 ",
+    "",
+    "Compressor Stats:",
+    "Pages used by compressor: 353497 ",
+    "Pages decompressed: 1888402136 ",
+    "Pages compressed: 2178316727 ",
+    "",
+    "File I/O:",
+    "Pageins: 168041589 ",
+    "Pageouts: 3602804 ",
+    "",
+    "System-wide memory free percentage: 35%"
+  ],
+  "sysctl": {
+    "vm_pressure_level": 2,
+    "memstatus_level": 35,
+    "swap_used_mb": 9125.38
+  }
+}

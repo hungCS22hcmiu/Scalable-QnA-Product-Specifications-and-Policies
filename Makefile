@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui seam-check
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui seam-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -350,8 +350,8 @@ load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@echo "  ┌─────────────────────────────────────────────────────────────┐"
 	@echo "  │  SHAKEDOWN ONLY. The load generator is CO-HOSTED with the    │"
 	@echo "  │  system under test, so these numbers are NOT citable.        │"
-	@echo "  │  A real run drives :8080 from a second machine:    │"
-	@echo "  │    see experiments/k6/README.md                              │"
+	@echo "  │  Co-hosted is the supported regime (ADR-001): a thesis       │"
+	@echo "  │  figure is a bound, never a ceiling. experiments/k6/README.md │"
 	@echo "  └─────────────────────────────────────────────────────────────┘"
 	k6 run -e RATE_RPS=2 -e VUS=4 -e DURATION=20s experiments/k6/ask.js
 
@@ -378,13 +378,42 @@ mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@lsof -ti tcp:8080 >/dev/null 2>&1 || { echo "FAIL -- no gateway on :8080 (make dev)"; exit 1; }
 	@echo "  ┌─────────────────────────────────────────────────────────────┐"
 	@echo "  │  SHAKEDOWN ONLY -- CO-HOSTED generator, numbers NOT citable. │"
-	@echo "  │  mu_hit decides whether S1's wording stands, so    │"
-	@echo "  │  the RECORDED probe must run from a second machine:          │"
-	@echo "  │    k6 run -e GATEWAY_URL=http://<sut-ip>:8080 \\              │"
-	@echo "  │           experiments/k6/mu_hit.js                           │"
+	@echo "  │  Co-hosted is the supported regime (ADR-001): a recorded     │"
+	@echo "  │  mu_hit is a LOWER BOUND, never a ceiling (item 7.2).        │"
+	@echo "  │  See experiments/k6/README.md.                               │"
 	@echo "  └─────────────────────────────────────────────────────────────┘"
 	k6 run -e MODE=$${MODE:-tier1} -e RATE_RPS=$${RATE_RPS:-60} -e VUS=$${VUS:-20} \
 	  -e DURATION=$${DURATION:-20s} -e PROBE_SIZE=$${PROBE_SIZE:-5} experiments/k6/mu_hit.js
+
+# Item 1.6: what a co-hosted k6 costs the machine at the rates the sweep offers. EXPLORATORY: memory
+# pressure is recorded, never gated, so the figure is indicative (ADR-001), not a measurement. Needs the
+# stack up (`make dev`, ideally with RUN_ID and an absolute RESULTS_DIR outside the repo) and both models
+# loadable. The output directory is required and is never overwritten.
+#
+#   make footprint OUT=docs/work/<task>/evidence/footprint            # 2,8,16,32 req/s x 3 reps, 60 s, + mixed row
+#   make footprint OUT=... RATES=2,8 DURATION=15 REPS=1 MIXED=0       # a short shakedown (nothing from it is kept)
+#   make footprint OUT=... RATES= MIXED=1                              # the mixed row alone
+#
+# IT DELETES CACHE KEYS. At the start of the run, and before every mixed repetition, it deletes `t1:` `t2:` and
+# `lru:` keys from the Redis the SUT uses (never `corpus:`, and it ABORTS rather than delete the dependency
+# region `dep:` `entry:`), because the mixed workload is seeded and a second repetition would otherwise find the
+# whole workload already cached. Do not run it against a stack whose cache has been deliberately populated
+# (item 6.3's static-cache arm). NO_FLUSH=1 skips the deletion and is refused together with MIXED.
+# Exit status 4 means the run finished but some rows were EXCLUDED from the table: read 'Rows left out'.
+RATES ?= 2,8,16,32
+DURATION ?= 60
+REPS ?= 3
+MIXED ?= 1
+footprint: ## Item 1.6: k6's CPU/RSS at the sweep's rates, co-hosted (EXPLORATORY; DELETES t1:/t2:/lru: cache keys). Needs `make dev`
+	@command -v k6 >/dev/null || { echo "FAIL -- k6 not installed"; exit 1; }
+	@test -n "$(OUT)" || { echo "FAIL -- OUT=<directory> is required (never overwritten)"; exit 1; }
+	@echo "  ┌─────────────────────────────────────────────────────────────┐"
+	@echo "  │  EXPLORATORY. Co-hosted generator, pressure recorded not     │"
+	@echo "  │  gated: the figure is INDICATIVE (ADR-001), never citable.   │"
+	@echo "  │  DELETES the t1:/t2:/lru: cache keys (never corpus:) first.  │"
+	@echo "  └─────────────────────────────────────────────────────────────┘"
+	$(PY) experiments/scripts/loadgen_footprint.py run --rates "$(RATES)" --duration $(DURATION) --reps $(REPS) \
+	  $(if $(filter-out 0 no false,$(MIXED)),--mixed,) $(if $(NO_FLUSH),--no-flush,) --llm-blob $(LLM_BLOB) --out $(OUT)
 
 ui: ## Build the demo UI bundle. Node is BUILD-time only.
 	@command -v npm >/dev/null || { echo "SKIPPED -- npm not installed"; exit 0; }

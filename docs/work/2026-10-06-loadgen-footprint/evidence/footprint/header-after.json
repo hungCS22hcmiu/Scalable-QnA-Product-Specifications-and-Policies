@@ -1,0 +1,53 @@
+{
+  "ollama_ps": "NAME                       ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nnomic-embed-text:latest    0a109f422b47    370 MB    100% GPU     2048       4 minutes from now    \nqwen3.5:2b-q4_K_M          124a03c34777    1.6 GB    100% GPU     8192       4 minutes from now    \n",
+  "vm_stat": {
+    "Pages free": 5140,
+    "Pages active": 209390,
+    "Pages inactive": 208495,
+    "Pages speculative": 390,
+    "Pages throttled": 0,
+    "Pages wired down": 140245,
+    "Pages purgeable": 14,
+    "\"Translation faults\"": 7160956003,
+    "Pages copy-on-write": 306921447,
+    "Pages zero filled": 6797426777,
+    "Pages reactivated": 1957803682,
+    "Pages purged": 222210968,
+    "File-backed pages": 123952,
+    "Anonymous pages": 294323,
+    "Pages stored in compressor": 1766482,
+    "Pages occupied by compressor": 448931,
+    "Decompressions": 1885631557,
+    "Compressions": 2175229296,
+    "Pageins": 167811294,
+    "Pageouts": 3600399,
+    "Swapins": 4693357,
+    "Swapouts": 7160010
+  },
+  "top5_cpu": [
+    "  6.8 /Applications/Zalo.app/Contents/Frameworks/Zalo Helper (Renderer).app/Contents/MacOS/Zalo Helper (Renderer)",
+    "  1.6 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/152.0.7977.77/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)",
+    "  1.5 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/152.0.7977.77/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)",
+    "  1.5 /Library/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+    "  1.2 claude"
+  ],
+  "memory_pressure": [
+    "Pages wired down: 140245 ",
+    "",
+    "Compressor Stats:",
+    "Pages used by compressor: 448931 ",
+    "Pages decompressed: 1885631566 ",
+    "Pages compressed: 2175229296 ",
+    "",
+    "File I/O:",
+    "Pageins: 167811304 ",
+    "Pageouts: 3600399 ",
+    "",
+    "System-wide memory free percentage: 41%"
+  ],
+  "sysctl": {
+    "vm_pressure_level": 2,
+    "memstatus_level": 41,
+    "swap_used_mb": 8293.69
+  }
+}

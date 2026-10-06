@@ -1,0 +1,112 @@
+{
+  "tag": "allhit-r2-rep2",
+  "kind": "allhit",
+  "rate_offered": 2,
+  "rep": 2,
+  "duration_s": 60,
+  "vus": 40,
+  "csv": "samples-allhit-r2-rep2.csv",
+  "k6": {
+    "iterations": 121,
+    "dropped": 0,
+    "vus_max": 40,
+    "error_rate": 0.0,
+    "shed": 0,
+    "tier1": 121,
+    "tier2": 0,
+    "miss": 0,
+    "achieved_rate": 2.0166666666666666
+  },
+  "exit_status": 0,
+  "rusage_cpu_s": 0.745822,
+  "maxrss_bytes": 53673984,
+  "wall_s": 61.00525720906444,
+  "discarded_ticks": 0,
+  "flags": [],
+  "sampler_overhead_pct": 2.9018974445647596,
+  "k6_footprint_probes": [
+    {
+      "t": 10.0,
+      "k6_phys_footprint_mb": 21.0
+    },
+    {
+      "t": 50.0,
+      "k6_phys_footprint_mb": 24.0
+    }
+  ],
+  "sut_footprint_mb_before": {
+    "gateway": 13.0,
+    "rag_server": 131.0,
+    "redis": 11.0,
+    "ollama_serve": 29.0,
+    "llm_runner": 3234.0,
+    "embed_runner": 43.0
+  },
+  "sut_footprint_mb_after": {
+    "gateway": 14.0,
+    "rag_server": 131.0,
+    "redis": 11.0,
+    "ollama_serve": 29.0,
+    "llm_runner": 3234.0,
+    "embed_runner": 41.0
+  },
+  "cache_keys_before_flush": null,
+  "vm_stat_before": {
+    "Pages free": 4799,
+    "Pages active": 175272,
+    "Pages inactive": 173353,
+    "Pages speculative": 1512,
+    "Pages throttled": 0,
+    "Pages wired down": 315175,
+    "Pages purgeable": 2,
+    "\"Translation faults\"": 7153733978,
+    "Pages copy-on-write": 306451550,
+    "Pages zero filled": 6795292764,
+    "Pages reactivated": 1955910952,
+    "Pages purged": 221899784,
+    "File-backed pages": 121664,
+    "Anonymous pages": 228473,
+    "Pages stored in compressor": 1640472,
+    "Pages occupied by compressor": 342559,
+    "Decompressions": 1883163785,
+    "Compressions": 2172380337,
+    "Pageins": 167489089,
+    "Pageouts": 3597021,
+    "Swapins": 4669580,
+    "Swapouts": 7141470
+  },
+  "vm_stat_after": {
+    "Pages free": 7212,
+    "Pages active": 200209,
+    "Pages inactive": 194492,
+    "Pages speculative": 4874,
+    "Pages throttled": 0,
+    "Pages wired down": 286490,
+    "Pages purgeable": 2826,
+    "\"Translation faults\"": 7154129468,
+    "Pages copy-on-write": 306485485,
+    "Pages zero filled": 6795418029,
+    "Pages reactivated": 1955962281,
+    "Pages purged": 221924034,
+    "File-backed pages": 125292,
+    "Anonymous pages": 274283,
+    "Pages stored in compressor": 1606056,
+    "Pages occupied by compressor": 319380,
+    "Decompressions": 1883294444,
+    "Compressions": 2172490842,
+    "Pageins": 167499932,
+    "Pageouts": 3597119,
+    "Swapins": 4669748,
+    "Swapouts": 7141470
+  },
+  "ollama_ps_before": "NAME                       ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nnomic-embed-text:latest    0a109f422b47    370 MB    100% GPU     2048       4 minutes from now    \nqwen3.5:2b-q4_K_M          124a03c34777    1.6 GB    100% GPU     8192       4 minutes from now    \n",
+  "ollama_ps_after": "NAME                       ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nnomic-embed-text:latest    0a109f422b47    370 MB    100% GPU     2048       3 minutes from now    \nqwen3.5:2b-q4_K_M          124a03c34777    1.6 GB    100% GPU     8192       3 minutes from now    \n",
+  "sut_pids": {
+    "gateway": 54039,
+    "rag_server": 53997,
+    "redis": 1409,
+    "ollama_serve": 39478,
+    "llm_runner": 54223,
+    "embed_runner": 54200
+  }
+}

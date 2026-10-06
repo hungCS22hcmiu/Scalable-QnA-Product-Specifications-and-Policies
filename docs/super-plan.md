@@ -115,10 +115,13 @@ valve, not these numbers.
 
 *Nothing measured before this closes is evidence of anything.* ~25 h.
 
-**Progress, 2026-10-06:** 5 of 6 exit clauses met: the `env-check` clause by item 1.1, the
+**Progress, 2026-10-07:** 6 of 6 exit clauses met: the `env-check` clause by item 1.1, the
 `httpapi` clause by item 1.2, the no-retired-branch clause by item 1.3, the `texts` alignment
-clause by item 1.4, and the answer-recoverable-from-`raw/` clause by item 1.5. Only 1.6 remains, and
-it is unblocked (it needs green memory pressure; the machine read level 2 on 2026-10-06).
+clause by item 1.4, the answer-recoverable-from-`raw/` clause by item 1.5, and the load-generator
+footprint clause by item 1.6 (ADR-001). **Phase 1's exit criterion is met**, to be re-run by hand when the
+phase is closed. Item 1.6 did **not** need green memory pressure: it was taken under the author's
+2026-10-06 decision that this is development, not a benchmark, so its footprint is **indicative** (the
+sysctl read 2 throughout, swap was in use), and ADR-001 says so.
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
@@ -127,7 +130,7 @@ it is unblocked (it needs green memory pressure; the machine read level 2 on 202
 | 1.3 | **Remove the retired cascade branch.** Delete the unfiltered cascade phase, `tau_high` / `REUSE_TAU_HIGH`, and `similarity_only_decision`. Correct the stale pinned default in `rule_test.go` (claims `1.0`; ships `math.Inf(1)`) | C1, C3 | retiring the unfiltered phase | ✅ **Done 2026-10-05** — ADR-004 (`interfaces.md` v0.10), trail `docs/work/2026-10-05-retire-unfiltered-phase/` | The cascade issues one scoped search; `grep -r tau_high` finds only history; §H no longer carries the retired field |
 | 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | ✅ **Done 2026-10-05** — no ADR (no frozen value or contract changed), trail `docs/work/2026-10-05-carry-chunk-text/`. Re-run `make seam-check` after any retrieval or LlamaIndex change: `make verify` never runs the live path | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
 | 1.5 | **Answer-text storage.** §H stores `answer_sha256`, never the text, and judging runs offline with the generator unloaded. Recovering text from a bounded LRU afterwards is unsound. Content-addressed `raw/answers/{answer_sha256}.txt` | C3 | needs a numbered decision — it changes §H, which is frozen | ✅ **Done 2026-10-06** — ADR-005 (`interfaces.md` v0.11), trail `docs/work/2026-10-06-answer-text-storage/` | A run's answers are reconstructable from `raw/` alone, with the cache flushed |
-| 1.6 | **Characterise the load generator's footprint** and **record the co-hosted-measurement decision** as the first entry in `decisions.md` (see "Measuring without a second machine") | S1, S2 | measurement validity | now | k6's CPU and RSS at the sweep's actual rates are recorded, with the SUT's pressure zone alongside, and the ADR states what is citable co-hosted and what is not |
+| 1.6 | **Characterise the load generator's footprint** and **record the co-hosted-measurement decision** as the first entry in `decisions.md` (see "Measuring without a second machine") | S1, S2 | measurement validity | ✅ **Done 2026-10-07** — ADR-001, trail `docs/work/2026-10-06-loadgen-footprint/` (k6 at 2, 8, 16, 32 req/s plus a mixed row: 1.0 → 4.8 % of one core, 28 MB peak footprint; indicative; the sweep's own grid is 7.1's, so these bracket it rather than measure it; the Done-when's wording is **not amended**) | k6's CPU and RSS at the sweep's actual rates are recorded, with the SUT's pressure zone alongside, and the ADR states what is citable co-hosted and what is not |
 
 **Found while closing 1.1, not yet items — each waits on the author's decision:**
 
@@ -214,6 +217,13 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
     Go's own client (test T7). The first run with a `RUN_ID` settles it;
   - **P1's manifest should record the gateway SHA**: nothing in §H identifies which side of the F-A
     commit a log came from, and the `ABANDONED` / `GENERATION_FAILED` split is not comparable across it.
+  - **Settled when 1.6 closed (2026-10-07):** the footprint runs were taken at HEAD `17bf221`, after the F-H
+    commit, and each `header.json` records the SHA and a `gateway`/`rag`-only dirty flag, which is a
+    precedent for P1. `ABANDONED` was **not observed** (k6's `error_rate` was 0 in every kept row) but is
+    **vacuous** for the all-hit rows and **not settled** for the mixed ones. **Whether a k6 timeout closes the
+    connection is still not settled** (no k6 timeout occurred; its limit is 120 s). The ADR-006 1 ms
+    threshold is still ⟦PENDING⟧. **F-L was not fixed before 1.6** (the author's decision) and **still gates
+    Phase 7** (7.1, 7.5).
 - **F-F: the eval log closes while shutdown is still draining.** Requests in flight at SIGTERM
   vanish from `requests.jsonl` with `Dropped()` at 0. It is avoided by stopping the load before
   SIGTERM, and the fix is cheap. Fix it before Phase 7. *The mechanism, sharpened by 1.5's review:*
@@ -294,6 +304,42 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   lone surrogate from a JSON `\ud800` escape); it would fail `make ingest` (PLAUSIBLE; 1.4
   `review.md` N5).
 
+**Found while closing 1.6, not yet items — each waits on the author's decision** (trail
+`docs/work/2026-10-06-loadgen-footprint/`, `approvals.md`, `evidence/`):
+
+- **The memory-pressure sensor's encoding.** `make measure` (`Makefile:95`) and `CLAUDE.md` treat
+  `kern.memorystatus_vm_pressure_level == 0` as green. The sysctl read **1 or 2 in every sample of the
+  recorded runs and never 0**, while `memory_pressure` reported 37 – 47 % free at the start. If XNU returns
+  1 / 2 / 4 (normal / warn / critical), the gate can never pass and Phase 7 is blocked, and `CLAUDE.md`'s
+  "`0` = green" is wrong; if `0` is right, the machine was never green. **Unverified.** The cheap check is
+  to read the sysctl while Activity Monitor's pressure graph is green. **Nothing was edited.**
+- **What Phase 7 inherits from ADR-001:** every co-hosted p95 is reported with k6's concurrent CPU from the
+  same run; μ_gen for `h*` is measured with a sequential client and **no** load generator (⟦PENDING: the
+  author confirms for 7.5⟧); the interference method (a matched-burner test, or that no-generator
+  measurement) is **7.1's to design**, because a "with and without k6" comparison is not runnable; and
+  `mu_hit.js`'s verdict line (`mu_hit ~= X`) is **7.2's** to fix. **The sampler's own cost (2.3 – 2.75 % of a core at 1 Hz) is the same
+  order as k6's below about 16 req/s**, so Phase 7 should state it, lower the frequency, or replace the
+  `ps`/`sysctl` calls (`libproc` removes the exec cost but reports Mach ticks on Apple Silicon: a silent
+  ~41.7× error).
+- **`make footprint` deletes cache keys** (`t1:` `t2:` `lru:`, never `corpus:`) at the start of a run and before
+  each mixed repetition, and **refuses to run while `dep:`/`entry:` exist** (C2's dependency region has one
+  writer). The Makefile banner says so. **Beyond what decision 9 covered: the author's confirmation is
+  pending** (`approvals.md`). Item 6.3's pre-populated static-cache arm must not meet it.
+- **`ollama ps` is not a residency check.** The LLM runner's resident set was **13–19 MiB in 8 of the 12
+  all-hit rows** while `ollama ps` listed the model as loaded (weights compressed or swapped out), and
+  286–968 MiB in the mixed rows. A later run that needs a resident SUT should gate on the runner's RSS.
+- **Stale "lower bound on `h*`" prose** (see the pointer under "Measuring without a second machine"):
+  `CLAUDE.md:162-167`, `Final_Proposal.md` §7 `:345` and §9.4 `:460`, plus this file's Phase 7 exit line,
+  item 7.2 and that section. A Phase 7 session that reads only `CLAUDE.md` would report `h*` from a co-hosted
+  μ_gen as a conservative bound. `CLAUDE.md` and `Final_Proposal.md` wait for the author.
+- **`interfaces.md:164`** ("the eval also records off-box end-to-end separately") records a **lost
+  measurement**: co-hosted p95 is loopback latency and excludes the network. Not edited (a v0.13 bump);
+  ADR-001 records it.
+- **Workflow:** `make lint` prints "ruff SKIPPED" when `ruff` is not on `PATH` (it lands in
+  `~/Library/Python/3.13/bin`), so a bare `make verify` can pass **without linting**. The two new 1.6 files
+  had 19 ruff findings that it would not have shown. And `make check` still cannot fail (every grep ends
+  `|| echo clean`). Neither is fixed.
+
 ### Phase 2 — The support gate
 
 **Exit:** the gate refuses the measured warranty case and admits the measured paraphrase · every Tier-2 refusal carries a cause code · both arms are independently switchable and both are recorded per request · the decisive-similarity regression still reproduces.
@@ -365,11 +411,13 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 
 **Exit:** Headline A exists with every contributing run in green pressure · `h*` is computed from both measured service rates and shown to lie outside the reachable range **at the lower bound** · every figure regenerates from `raw/` · every co-hosted number carries its interference measurement.
 
+> **Read with ADR-001:** "at the lower bound" holds for the μ_hit leg only; μ_gen for `h*` is measured with no load generator, and every co-hosted p95 carries k6's concurrent CPU.
+
 *Run under the co-hosted régime described below. Nothing here is scheduled as if a second machine will appear.* ~30 h.
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 7.1 | **Redundancy × load sweep**, co-hosted. Three Zipf skews, cache-on against cache-off, ≥3 repetitions per point, pressure sampled at ≥1 Hz | S1, S2 | measurement validity as amended, capacity ratio | 1.6, 6.2 | Curves exist at every point and the **hit-rate spread across the three skews is non-zero** — a flat spread means capacity was mis-derived, not that the cache does not work |
+| 7.1 | **Redundancy × load sweep**, co-hosted. Three Zipf skews, cache-on against cache-off, ≥3 repetitions per point, pressure sampled at ≥1 Hz | S1, S2 | measurement validity as amended, capacity ratio | 1.6 ✅, 6.2 | Curves exist at every point and the **hit-rate spread across the three skews is non-zero** — a flat spread means capacity was mis-derived, not that the cache does not work |
 | 7.2 | **μ_hit in both modes, reported as a lower bound.** Tier-1 and Tier-2 are different ceilings and the tier mix is itself a function of redundancy, so the second term of λ_max is evaluated **per sweep point**, never once from an average. `nomic-embed-text` also serves one slot (resolve-f1, U7), so the embedding round-trip may be what bounds Tier-2 μ_hit | S1 | capacity ratio, `interfaces.md` §F | 7.1 | Both figures recorded with the co-hosting bias direction stated; `h*` at the lower bound compared against the reachable range of `h` |
 | 7.3 | **Measure the Tier-1 promotion effect on tier mix** — a built, unmeasured throughput lever, and the cheapest remaining way to raise μ_hit | S1 | — needs no new decision; the code shipped 2026-09-10 | 7.1 | The tier mix with promotion on and off is reported at matched workload |
 | 7.4 | **Invalidation under load**, fast-path p99 and reader stall while purges fire | C2, S4 | invalidation under load | 4.2, 7.1 | The read fast path does not stall behind an invalidation, or the stall is measured and reported |
@@ -390,6 +438,14 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 ---
 
 ## Measuring without a second machine
+
+> **Amended by ADR-001 (2026-10-07), which recorded the decision this section asked for.** The lower-bound
+> argument below holds **for the μ_hit leg only**. `h*` also falls as μ_gen rises, so a μ_gen measured
+> co-hosted is anti-conservative; item 7.5 measures it with a sequential client and **no** load generator
+> (⟦PENDING: the author confirms⟧). Co-hosted p95 is **not a bound**, and the 1.6 footprint is CPU share, **not
+> an interference measurement**. Read every "lower bound on `h*`" in this file (Phase 7's exit, item 7.2, this
+> section), in `CLAUDE.md` (`:162-167`) and in `Final_Proposal.md` (§7 `:345`, §9.4 `:460`) through ADR-001's
+> per-quantity table. Those other files are unedited.
 
 Confirmed with the author on **2026-09-21: no second machine exists and none is dated.** The
 original validity rule required off-box load generation, and the risk register's own mitigation is

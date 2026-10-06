@@ -1,11 +1,11 @@
 // k6 load scenario for POST /ask.
 //
-// ⚠️ RUN THIS OFF-BOX. the off-box measurement rule and proposal §7: the load generator must not be co-hosted with the
-// system under test. On a 16 GB machine whose thesis is that generation is memory-bound, a k6
-// process on the same host competes for the envelope it is measuring, and a run taken that way is
-// invalid rather than merely noisy.
+// CO-HOSTED, per decisions.md ADR-001: no second machine exists. A k6 process on the same host takes CPU from
+// the system under test, so a figure from here is a bound or an indicative reading, never a ceiling, and a p95
+// is reported only with k6's own concurrent CPU from the same run (`make footprint` wraps this script under the
+// sampler). The memory-pressure rule below (a run that leaves green is discarded) is unchanged.
 //
-//   k6 run -e GATEWAY_URL=http://<sut-ip>:8080 -e WORKLOAD=workload.json experiments/k6/ask.js
+//   k6 run -e GATEWAY_URL=http://localhost:8080 -e WORKLOAD=workload.json experiments/k6/ask.js
 //
 // What this script is careful about, in order of how badly getting it wrong would hurt:
 //

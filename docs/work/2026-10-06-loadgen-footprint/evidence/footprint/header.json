@@ -1,0 +1,106 @@
+{
+  "started": "2026-10-06T22:34:30+0700",
+  "git_sha": "17bf221dd6868e430abfedd964a6fc2afd2b42de",
+  "tree_dirty": true,
+  "sut_dirty": false,
+  "k6_version": "k6 v1.7.1 (commit/devel, go1.26.1, darwin/arm64)",
+  "machine": {
+    "ncpu": 8,
+    "perf_cores": 4,
+    "eff_cores": 4
+  },
+  "ollama_keep_alive": "5m0s",
+  "args": {
+    "cmd": "run",
+    "rates": "2,8,16,32",
+    "duration": 60,
+    "reps": 3,
+    "vus": 40,
+    "mixed": true,
+    "mixed_rate": 8,
+    "variants": 300,
+    "seed": 1,
+    "interval": 1.0,
+    "cooldown": 10.0,
+    "sut_every": 5,
+    "gateway_url": "http://localhost:8080",
+    "gateway_port": 8080,
+    "rag_port": 50051,
+    "redis_port": 6379,
+    "ollama_port": 11434,
+    "llm_blob": "sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520",
+    "llm_tag": "qwen3.5:2b-q4_K_M",
+    "embed_tag": "nomic-embed-text",
+    "num_ctx": 8192,
+    "out": "docs/work/2026-10-06-loadgen-footprint/evidence/footprint"
+  },
+  "sut_pids": {
+    "gateway": 54039,
+    "rag_server": 53997,
+    "redis": 1409,
+    "ollama_serve": 39478,
+    "llm_runner": 54223,
+    "embed_runner": 54200
+  },
+  "before": {
+    "ollama_ps": "NAME                       ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nqwen3.5:2b-q4_K_M          124a03c34777    1.6 GB    100% GPU     8192       4 minutes from now    \nnomic-embed-text:latest    0a109f422b47    370 MB    100% GPU     2048       4 minutes from now    \n",
+    "vm_stat": {
+      "Pages free": 4625,
+      "Pages active": 190208,
+      "Pages inactive": 180279,
+      "Pages speculative": 8892,
+      "Pages throttled": 0,
+      "Pages wired down": 302529,
+      "Pages purgeable": 2,
+      "\"Translation faults\"": 7152936961,
+      "Pages copy-on-write": 306393981,
+      "Pages zero filled": 6795084756,
+      "Pages reactivated": 1955700360,
+      "Pages purged": 221871846,
+      "File-backed pages": 107828,
+      "Anonymous pages": 271551,
+      "Pages stored in compressor": 1641785,
+      "Pages occupied by compressor": 326123,
+      "Decompressions": 1882930313,
+      "Compressions": 2172100676,
+      "Pageins": 167432570,
+      "Pageouts": 3596782,
+      "Swapins": 4669136,
+      "Swapouts": 7141470
+    },
+    "top5_cpu": [
+      " 46.3 /System/Library/Frameworks/Translation.framework/translationd",
+      " 38.0 /System/Library/PrivateFrameworks/ModelCatalogRuntime.framework/Versions/A/modelcatalogd",
+      " 29.5 /usr/libexec/mobileassetd",
+      " 17.1 /System/Library/PrivateFrameworks/TelephonyUtilities.framework/callservicesd",
+      " 10.5 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds_stores"
+    ],
+    "memory_pressure": [
+      "Pages wired down: 302529 ",
+      "",
+      "Compressor Stats:",
+      "Pages used by compressor: 326110 ",
+      "Pages decompressed: 1882930361 ",
+      "Pages compressed: 2172100676 ",
+      "",
+      "File I/O:",
+      "Pageins: 167432584 ",
+      "Pageouts: 3596782 ",
+      "",
+      "System-wide memory free percentage: 37%"
+    ],
+    "sysctl": {
+      "vm_pressure_level": 2,
+      "memstatus_level": 37,
+      "swap_used_mb": 8396.0
+    }
+  },
+  "cache_keys_before_start_flush": {
+    "t1:": 0,
+    "t2:": 0,
+    "dep:": 0,
+    "entry:": 0,
+    "lru:": 0,
+    "corpus:": 44
+  }
+}
