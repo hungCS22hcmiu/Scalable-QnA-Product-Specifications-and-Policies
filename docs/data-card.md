@@ -26,6 +26,7 @@
 | Paraphrase stress set | mined + machine-generated | derivative — see below | `TODO(W8)` |
 | Update set (~20 edits) | self-authored edits | author-owned | `TODO(W8)` |
 | Judged evaluation set | auto-generated + ~100 human-verified | author-owned | thesis W14 |
+| Run outputs: `experiments/results/*/raw/` (evaluation log, served answer text) | the gateway, over the artifacts above | **derivative of Amazon-PQA** (verbatim question text; LLM answers grounded on PQA chunks) → **gitignored, never published**; `manifest.yaml` may be tracked (ADR-005) | per run |
 
 ---
 

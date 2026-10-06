@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.10 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-05
+**Status:** Draft v0.11 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-06
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -54,6 +54,18 @@
 > extension field `reuse_rule` is now named in §H, because *% reaching the provenance check* is
 > computed from it. **Never mix logs from either side of the 1.3 commit in one figure.**
 
+> **v0.11 changes.** §H gains the **answer store**: the text behind every non-empty `answer_sha256`
+> is written to `raw/answers/{answer_sha256}.txt` (**ADR-005**, `super-plan.md` item 1.5). Before this
+> the log held a hash and the text lived only in the bounded LRU cache, so by the time the judge ran
+> offline most `answer_sha256` values named nothing. **No JSON field is added, removed or renamed, and
+> no wire shape changes**: §A–§G and the `.proto` are untouched. Two things change meaning without
+> changing shape. **(1) A run can now be INCOMPLETE for a new reason** (a hash a record names has no
+> file, a line failed to encode or write, the log failed to close, or an answer and its hash disagreed), on top
+> of dropped records. **(2) `answer_sha256` is no longer described as "the judge dedupe key"**: a
+> Tier-2 hit serves another query's answer byte for byte, so a bare answer hash would merge a true hit
+> and a false hit on the same answer into one verdict (see the §H warning). **A log written before the
+> 1.5 commit has no answer store and cannot be judged.**
+
 > **v0.8 changes.** `RetrieveRequest` and `AnswerRequest` gain `product_id` (§B). When
 > set, retrieval runs its normal unscoped search first, then drops any chunk belonging to a
 > *different* product and, if `product_id`'s own chunk did not naturally rank, splices in exactly
@@ -93,7 +105,7 @@ Client ──(A) HTTP POST /ask──▶ Go Gateway
                                                                      │
 Corpus edit ──(E) invalidation event──▶ Invalidator ──▶ (D/E) Redis purge
 
-Every request also appends one (H) evaluation-log record to results/{run_id}/raw/
+Every request also appends one (H) evaluation-log record to results/{run_id}/raw/, and every answer it serves is stored under results/{run_id}/raw/answers/
 ```
 
 ---
@@ -441,6 +453,67 @@ classify(query) -> { "route": "cacheable" | "bypass", "reason": "<label>" }
 
 Four evaluation metrics are **not computable without this record**: *decisions changed by provenance*, *% entering the cascade band*, *false hits by cause*, and the hit-path latency decomposition.
 
+> **The answer store (v0.11, ADR-005).** The gateway keeps the **text** of every answer it serves,
+> content-addressed, beside the log:
+>
+> ```
+> results/{run_id}/raw/
+> ├── requests.jsonl                 one JSONL record per request
+> └── answers/
+>     └── {answer_sha256}.txt        the answer exactly as served
+> ```
+>
+> 1. **Name and bytes.** `{answer_sha256}` is the record's field, lowercase hex, 64 characters, plus
+>    `.txt`. The file holds the **UTF-8 bytes of the served answer exactly**: no newline added, no
+>    normalisation. The file's SHA-256 is its name. Readers match `^[0-9a-f]{64}\.txt$`, **verify the
+>    hash when they read**, and ignore anything else. A `.answer-*.tmp` file is residue of a crash or of
+>    a failed temp-file removal; readers ignore it.
+> 2. **One file per distinct hash,** created once and never rewritten.
+> 3. **Every path that serves text writes it:** TIER1_HIT, TIER2_HIT, and MISS, including a MISS whose
+>    generation completed though the client left, and a coalesced follower. (An ABANDONED request,
+>    rule 4, is one whose generation did not complete.) **A hit writes too**: the entry may predate the run, so
+>    a hit can be the first time this run sees its text.
+> 4. **No text, no file.** A record that served no answer (the log-only `cache` values SHED,
+>    ABANDONED and GENERATION_FAILED, which §A's enum does not carry; or a Tier-1 lookup error) has `answer_sha256` equal to `""` and creates no file. `""` is **not** null.
+>    An **empty answer is a real answer**: it hashes to
+>    `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` and is stored as an empty file.
+>    "Has an answer" means `answer_sha256 != ""`.
+> 5. **The invariant. In a run that is not INCOMPLETE,** every record whose `answer_sha256` is non-empty
+>    names a file in `answers/` whose bytes hash to that name, and **`answers/` holds no
+>    `{answer_sha256}.txt` that no record names**. **Order:** the writer publishes the file before it
+>    writes the line that names it (one writer, the file and then the line; nothing is fsynced, and on
+>    macOS an `fsync` is not durable without `F_FULLFSYNC`). That is a property of the writer, **not
+>    something a reader can check from `raw/`**, and it holds for a hash's first successful write: if
+>    the first write failed and a later record with the same hash retried successfully, the first
+>    record's line precedes its file. Admissibility turns only on the file existing at the end.
+> 6. **INCOMPLETE.** A run is INCOMPLETE, and **not admissible**, if any of these holds when it ends:
+>    records were dropped by a full buffer; a record's line failed to encode or write; a hash a record names has
+>    **no file** at that moment (a write that failed and was not retried successfully); a record's
+>    answer text did **not** hash to its `answer_sha256` (a call site set one without the other: a
+>    defect, checked at a hash's first sighting and never cleared by a later retry); or the log failed to close cleanly. The gateway reports
+>    this by **exit status and log at shutdown**. **Until the run manifest exists (`decisions.md`
+>    P1) the verdict is not recorded in `raw/`**, so *the answers are recoverable from `raw/` alone*
+>    holds, and *the run's admissibility is decidable from `raw/` alone* does not.
+> 7. **What it proves.** That a file with the right hash exists for each named answer. For valid
+>    UTF-8 the bytes also equal what the client decoded from the JSON response; invalid UTF-8 cannot
+>    occur in a generated answer, because `AnswerChunk.text` is a proto3 `string` and protobuf-go
+>    validates it on unmarshal, and a cached answer is a previously generated one.
+>    It does **not** prove that the serving path sent the client the bytes it logged beyond the paths
+>    the tests drive.
+> 8. **Not covered.** The **retrieved chunk text** (the judge's SOURCE input) is not stored: the log
+>    carries `retrieved_chunk_ids`, and the text is recoverable from the frozen corpus **only when
+>    `mutation: off`**. Under `mutation: on` the text at serve time depends on
+>    the ordered update set and the epoch it had reached: `dataset_epoch_at_retrieval` is logged, but
+>    nothing in `raw/` yet records the update set with its epochs.
+> 9. **Not published.** `experiments/results/*/raw/` is gitignored: it holds Amazon-PQA question text
+>    (`query_raw`) and LLM answers grounded on PQA chunks, redistribution is not granted, and the
+>    remote is public. `manifest.yaml` stays trackable.
+>
+> **What cannot be recovered even so:** a record skipped because it was logged after `Close` (F-F) or
+> lost to a `Log`/`Close` race leaves neither a line nor a file, and is not counted. F-F is a
+> `super-plan.md` finding with its own fix, the race is part of it per that finding's trail
+> (`docs/work/2026-10-04-httpapi-tests/review.md`), and neither is widened by this change.
+
 **v0.10 — the two band-shaped metrics, each with the expression that computes it (ADR-004):**
 - ***% reaching the provenance check*** (`Final_Proposal.md` §9): among records with `similarity != null`, the share with `reuse_rule` ∈ {`namespace`, `composite`}. It is **1.0 by construction** once the unfiltered phase is retired, and it is kept as an **invariant check**: a gate re-added before the lane rule leaves `reuse_rule` empty on the requests it settles, and drops the share below 1.0. It is *not* `retrieved_chunk_ids != null`, which reads the same before and after the retirement and measures only retrieval availability.
 - ***% entering the cascade band***: among records past Tier 1, the share with `entered_band: true`. While θ and the support gate are outside the served decision it **equals the TIER2_HIT share** (see the `entered_band` note).
@@ -484,11 +557,22 @@ Four evaluation metrics are **not computable without this record**: *decisions c
   "dataset_epoch_at_retrieval": 7,
   "writeback_discarded": false,         // epoch guard fired (§E)
 
-  "answer_sha256": "3a71..."            // ⚠️ judge dedupe key, see below
+  "answer_sha256": "3a71..."            // the answer's address in raw/answers/ (v0.11); "" when no answer was served
 }
 ```
 
-> ⚠️ **`answer_sha256` cannot be reconstructed after the fact.** It is the `sha256` of the served answer text. The evaluation keys judge verdicts by `sha256(query ‖ candidate_answer)` to keep judging affordable, and the hash must be taken when the answer is served rather than recomputed from a possibly re-generated answer.
+> ⚠️ **`answer_sha256` is taken when the answer is served and cannot be reconstructed after the fact.**
+> It is the `sha256` of the served answer text, and since v0.11 the text itself is kept at
+> `raw/answers/{answer_sha256}.txt`, so it can be read back without the cache. The hash must still be
+> taken at serve time rather than recomputed from a possibly re-generated answer: the Modelfile sets
+> `temperature 1` (U8), so a second generation can be a different answer.
+>
+> ⚠️ **It is not, by itself, a judge verdict key.** The evaluation keys verdicts by
+> `sha256(query ‖ candidate_answer)`. A Tier-2 hit serves a cached answer to a *different* query
+> byte for byte, so a true hit `(q1, A)` and a false hit `(q2, A)` share one `answer_sha256`; keyed on
+> the answer alone they would collapse into one verdict and the false-hit rate would be biased toward
+> whichever came first. The bare `‖` is ambiguous without a delimiter; **item 5.1 fixes it.** The
+> layout serves either key, since both are computable from `query_raw` and `raw/answers/`.
 >
 > ⚠️ **`similarity_only_decision` is RETIRED at v0.9.** It recorded what a fixed-threshold baseline *would* have decided, inline, because re-deriving it would have required replaying against cache state that no longer exists. It was produced by the unfiltered similarity-only cascade phase, and it is retired **with** that phase. *Decisions changed by provenance* is now a **cross-configuration join** of configurations 3 and 4 on `request_id`'s query identity — valid only on the **static-cache** arm, where both runs are guaranteed identical cache state, which is why retiring the unfiltered phase moves that arm into the non-negotiable list. A log written before the **1.3 commit** carries the old field — the code emitted it until then (ADR-004), so a log dated after v0.9 can still carry it; do not mix the two derivations in one figure.
 
@@ -498,6 +582,7 @@ Field notes:
 | :--- | :--- |
 | `stratum` | Carried from the workload record (`data-card.md` §2). Enables the frontier to be reported per sub-stratum, which is what answers the product-ID objection |
 | `t1_key` | Recording it lets the Tier-1 collision invariant be re-verified from run output, not only at corpus-freeze time |
+| `answer_sha256` | **v0.11.** The SHA-256 of the answer text as served, lowercase hex, and the name of the file that holds that text in `raw/answers/`. `""` (not null) means no answer was served. See "The answer store" for the invariant and for what makes a run INCOMPLETE |
 | `entered_band` | ⚠️ **v0.10 (ADR-004) restates it again: a same-namespace candidate cleared τ.** The band is [τ, 1], because `τ_high` is retired, so it no longer separates short-circuit hits from band hits — there is no short-circuit. While the served rule is similarity ∧ namespace (θ and the support gate outside it), it **equals the TIER2_HIT indicator**, so *% entering the cascade band* is the Tier-2 hit share until either joins. That gives an invariant: `entered_band ∧ cache ≠ TIER2_HIT` never occurs, and one would mean the Redis TAG filter and Go's `MatchNamespace` disagree. *History:* it first distinguished short-circuit hits from cascade-band hits. ⚠️ **v0.6 restates what this measures.** It was *"paid for retrieval — the rule's cost driver"*. Since the gateway issues retrieval **concurrently with the embedding**, every Tier-1 miss pays for retrieval whether or not it enters the band, so this now records **how often the rule consulted provenance** and no longer bounds what the rule costs. Read `t_overlap_ms` for the cost, and note it is wall-clock-concurrent with `t_embed_ms` |
 | `refusal_cause` | **v0.9.** Why a Tier-2 candidate was refused: `SIMILARITY` \| `NAMESPACE` \| `CONTAINMENT` \| `SUPPORT` \| `NONE` (reuse served). Without it a support refusal is indistinguishable from a namespace refusal and the adopted gate's contribution cannot be attributed — which is the exact methodological gap this study records against the source paper's conjunctive reporting. ⚠️ **v0.10:** in configuration 4 the namespace is enforced **by the search, not by a refusal** (ADR-004). A request whose namespace holds no candidate is a MISS with no candidate, and **is not a `NAMESPACE` refusal** — coding it as one would turn a cold cache or an empty namespace into namespace refusals in *false hits by cause*. `NAMESPACE` is reachable only if the Redis filter and Go's check disagree. The namespace conjunct's effect is counted by the configurations 3 ⋈ 4 join, not by this field |
 | `reuse_rule` | **Extension field, named here at v0.10** (not in the example above). The rule variant that judged the Tier-2 candidate: `namespace` (SPEC, POLICY) or `composite` (MIXED). **Present iff a candidate was judged, refusals below τ included, so its presence is not a hit.** *% reaching the provenance check* is computed from it (ADR-004), so it must not be dropped as an optional extension |
@@ -505,18 +590,21 @@ Field notes:
 | `t_*_ms` | Null where the stage did not run. Sum need not equal `t_total_ms` — the difference is gateway overhead and is reported as such. ⚠️ **v0.10:** `t_search_ms` is **one** namespace-scoped search, no longer the sum of a global and a scoped one. It is null **exactly when no search ran**: the embedding or retrieval failed, or the query's namespace resolved to the empty string. A search that ran and found nothing (a cold cache) or errored still carries its span, so a MISS can show `similarity: null` beside a non-null `t_search_ms`. It is not comparable across the 1.3 commit |
 | `writeback_discarded` | A nonzero count under load is evidence the epoch guard is working, not a bug (§E) |
 
-`raw/` is write-once, so this file is immutable once a run completes.
+> `raw/` is write-once, so `requests.jsonl` **and every file under `answers/`** are immutable once a
+> run completes. A run id is never reused: the gateway creates `requests.jsonl` exclusively and then
+> `answers/` (non-recursively) and **refuses to start** if either already exists.
 
 ---
 
 ## Versioning
 
-These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, or the Redis schema is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
+These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.10** (2026-10-05).
+**Current version: v0.11** (2026-10-06).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.11** | 2026-10-06 | §H gains the **answer store**: the text behind every non-empty `answer_sha256` is written to `raw/answers/{answer_sha256}.txt`, so a run's answers are recoverable from `raw/` alone with the cache flushed (**ADR-005**, item 1.5). No JSON field changes and no wire shape changes: §A–§G and the `.proto` are unchanged. A run is now also INCOMPLETE when a named hash has no file, a line failed to encode or write, the log failed to close, or an answer and its hash disagreed. `answer_sha256` is no longer called the judge dedupe key (a bare answer hash cannot key Tier-2 verdicts). `raw/` is gitignored. A log written before the 1.5 commit has no store and cannot be judged |
 | **v0.10** | 2026-10-05 | The v0.9 retirement is **executed in code** and ratified by **ADR-004**: configuration 4's cascade issues at most one namespace-scoped search, with no global search and no `τ_high`. No wire field is added or removed. `similarity`, `source_overlap`, `entered_band` and `t_search_ms` keep their names and **change meaning** (§A, §H); `refusal_cause`'s `NAMESPACE` is restated; the extension `reuse_rule` is named in §H. §B, §C, §D, §E and the `.proto` are unchanged. Logs from either side of the 1.3 commit must not be mixed |
 | **v0.9** | 2026-09-21 | §B `RetrieveResponse` gains **`texts`**, positionally aligned with `chunk_ids` — the support gate compares a cached answer against chunk text the gateway had never held, so without this it cannot run at all. §H gains **`refusal_cause`** and the two support-arm fields, making the gate's contribution attributable rather than inferred from a conjunction. §H's `similarity_only_decision` is **retired** together with the unfiltered cascade phase and the `tau_high` knob that produced it, which moves *decisions changed by provenance* to a cross-configuration join valid only on the static-cache arm |
 | v0.8 | 2026-09-10 | §B gains an optional `product_id`, scoping `Retrieve`/`Answer`'s own corpus search to the asked-about product plus all policy content. It closes a cross-product grounding failure that unscoped search could not avoid on a flat corpus, and it is **never a reuse-decision signal**. `Answer` may accept pre-retrieved chunks, so a request retrieves once rather than twice |

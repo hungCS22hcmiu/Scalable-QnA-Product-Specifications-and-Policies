@@ -115,9 +115,10 @@ valve, not these numbers.
 
 *Nothing measured before this closes is evidence of anything.* ~25 h.
 
-**Progress, 2026-10-05:** 4 of 6 exit clauses met: the `env-check` clause by item 1.1, the
-`httpapi` clause by item 1.2, the no-retired-branch clause by item 1.3, and the `texts` alignment
-clause by item 1.4. 1.5 and 1.6 are unblocked.
+**Progress, 2026-10-06:** 5 of 6 exit clauses met: the `env-check` clause by item 1.1, the
+`httpapi` clause by item 1.2, the no-retired-branch clause by item 1.3, the `texts` alignment
+clause by item 1.4, and the answer-recoverable-from-`raw/` clause by item 1.5. Only 1.6 remains, and
+it is unblocked (it needs green memory pressure; the machine read level 2 on 2026-10-06).
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
@@ -125,7 +126,7 @@ clause by item 1.4. 1.5 and 1.6 are unblocked.
 | 1.2 | **Tests for `httpapi/`.** The cascade, the miss path, coalescing-wraps-admission nesting, Tier-1 promotion, and the single-exit eval-record emit | C1, C3 | standing constraint 6 | ✅ **Done 2026-10-04** — no ADR (no frozen value or contract changed), trail `docs/work/2026-10-04-httpapi-tests/` | Every exit path of `Ask` — TIER1_HIT, TIER2_HIT, MISS, SHED, ABANDONED, GENERATION_FAILED — has a test asserting its response **and** its eval record |
 | 1.3 | **Remove the retired cascade branch.** Delete the unfiltered cascade phase, `tau_high` / `REUSE_TAU_HIGH`, and `similarity_only_decision`. Correct the stale pinned default in `rule_test.go` (claims `1.0`; ships `math.Inf(1)`) | C1, C3 | retiring the unfiltered phase | ✅ **Done 2026-10-05** — ADR-004 (`interfaces.md` v0.10), trail `docs/work/2026-10-05-retire-unfiltered-phase/` | The cascade issues one scoped search; `grep -r tau_high` finds only history; §H no longer carries the retired field |
 | 1.4 | **Carry chunk text across the seam.** `server.py` populates `texts`; `ragclient` receives it. Proto and both stubs are already done | C1 | `Retrieve` returns text | ✅ **Done 2026-10-05** — no ADR (no frozen value or contract changed), trail `docs/work/2026-10-05-carry-chunk-text/`. Re-run `make seam-check` after any retrieval or LlamaIndex change: `make verify` never runs the live path | An end-to-end test asserts `texts[i]` is the text of `chunk_ids[i]`, and a deliberately shifted array fails it |
-| 1.5 | **Answer-text storage.** §H stores `answer_sha256`, never the text, and judging runs offline with the generator unloaded. Recovering text from a bounded LRU afterwards is unsound. Content-addressed `raw/answers/{answer_sha256}.txt` | C3 | needs a numbered decision — it changes §H, which is frozen | now | A run's answers are reconstructable from `raw/` alone, with the cache flushed |
+| 1.5 | **Answer-text storage.** §H stores `answer_sha256`, never the text, and judging runs offline with the generator unloaded. Recovering text from a bounded LRU afterwards is unsound. Content-addressed `raw/answers/{answer_sha256}.txt` | C3 | needs a numbered decision — it changes §H, which is frozen | ✅ **Done 2026-10-06** — ADR-005 (`interfaces.md` v0.11), trail `docs/work/2026-10-06-answer-text-storage/` | A run's answers are reconstructable from `raw/` alone, with the cache flushed |
 | 1.6 | **Characterise the load generator's footprint** and **record the co-hosted-measurement decision** as the first entry in `decisions.md` (see "Measuring without a second machine") | S1, S2 | measurement validity | now | k6's CPU and RSS at the sweep's actual rates are recorded, with the SUT's pressure zone alongside, and the ADR states what is citable co-hosted and what is not |
 
 **Found while closing 1.1, not yet items — each waits on the author's decision:**
@@ -201,7 +202,49 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
     commit a log came from, and the `ABANDONED` / `GENERATION_FAILED` split is not comparable across it.
 - **F-F: the eval log closes while shutdown is still draining.** Requests in flight at SIGTERM
   vanish from `requests.jsonl` with `Dropped()` at 0. It is avoided by stopping the load before
-  SIGTERM, and the fix is cheap. Fix it before Phase 7.
+  SIGTERM, and the fix is cheap. Fix it before Phase 7. *The mechanism, sharpened by 1.5's review:*
+  `ListenAndServe` returns `ErrServerClosed` the moment `Shutdown` is **called**, and `main` does not
+  wait for `Shutdown` to return, so `Close` runs while handlers are still in flight for up to 10 s.
+  The fix is a `done` channel that `main` waits on before `Close`. A `Log` racing `Close` panics
+  inside `Ask`'s deferred emit and `net/http` swallows it (reproduced in 97 of 300 hot-producer
+  iterations). 1.5 does not widen it: the skipped set is fixed by the CAS at the start of `Close`.
+
+**Found while closing 1.5, not yet items — each waits on the author's decision** (trail
+`docs/work/2026-10-06-answer-text-storage/`, `approvals.md`, `review.md`):
+
+- **F-M: `main` exits 0 when `ListenAndServe` fails for a reason other than shutdown** (a bind
+  failure). It logs and falls through, the run reads as complete, and an empty `requests.jsonl` plus
+  `answers/` burn the `RUN_ID`. A wrapper that treats exit 0 as "run finished" accepts an empty run.
+  `getenvInt("CONFIG_ID")`'s `log.Fatalf` runs after `telemetry.Open` and burns the run id the same
+  way (non-zero exit). CONFIRMED by 1.5's code review; pre-existing; not fixed. Cheap.
+- **For 5.1:** `answer_sha256` alone **cannot key Tier-2 verdicts**. A reused answer is byte-identical
+  across queries, so a true hit `(q1, A)` and a false hit `(q2, A)` collapse into one verdict and the
+  false-hit rate is biased toward whichever came first. The key must be `(query, answer)`, and the
+  delimiter in `sha256(query ‖ answer)` is unspecified. Row 5.1's wording ("deduped by
+  `answer_sha256`") needs rewording; **not edited**, it is 5.1's design. §H v0.11 already says it.
+  5.1 must also decide whether the judge needs the retrieved evidence text; it is **not stored**, and
+  under `mutation: on` it is recoverable only if the mutation harness writes the applied update set
+  with epochs into `raw/`.
+- **For 5.4:** `raw/` is **gitignored** (decided 2026-10-06; ADR-005). A clean checkout carries no
+  `raw/`, so "regenerate every figure from `raw/`" means *plus the raw archive*, and 5.4 designs how
+  the archive is kept and restored. Git no longer enforces that a finished run is write-once, and a
+  hash manifest of `raw/` is not planned (P1).
+- **For Phase 3 / Phase 7, the author's call: Spotlight.** `/` is indexed, so each new
+  `raw/answers/*.txt` is imported by `mds`/`mdworker` during the measured window (up to `0.25·K` files
+  in the static-cache arm's first-sighting burst). Unmeasured. Exclude `experiments/results/` as a run
+  precondition, or measure it? **Also:** the answer writer sustains ≈ 2,250 *first sightings*/s
+  (≈ 440 µs each; repeats cost nothing). It can drop only in a Tier-1-heavy phase at thousands of
+  req/s over a large `K`, in its first seconds. A Phase 7 run of that kind checks `Dropped()` and
+  `AnswersMissing()` first (`docs/work/2026-10-06-answer-text-storage/evidence/drain-rate.md`).
+- **Workflow:** `/verify`'s **proto-drift row checks nothing**. Both stub directories are gitignored,
+  so `git diff --exit-code` on them is always clean (`.claude/commands/verify.md:17`). It was reported
+  clean on earlier closes. `git diff --exit-code contracts/` checks the `.proto` source, not that the
+  stubs match it. **And:** `make test` and `make verify` do not run `-race`, so the new `missing` mutex
+  has no CI guard (it was race-tested by hand).
+- **Stale `v0.9` strings** (`CLAUDE.md:106`, `.claude/agents/contract-reviewer.md:11`,
+  `architecture.md:30`) await the author's OK to edit. **Candidate follow-up:** a verifier script for a
+  finished run's `raw/` (every non-empty hash has a file whose bytes hash to its name; nothing
+  unnamed), worth having before the first real run.
 
 **Found while closing 1.4, not yet items — each waits on the author's decision** (trail
 `docs/work/2026-10-05-carry-chunk-text/`, `approvals.md`):
@@ -263,16 +306,16 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 
 ### Phase 5 — Judging, δ, and the figure pipeline
 
-**Exit:** judge-to-human and reference-anchored-against-reference-free agreement are both recorded · δ is finalised against the measured noise floor · `make figures` regenerates every figure from `raw/` on a clean checkout.
+**Exit:** judge-to-human and reference-anchored-against-reference-free agreement are both recorded · δ is finalised against the measured noise floor · `make figures` regenerates every figure from `raw/` on a clean checkout plus the raw archive (`raw/` is gitignored, ADR-005).
 
 *The judge harness and the figure generators do not exist; `experiments/README.md` claims both do.* ~25 h.
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 5.1 | **Judge harness** — does not exist. Frozen prompt, judge model ≠ generator, offline batch with the generator unloaded, verdicts deduped by `answer_sha256`, reading Phase 1's answer store | C1, C3 | scope reduction | 1.5, 3.6 | Judge model id and prompt version are frozen and recorded **before** any frontier is computed, and per-configuration cost is measured before scaling to five |
+| 5.1 | **Judge harness** — does not exist. Frozen prompt, judge model ≠ generator, offline batch with the generator unloaded, verdicts deduped by `answer_sha256`, reading Phase 1's answer store | C1, C3 | scope reduction | ✅ 1.5, 3.6 | Judge model id and prompt version are frozen and recorded **before** any frontier is computed, and per-configuration cost is measured before scaling to five |
 | 5.2 | **Labelling ablation** on ~100 pairs under both schemes; agreement reported **by containment bucket** | C1 | validity is method | 5.1 | Both agreement numbers recorded; circularity bounded or quantified |
 | 5.3 | **Finalise δ** against the measured judge error | C1 | false-hit budget | 5.2 | δ is fixed and clearly exceeds the noise floor, or the gap is reported as the reason it cannot be |
-| 5.4 | **Figure generators** — do not exist. `make figures` invokes an absent script with no guard | C3 | `raw/` is write-once | 5.1 | `make figures` regenerates every figure from write-once `raw/` on a clean checkout, and never the reverse |
+| 5.4 | **Figure generators** — do not exist. `make figures` invokes an absent script with no guard | C3 | `raw/` is write-once | 5.1 | `make figures` regenerates every figure from write-once `raw/` on a clean checkout **plus the raw archive** (`raw/` is gitignored since 2026-10-06: it holds PQA-derived text and the remote is public, ADR-005), and never the reverse |
 
 ### Phase 6 — Headline B, the frontier
 

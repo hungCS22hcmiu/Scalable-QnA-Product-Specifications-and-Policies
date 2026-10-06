@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
@@ -204,7 +202,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		modelUsed := entry.ModelUsed
 		rec.Cache, rec.EntryID = cacheTier1Hit, entry.EntryID
 		rec.EntrySources = entry.SourceChunkIDs
-		rec.AnswerSHA256 = sha256Hex(entry.Answer)
+		rec.SetAnswer(entry.Answer)
 		h.touch(ctx, entry.EntryID)
 		log.Printf("gateway: request_id=%s cache=TIER1_HIT t_tier1=%s", requestID, timings.Tier1)
 		writeJSON(w, askResponse{
@@ -305,7 +303,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		modelUsed := modelUsedConstant
 		rec.Cache, rec.EntryID = cacheTier2Hit, t2.Candidate.Entry.EntryID
 		rec.EntrySources = t2.Candidate.Entry.SourceChunkIDs
-		rec.AnswerSHA256 = sha256Hex(t2.Candidate.Entry.Answer)
+		rec.SetAnswer(t2.Candidate.Entry.Answer)
 		// Fire-and-forget, and it must actually BE that. Awaiting it put a Redis round-trip on
 		// the hit path -- inside mu_hit, the quantity the S1 turns on -- to update a
 		// counter no caller reads. Detached from the request context so the write is not
@@ -521,7 +519,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	result := gen
 	rec.Cache, rec.EntryID = cacheMiss, gen.EntryID
 	rec.EntrySources = gen.SourceChunkIDs
-	rec.AnswerSHA256 = sha256Hex(gen.Text)
+	rec.SetAnswer(gen.Text)
 	rec.GenerateMS = generateMS
 	rec.Coalesced = shared
 	_, _ = permitWait, queueDepth
@@ -568,14 +566,6 @@ func msPtr(d time.Duration) *float64 {
 	}
 	v := durMS(d)
 	return &v
-}
-
-// sha256Hex hashes the answer AS SERVED. interfaces.md H is explicit that it must be taken at
-// serve time and never recomputed from a possibly re-generated answer, because experiment-
-// protocol.md 4 keys judge verdicts on it.
-func sha256Hex(answer string) string {
-	sum := sha256.Sum256([]byte(answer))
-	return hex.EncodeToString(sum[:])
 }
 
 // stratumHeader reads the workload's stratum label if the harness sent one.

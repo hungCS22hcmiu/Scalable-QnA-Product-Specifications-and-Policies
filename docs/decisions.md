@@ -44,6 +44,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-002 | `v1` draws from six Amazon-PQA leaves mapped onto four departments | in force | none — no runs yet |
 | ADR-003 | The generation envelope serves one slot; the admission pool bounds queueing, not memory | in force | no `run_id`; relabels μ_gen as a one-slot planning figure; voids the spike grid's `NUM_PARALLEL` axis |
 | ADR-004 | The unfiltered Tier-2 phase is retired in code | in force | none — no runs yet; logs written before the 1.3 commit carry the old meanings under the same keys |
+| ADR-005 | Served answer text is stored content-addressed in `raw/answers/` | in force | none — no runs yet; a log written before the 1.5 commit has no answer store and cannot be judged |
 
 ---
 
@@ -349,3 +350,107 @@ therefore **not** configuration 4's until F-K is fixed.
   is the only in-log discriminator until P1's manifest records the gateway SHA. **Never mix the two
   in one figure.** The Tier-2 planning figure (≈ 61 req/s) stays a valid lower bound: removing a
   search cannot lower μ_hit.
+
+### ADR-005 — Served answer text is stored content-addressed in `raw/answers/`
+**Decided (method)** · 2026-10-06 · *`interfaces.md` §H v0.11, `gateway/internal/telemetry/evallog.go`, `gateway/internal/httpapi/handler.go`, `gateway/cmd/gateway/main.go`, `.gitignore`, `super-plan.md` 5.4; trail `docs/work/2026-10-06-answer-text-storage/`*
+
+The gateway writes the **text of every answer it serves** to
+`results/{run_id}/raw/answers/{answer_sha256}.txt`: content-addressed, one file per distinct hash,
+byte-exact, written by the evaluation logger's own writer **before** the record line that names it.
+A run in which any named hash has no file, any line failed to encode or write, an answer and its hash
+disagreed, or the log failed to close, is **INCOMPLETE** and not admissible. `experiments/results/*/raw/`
+is **gitignored**. This is the decision `super-plan.md` item 1.5 said §H needed before it could change.
+
+- **Rationale:**
+  - **The judge runs offline with the generator unloaded**, and §H recorded `answer_sha256` and never
+    the text. The only other copy is the cache, a **bounded LRU** the gateway evicts from
+    (`CACHE_CAPACITY = round(0.25·K)`), so by judging time most hashes named nothing. A hash with no
+    text behind it is a key to nothing.
+  - **Re-generating is not an alternative.** The Modelfile sets `temperature 1` (U8), so a second
+    generation can be a different answer, and §H already requires the hash to come from what was served.
+  - **Content-addressed**, because 5.1's work list is the set of distinct answers, and a directory of
+    them is that list. Under Zipf redundancy hits dominate, so a per-request copy would grow with the
+    hit count, not the distinct-answer count.
+  - **Written by the logger's writer, before the line**, so the order is structural. Nothing at a
+    call site has to be remembered, and a record dropped or skipped loses its line and its file
+    together.
+  - **A guard** refuses to write a file whose bytes do not hash to the record's hash. It catches a
+    call site that sets the hash and skips the text, which would otherwise publish an empty file
+    under another text's name: that passes every "file exists" check and is wrong.
+- **Alternatives:**
+  - **Inline the text in every `requests.jsonl` record.** A record without its text becomes
+    unrepresentable, which is its strength. Rejected: the plan names the directory; the file grows
+    with the hit count; every analysis that parses it for latency or hit rate would read text it
+    never uses.
+  - **One `raw/answers.jsonl`**, a `{sha, text}` line per first sighting. The smallest version, and a
+    real rival: it drops temp-file publication, the three-step `Open`, the `EEXIST` question and the
+    per-file Spotlight and APFS (≥ 4 KB per file) cost. It loses atomic per-answer publication (a full
+    disk leaves a torn line, not no file) and open-by-hash. **Rejected by the author's default**
+    (2026-10-06), because the plan names the directory and 5.1 reads by hash. Reversible: only the
+    writer and the §H layout wording change.
+  - **A separate `AnswerStore` called from `Ask`.** Rejected: the handler gains an I/O concern and a
+    second failure counter, and the file gets no ordering against the record.
+  - **Write at `cache.Put`.** Rejected: it covers MISS only, and a hit on an entry that predates the
+    run is exactly the case where this run has never written the text.
+  - **Keep the text in Redis.** Rejected: bounded LRU, and the next run may flush it.
+- **Consequences:**
+  - **The invariant** (§H v0.11, rule 5). It holds in a run that is not INCOMPLETE, not in every run:
+    a failed write still writes its line, which then names a hash with no file, and a line that fails
+    to encode after its file was linked leaves a file no record names. Both are counted and make the
+    run INCOMPLETE.
+  - **The INCOMPLETE conditions are a Research Requirement** in the terms of `requirements.md`
+    (violating one voids a result silently). The skeleton assigns no IDs yet, so none is numbered. They
+    are: dropped records; a failed line write; a named hash with no file; an answer/hash mismatch (a
+    **guard refusal**, never cleared by a later retry, because it means a call site skipped
+    `SetAnswer`); a failed close.
+  - **The verdict lives in the exit status and the log until P1 lands.** *Recoverable from `raw/`
+    alone* holds; *admissible from `raw/` alone* does not.
+  - **A `Link` that returns `EEXIST` is treated as success (the file already exists), and that is safe because of the directory,
+    not because of SHA-256.** `Open` creates `answers/` with a non-recursive `Mkdir` after claiming the
+    run id by exclusive create, so the directory is fresh, and the writer goroutine is the only thing
+    that creates files in it. A later change that resumes a run or switches to a recursive `MkdirAll`
+    would break exactly this and could silently accept a corrupt existing file.
+  - **Invalid UTF-8 is unreachable**, not merely excluded: `AnswerChunk.text` is a proto3 `string` and
+    protobuf-go validates it on unmarshal; cached answers come from those texts.
+  - **Cost on a measured path.** Hit path: one string-header assignment, since the hash was already
+    computed. Writer goroutine: a map lookup per record, and per distinct answer one create, write,
+    chmod, close, link and remove. **Measured (plan step 7, `evidence/drain-rate.md`; exploratory, pressure level 2, not citable):** an
+    already-seen record adds nothing measurable (≈ 4 µs, the pre-1.5 line cost), and a first sighting adds
+    ≈ 440 µs (about 110× a line write), so the writer sustains ≈ 2,250 first sightings/s. Distinct answers
+    are at most `0.25·K`, so a drop needs a worst-case burst of them at a high offered rate: above ≈
+    16,300 req/s for K = 2,000, ≈ 5,200 for K = 5,000, ≈ 1,450 for K = 10,000, and any burst of ≥ 4,096
+    first sightings (K ≥ 16,384) overflows on its own. At the planning figures (generation ≈ 0.19 req/s,
+    Tier-2 ≈ 61 req/s) the margin is ≥ 35×; **only a Tier-1-heavy phase at thousands of req/s over a
+    large K, in its first seconds, can drop.** A Phase 7 run of that kind checks `Dropped()` and
+    `AnswersMissing()` first. Spotlight and the gateway under load are not measured. Not a `Dropped()` assertion: a tight `Log` loop would
+    manufacture drops with or without this change.
+  - **Limits, stated rather than fixed here:**
+    - **F-F:** a record logged after `Close` is skipped and uncounted. Not widened: the CAS at the start
+      of `Close` fixes the skipped set, not how long `Close` takes.
+    - **`Log` racing `Close`** panics inside `Ask`'s deferred emit, where `net/http`'s per-connection
+      recover swallows it: a lost record with only "http: panic serving" on stderr.
+    - **`SIGKILL`** loses what is still buffered, records and answers together; a killed run is
+      discarded either way.
+    - The store proves **a file with the right hash exists**; it does not prove the serving path sent
+      the client the bytes it logged beyond the paths the tests drive.
+  - **Publication.** `experiments/results/*/raw/` is gitignored (decided 2026-10-06). `requests.jsonl`
+    already carried verbatim PQA `query_raw`, and this adds LLM text grounded on PQA chunks;
+    redistribution is not granted and the remote is public. `manifest.yaml` stays trackable. **Follow-on
+    for `super-plan.md` 5.4:** a clean checkout no longer carries `raw/`, so "regenerate every figure
+    from `raw/` on a clean checkout" now means *plus the raw archive*; 5.4 designs how that archive is
+    kept and restored. With `raw/` outside version control, git no longer enforces that a finished
+    run is write-once, and an edit to one would leave no trace; a hash manifest of `raw/` is not
+    planned, and belongs with 5.4 and P1.
+  - **Spotlight.** `/` is indexed on this machine, so each new `raw/answers/*.txt` is imported by
+    `mds`/`mdworker` during the measured window (up to `0.25·K` files in the static-cache arm's
+    first-sighting burst). Unmeasured. ⟦PENDING: the author's call: exclude `experiments/results/` from
+    Spotlight as a run precondition, or measure it. Needed before Phase 3⟧.
+  - **For 5.1** (flagged, not decided): the verdict key must be `(query, answer)`, not the bare hash,
+    and the delimiter in `sha256(query ‖ answer)` is unspecified. `super-plan.md` 5.1's "deduped by
+    `answer_sha256`" needs rewording. **SOURCE text is not stored**, and under `mutation: on` is
+    recoverable only if the mutation harness writes the applied update set with epochs into `raw/`.
+  - **U8** (temperature 1): whether it gates item 1.5 is the author's call (`approvals.md`, open
+    question 7). This ADR is written on the reading that it does not, because the store keeps whatever
+    was served. It bears on 5.1, where hash dedupe saves nothing if every miss produces a new text.
+- **Invalidates:** none — no runs yet. A log written before the 1.5 commit has no answer store, so its
+  answers are not recoverable and **it cannot be judged**.

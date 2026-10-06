@@ -57,6 +57,12 @@ venv/
 # Experiment figures regenerate from raw/ via `make figures`
 experiments/results/*/figures/
 
+# Run raw output is NOT published. requests.jsonl carries verbatim Amazon-PQA question text
+# (query_raw) and raw/answers/ holds LLM answers grounded on PQA chunks; redistribution is not
+# granted and this remote is public (docs/data-card.md, ADR-005). manifest.yaml stays tracked.
+# Decided 2026-10-06 (docs/work/2026-10-06-answer-text-storage/approvals.md, decision 5).
+experiments/results/*/raw/
+
 # --- OS ------------------------------------------------------------------------
 .DS_Store
 

@@ -50,7 +50,7 @@ thesis/
 │       ├── ragclient/              pooled gRPC + epoch      → contracts/interfaces.md §B
 │       ├── embed/                  embedding endpoint       → contracts/interfaces.md §F
 │       ├── catalog/                read-only corpus view, demo UI ONLY
-│       └── telemetry/              counters, latency split
+│       └── telemetry/              counters, latency split, eval log + answer store
 │
 ├── rag/                          Python — INFRASTRUCTURE (not a contribution)
 │   ├── pyproject.toml
@@ -66,7 +66,9 @@ thesis/
 │   ├── k6/                         load scenarios (W8+)
 │   └── results/{run_id}/
 │       ├── manifest.yaml           required; a run without one is invalid
-│       ├── raw/                    WRITE-ONCE
+│       ├── raw/                    WRITE-ONCE, gitignored (ADR-005)
+│       │   ├── requests.jsonl      one record per request → contracts/interfaces.md §H
+│       │   └── answers/            {answer_sha256}.txt, the served text → interfaces.md §H v0.11
 │       └── figures/                regenerated, gitignored
 │
 ├── ui/                           demo debug view (React + Vite)
@@ -103,7 +105,7 @@ defect even if the compiler accepts it.
 | `admission/` | The **sole** acquire/release point for a generation permit | Be bypassed by any miss path — one chokepoint or the memory guarantee is void |
 | `cache/` | Key normalization and both tiers | Make a reuse decision — that is `reuse/` |
 | `ragclient/` | Pooled gRPC channel; stamps `dataset_epoch` at retrieval | Be constructed per request |
-| `telemetry/` | Counters and latency decomposition | Import anything from this repo |
+| `telemetry/` | Counters, latency decomposition, the evaluation log and the run's answer store (`raw/answers/`, ADR-005) | Import anything from this repo |
 | `catalog/` | A read-only product list for the demo UI | Be reached from `/ask`, hold state, or make any decision |
 
 ## 3. Request paths

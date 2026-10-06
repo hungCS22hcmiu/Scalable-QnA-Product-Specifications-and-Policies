@@ -5,12 +5,14 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,6 +56,60 @@ func retiredEnv(getenv func(string) string) error {
 			"longer serves on similarity alone. Unset it. Configuration 3 has no code path yet")
 	}
 	return nil
+}
+
+// runCounts is everything that can make a finished run inadmissible. A struct rather than
+// positional arguments, so two int64 counts cannot be passed in the wrong order.
+type runCounts struct {
+	Dropped        int64 // records lost to a full buffer
+	WriteErrors    int64 // record lines that failed to encode
+	GuardRefusals  int64 // records whose answer text did not hash to their answer_sha256
+	AnswersMissing int   // hashes a record names that have no file in raw/answers/
+	CloseErr       error // the evaluation log did not close cleanly
+}
+
+// finishRun closes the evaluation log and then decides whether the run is admissible. Both in one
+// function so the ORDER is testable: Close drains the buffer, and read before it, the counters
+// under-count (records still queued are not yet missing, refused or failed) and an INCOMPLETE run
+// reads as complete. A nil log, as `make dev` runs with, is complete.
+func finishRun(l *telemetry.Logger) (closeErr, verdict error) {
+	closeErr = l.Close()
+	verdict = incomplete(runCounts{
+		Dropped:        l.Dropped(),
+		WriteErrors:    l.WriteErrors(),
+		GuardRefusals:  l.GuardRefusals(),
+		AnswersMissing: l.AnswersMissing(),
+		CloseErr:       closeErr,
+	})
+	return closeErr, verdict
+}
+
+// incomplete says why a finished run cannot be admitted, or returns nil (interfaces.md v0.11, §H
+// "The answer store", rule 6; ADR-005). Pure, on retiredEnv's pattern, so the rule is testable: a
+// log.Fatalf in main() is not, and the Dropped branch it replaces had never been run by any test.
+// A guard refusal voids the run because it means a call site skipped SetAnswer, a defect, and a
+// later successful retry of the same hash would otherwise mask it.
+func incomplete(c runCounts) error {
+	var why []string
+	if c.Dropped > 0 {
+		why = append(why, fmt.Sprintf("%d evaluation record(s) were dropped", c.Dropped))
+	}
+	if c.WriteErrors > 0 {
+		why = append(why, fmt.Sprintf("%d record line(s) failed to write", c.WriteErrors))
+	}
+	if c.AnswersMissing > 0 {
+		why = append(why, fmt.Sprintf("%d answer(s) named by a record have no file in raw/answers/", c.AnswersMissing))
+	}
+	if c.GuardRefusals > 0 {
+		why = append(why, fmt.Sprintf("%d record(s) carried an answer_sha256 that its text does not hash to (a call site skipped SetAnswer)", c.GuardRefusals))
+	}
+	if c.CloseErr != nil {
+		why = append(why, fmt.Sprintf("the evaluation log did not close cleanly: %v", c.CloseErr))
+	}
+	if len(why) == 0 {
+		return nil
+	}
+	return errors.New(strings.Join(why, "; "))
 }
 
 func getenvInt(key string, def int) int {
@@ -205,7 +261,7 @@ func main() {
 	if evalLog == nil {
 		log.Printf("gateway: evaluation log DISABLED (RUN_ID unset) -- functional run, produces no measurement")
 	} else {
-		log.Printf("gateway: evaluation log -> %s/%s/raw/requests.jsonl",
+		log.Printf("gateway: evaluation log -> %s/%s/raw/requests.jsonl, answer text -> raw/answers/",
 			getenv("RESULTS_DIR", "experiments/results"), getenv("RUN_ID", ""))
 	}
 
@@ -256,10 +312,11 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Printf("gateway: %v", err)
 	}
-	if err := evalLog.Close(); err != nil {
-		log.Printf("gateway: closing evaluation log: %v", err)
+	closeErr, verdict := finishRun(evalLog)
+	if closeErr != nil {
+		log.Printf("gateway: closing evaluation log: %v", closeErr)
 	}
-	if n := evalLog.Dropped(); n > 0 {
-		log.Fatalf("gateway: THIS RUN IS INCOMPLETE -- %d evaluation record(s) were dropped", n)
+	if verdict != nil {
+		log.Fatalf("gateway: THIS RUN IS INCOMPLETE -- %v", verdict)
 	}
 }
