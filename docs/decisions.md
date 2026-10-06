@@ -45,6 +45,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-003 | The generation envelope serves one slot; the admission pool bounds queueing, not memory | in force | no `run_id`; relabels μ_gen as a one-slot planning figure; voids the spike grid's `NUM_PARALLEL` axis |
 | ADR-004 | The unfiltered Tier-2 phase is retired in code | in force | none — no runs yet; logs written before the 1.3 commit carry the old meanings under the same keys |
 | ADR-005 | Served answer text is stored content-addressed in `raw/answers/` | in force | none — no runs yet; a log written before the 1.5 commit has no answer store and cannot be judged |
+| ADR-006 | `t_generate_ms` means "this request's own `Answer` call was attempted" | in force (one open item: the 1 ms threshold) | none — no runs yet; ABANDONED and GENERATION_FAILED records' `t_generate_ms` is null before the F-H commit and not comparable across it, and any derived overhead is not either |
 
 ---
 
@@ -454,3 +455,74 @@ is **gitignored**. This is the decision `super-plan.md` item 1.5 said §H needed
     was served. It bears on 5.1, where hash dedupe saves nothing if every miss produces a new text.
 - **Invalidates:** none — no runs yet. A log written before the 1.5 commit has no answer store, so its
   answers are not recoverable and **it cannot be judged**.
+
+### ADR-006 — `t_generate_ms` means "this request's own `Answer` call was attempted"
+**Decided (method)** · 2026-10-06 · *`interfaces.md` §H v0.12, `gateway/internal/httpapi/handler.go`, `super-plan.md` finding F-H; trail `docs/work/2026-10-06-fh-generate-ms-on-abandoned/`*
+
+The evaluation log's `t_generate_ms` is non-null **iff this request's own `Answer` call was attempted**,
+whether it succeeded or not (for a record with a non-empty `cache`; a leader that panics after `Answer` is
+logged with `cache: ""` and no value). The gateway now carries it on `ABANDONED` and `GENERATION_FAILED` leaders
+that reached `Answer`, where it previously carried it on a MISS only. §H is amended to say so (v0.12,
+doc-only). No field, key, wire shape or frozen value changes.
+
+- **Rationale:**
+  - **The code left a stage that ran with no span**, against the intent of §H's note that a `t_*_ms` is
+    null where its stage did not run (a one-directional rule, so this is a tightening, not a breach). The
+    stage (the gateway's span around `ragclient.Answer`) ran on a failed or cancelled attempt, and the
+    closure computed the duration, then dropped it on every non-success path.
+  - **It answers two questions that were unanswerable.** *Did an abandoned request's own `Answer` get
+    attempted?* Before, only a filter on `permit_queue_depth >= 1` selected one subset and could not see a
+    request that took `Acquire`'s fast path and left. *How long did a failed generation take?* The
+    duration separates an immediate failure (ms) from a long one (s). It cannot separate an upstream hang
+    from a slow generation: under k6 both read ≈ 120 s minus the time before `Answer`, and a hang already
+    lands in `ABANDONED`.
+  - **Why a contract entry for a one-line fix.** The field's *presence* used to mean exactly
+    `cache == MISS ∧ ¬coalesced`. It no longer does. An analyst reading the example comment who selects
+    MISS service times by presence would take in ABANDONED durations censored near 120 s and bias μ_gen,
+    silently. The selection rule must live where the field is defined, not in a trail.
+- **Alternatives:**
+  - **Leave §H unchanged and record the rule in the trail.** Rejected by the design review: the example
+    comment *"null unless generation ran"* can be read as forbidding the new values (the fast-path
+    dead-context request makes no RPC), and a trail is closed when its task is.
+  - **A new field** (`reached_server`, an RPC-sent timestamp). Rejected: a new §H field is a contract
+    decision this bug does not need, and `t_generate_ms` plus the threshold below is enough.
+  - **Also move `rec.Coalesced = shared` above the outcome switch.** Rejected for now: the same flaw, but
+    a **second measurement change** (an extension field would appear on SHED, ABANDONED and
+    GENERATION_FAILED records, and a follower of a shed leader would read SHED plus `coalesced`). Recorded
+    as a finding next to F-D.
+  - **Copy the value inside the closure** rather than after `Do`. Rejected: it changes the leader-panics
+    path for no gain.
+- **Consequences:**
+  - **Per-statistic selection** (§H v0.12 field note): service-time and μ_gen select
+    `cache == "MISS" ∧ t_generate_ms != null` (a MISS follower's value is null, a leader's is not, so this
+    is exactly what presence selected before; `coalesced` is an extension field §H does not define and is
+    **absent**, never `false`, on a leader), and while F-L is open that is necessary but **not
+    sufficient**; permit-occupancy statistics may select on presence, but `t_generate_ms` is a **lower
+    bound** on a MISS's hold (the permit is held through write-back) and no permit exists when admission
+    is disabled; filters use `!= null`, never `> 0`.
+  - **What a null means after the fix:** on GENERATION_FAILED a follower; on ABANDONED either a request
+    that left while queued or a follower (`coalesced` is set only on a served MISS), so the two cannot be
+    told apart offline except by a `t1_key` time-interval join. **F-L** is the `super-plan.md` finding that
+    `rag.server` keeps generating after its RPC is cancelled; **F-D** is the one that a coalesced follower
+    inherits its leader's cancellation.
+  - **ABANDONED's value is censored** (F-L): at most the generation's true duration, and silent on
+    whether `rag.server` finished. It tightens the orphan upper bound; it does not turn it into a count.
+  - **The "RPC never left" split needs a threshold, and the threshold is pre-registered before anyone
+    looks at the distribution.** *Default: 1 ms.* The gap defends the split, not the number: microseconds
+    for an RPC that never left against seconds for one cancelled during a real generation. The failure
+    mode is a never-sent tail above 1 ms (under `-race`, GC pauses, co-hosted CPU contention, a cancel
+    during a lazy connect), which would read as "reached `rag.server`" with nothing to flag it. So an
+    analysis **reports the count of ABANDONED values in [1 ms, 100 ms] beside the split and calls it
+    unresolved if that count is not negligible.** The number is the author's to confirm and belongs in
+    P1's manifest. ⟦PENDING: the author confirms or replaces the 1 ms default⟧
+  - **Recorded, not fixed here:**
+    - `t_permit_wait_ms` is **null on every fast-path request** (`Acquire` returns a permit with
+      `Waited == 0` and the gateway renders a zero duration as null), which contradicts §H's *"null
+      unless a permit was requested"*;
+    - **and on a request that queued and then left**, because the closure returns before it is set;
+    - `coalesced` is set only on a served MISS.
+  - **Nothing here changes a count or a label.** Item 1.6's `ABANDONED` count is comparable across the
+    commit. **1.6's first `RUN_ID` must be taken after this commit**: logs carry no gateway SHA until P1.
+- **Invalidates:** none — no runs yet. A log written before the F-H commit has null `t_generate_ms` on
+  `ABANDONED` and `GENERATION_FAILED` records; those two fields are **not comparable across it**, and any
+  derived overhead is not either.

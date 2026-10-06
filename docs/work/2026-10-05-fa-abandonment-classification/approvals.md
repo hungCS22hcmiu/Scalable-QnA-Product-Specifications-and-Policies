@@ -119,3 +119,14 @@ The review recommends gating **Phase 7 (7.1, 7.5)** on it and having **item 1.6 
 - `/bugfix` raised this to **L** without asking: the outcome label is on the measured path.
 - The `/task` template rendered with its arguments shifted ("task `L` at scope `Client`"). The
   intended values were used: slug `fa-abandonment-classification`, scope `L`.
+
+---
+
+> **Superseded in part, 2026-10-06, by `2026-10-06-fh-generate-ms-on-abandoned` (F-H, ADR-006, §H v0.12).**
+> This record says `t_generate_ms` is null on abandoned requests ("null on all of them", the reading of
+> the orphan-candidate subset, and "ABANDONED with `t_generate_ms` null (F-H)"). **That is no longer
+> true.** `t_generate_ms` is now non-null on an ABANDONED request whose own `Answer` was attempted, and a
+> non-null value separates the orphan-candidate subset better than the `permit_queue_depth >= 1` filter
+> described above (which also catches a queued request admitted with a dead context). **Everything else
+> here stands.** Read the field with §H's `t_generate_ms` row. The rest of this trail is a dated record and
+> is left as written.

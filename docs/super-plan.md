@@ -163,14 +163,15 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   **`err != nil && ctx.Err() != nil`**, read from the request's own context, as `ABANDONED`. The
   precedence is `SHED` > this request's client gone ⇒ `ABANDONED` > `GENERATION_FAILED`, and a
   completed generation is always a `MISS`. **Read `ABANDONED` with the experiment record in that
-  trail's `approvals.md`:**
+  trail's `approvals.md`** (**except** its statements that `t_generate_ms` is null on abandoned
+  requests, superseded by F-H below and by §H v0.12):
   - under a load generator it is a **censored latency observation**, at least the client timeout,
     and counts against S2. It is **never excluded as client behaviour**;
   - an upstream hang mostly lands in it (k6's and `httpx`'s timeouts are both 120 s), so
     `GENERATION_FAILED ≈ 0` does not show the upstream never hung, and `GENERATION_FAILED > 0` does
     not show an upstream fault while F-D stands;
-  - it is at most k6's status-0 count, and only an **upper bound** on orphaned generations (F-L)
-    until F-H lands.
+  - it is at most k6's status-0 count, and only an **upper bound** on orphaned generations (F-L).
+    F-H (below, resolved) **tightens** that bound without turning it into a count.
 - **F-L (new, found by F-A's impact analysis): `rag.server` keeps generating after its RPC is
   cancelled.** Probed with a stubbed `generate` (no Ollama): the client cancelled at +0.20 s and the
   stub ran on to +1.50 s. Nothing in `server.py` checks `is_active` or `add_callback`, and
@@ -184,11 +185,19 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   (1 + q) · S. Otherwise the fix's shape is known: check `context.is_active()` before generating,
   and close a per-request streaming `httpx` response on cancel. **The author decides whether to fix
   it before 1.6.**
-- **F-H, widened to `ABANDONED`: `t_generate_ms` is dropped on `GENERATION_FAILED` and now on
-  `ABANDONED`**, where most generation time spent on failures lands. Copying `generateMS` into the
-  `ABANDONED` case would let a non-null value mean *this request's own `Answer` was attempted* (a few
-  µs: the RPC never left; more: it reached `rag.server`) and so separate the orphan subset. **Recommended
-  as the next bugfix, before item 1.6 reports its `ABANDONED` count.**
+- ✅ **F-H, resolved 2026-10-06** as a bugfix outside the exit line (trail
+  `docs/work/2026-10-06-fh-generate-ms-on-abandoned/`; **ADR-006**, `interfaces.md` **v0.12**, doc-only).
+  `rec.GenerateMS` was copied only on the success path, so `t_generate_ms` was null on
+  `GENERATION_FAILED` and `ABANDONED` although `Answer` had run. It is now copied right after
+  `Generations.Do`, before the outcome switch. **Read it as §H v0.12 says:**
+  - non-null **iff this request's own `Answer` was attempted**; null on followers, SHED, and a request
+    that left or failed before it held a permit; **censored on ABANDONED** (F-L); a null on
+    GENERATION_FAILED means a follower, a null on ABANDONED is ambiguous;
+  - **select MISS service times with `cache == "MISS" ∧ t_generate_ms != null`**, never presence alone
+    (until this fix presence meant exactly that; it no longer does); filter `!= null`, never `> 0`;
+  - the "RPC never left" split uses a **pre-registered 1 ms default with a [1 ms, 100 ms] count check**.
+    **The author confirms the number**; ADR-006 carries one `⟦PENDING⟧` for it. A first reading on a
+    fixture: 1-12 µs without `-race`, 12-31 µs under it, 0 of 30 above 1 ms (exploratory, not citable).
 - **F-J / Phase 2 design input: write-back runs on the client's context, as two separate writes**
   (`store.go:68`, `tier2.go:118`; F-A `review.md` N5). A client leaving between them leaves a Tier-1
   entry with no Tier-2 record carrying its `t1_key`, which is invariant 2's silent purge miss once C2
@@ -196,6 +205,11 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   timeout, as the Tier-1 promotion already does.
 - **For item 1.6:**
   - report the **`ABANDONED` count**, and read it as above;
+  - `t_generate_ms` now separates the **orphan-candidate subset** (ABANDONED with a value above the
+    threshold); report the **count of ABANDONED values in [1 ms, 100 ms]** beside any split. The
+    threshold and that check belong in P1's manifest, and the number is the author's;
+  - **take the first `RUN_ID` after the F-H commit**: logs carry no gateway SHA until P1, and the
+    `t_generate_ms` of ABANDONED and GENERATION_FAILED records is not comparable across it;
   - whether a k6 timeout closes the connection, so that `r.Context()` is cancelled, is proven only for
     Go's own client (test T7). The first run with a `RUN_ID` settles it;
   - **P1's manifest should record the gateway SHA**: nothing in §H identifies which side of the F-A
@@ -208,6 +222,23 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   The fix is a `done` channel that `main` waits on before `Close`. A `Log` racing `Close` panics
   inside `Ask`'s deferred emit and `net/http` swallows it (reproduced in 97 of 300 hot-producer
   iterations). 1.5 does not widen it: the skipped set is fixed by the CAS at the start of `Close`.
+
+**Found while closing F-H, not yet items — each waits on the author's decision** (trail
+`docs/work/2026-10-06-fh-generate-ms-on-abandoned/`, `review.md`, `impact.md` §6):
+
+- **F-N: `t_permit_wait_ms` is null in three cases §H says it should not be.** Every **fast-path**
+  request (`Acquire` returns a permit with `Waited == 0` and `msPtr(0)` is nil), a request that **queued
+  and then left** (the closure returns before it is set), and when **admission is disabled**. §H says
+  *"null unless a permit was requested"*. So `!= null` means "queued and was served", and a mean over it
+  is biased high. Pre-existing; found by F-H's impact analysis; **not fixed**. F-A's record reads it
+  correctly for its own purpose (only a request that queued has it non-null). Fixing it changes what the
+  log means for admission, so it needs a contract note like F-H's.
+- **F-O: `coalesced` is set only on a served MISS and is not in §H.** `rec.Coalesced = shared` runs after
+  the outcome switch, and the field is a gateway extension (`omitempty`: absent on leaders, never
+  `false`). A coalesced follower of a failed or cancelled leader carries no `coalesced`, so its record is
+  told from a leader's only by a null `t_generate_ms` (GENERATION_FAILED) or a `t1_key` time-interval
+  join. Moving it above the switch is one line but a **second measurement change**; deferred next to
+  F-D, which decides what a follower should read.
 
 **Found while closing 1.5, not yet items — each waits on the author's decision** (trail
 `docs/work/2026-10-06-answer-text-storage/`, `approvals.md`, `review.md`):
