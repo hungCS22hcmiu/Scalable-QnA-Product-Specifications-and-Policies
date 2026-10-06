@@ -1,0 +1,170 @@
+{
+  "fit": [
+    0.8116813531948841,
+    0.12391989831892318
+  ],
+  "rows": [
+    {
+      "kind": "allhit",
+      "rate_offered": 2.0,
+      "reps": 3,
+      "achieved_rate": 2.011111111111111,
+      "cpu_pct_mean": 1.0061158763838267,
+      "cpu_pct_min": 0.8775510204081635,
+      "cpu_pct_max": 1.1000440017600706,
+      "cpu_pct_of_machine": 0.12576448454797834,
+      "rss_peak_bytes": 54116352,
+      "vus_max": 40,
+      "sampler_overhead_pct": 2.656837886591141
+    },
+    {
+      "kind": "allhit",
+      "rate_offered": 8.0,
+      "reps": 3,
+      "achieved_rate": 8.011111111111111,
+      "cpu_pct_mean": 1.9387495547654403,
+      "cpu_pct_min": 1.8162894634803375,
+      "cpu_pct_max": 2.0399592008159835,
+      "cpu_pct_of_machine": 0.24234369434568004,
+      "rss_peak_bytes": 55869440,
+      "vus_max": 40,
+      "sampler_overhead_pct": 2.385964306024461
+    },
+    {
+      "kind": "allhit",
+      "rate_offered": 16.0,
+      "reps": 3,
+      "achieved_rate": 16.016666666666666,
+      "cpu_pct_mean": 2.697607672742375,
+      "cpu_pct_min": 2.2803648583773404,
+      "cpu_pct_max": 3.2,
+      "cpu_pct_of_machine": 0.33720095909279685,
+      "rss_peak_bytes": 56229888,
+      "vus_max": 40,
+      "sampler_overhead_pct": 2.286976062973865
+    },
+    {
+      "kind": "allhit",
+      "rate_offered": 32.0,
+      "reps": 3,
+      "achieved_rate": 32.016666666666666,
+      "cpu_pct_mean": 4.798490850180934,
+      "cpu_pct_min": 4.5794504659440864,
+      "cpu_pct_max": 5.101832578262112,
+      "cpu_pct_of_machine": 0.5998113562726167,
+      "rss_peak_bytes": 58834944,
+      "vus_max": 40,
+      "sampler_overhead_pct": 2.745334144581481
+    }
+  ],
+  "excluded": [
+    {
+      "run": {
+        "kind": "mixed",
+        "rate_offered": 8.0,
+        "rep": 1,
+        "achieved_rate": 0.0,
+        "cpu_pct_mean": 0.0,
+        "rss_peak_bytes": 33914880,
+        "rusage_cpu_s": 0.030203,
+        "sampled_cpu_s": 0.0,
+        "exit_status": 107,
+        "error_rate": 1.0,
+        "shed": 0,
+        "miss": 0,
+        "vus_max": 0,
+        "tier1": 0,
+        "tier2": 0,
+        "dropped": 0,
+        "discarded_ticks": 0,
+        "n_ticks": 0,
+        "cpu_pct_p95": 0.0,
+        "cpu_pct_max": 0.0,
+        "sampler_overhead_pct": 0.210871276313344,
+        "flags": [
+          "no_k6_summary",
+          "no_steady_window"
+        ]
+      },
+      "flags": [
+        "exit_status",
+        "unattained",
+        "errors_in_mixed",
+        "no_k6_summary",
+        "no_steady_window"
+      ]
+    },
+    {
+      "run": {
+        "kind": "mixed",
+        "rate_offered": 8.0,
+        "rep": 2,
+        "achieved_rate": 0.0,
+        "cpu_pct_mean": 0.0,
+        "rss_peak_bytes": 33128448,
+        "rusage_cpu_s": 0.012566999999999998,
+        "sampled_cpu_s": 0.0,
+        "exit_status": 107,
+        "error_rate": 1.0,
+        "shed": 0,
+        "miss": 0,
+        "vus_max": 0,
+        "tier1": 0,
+        "tier2": 0,
+        "dropped": 0,
+        "discarded_ticks": 0,
+        "n_ticks": 0,
+        "cpu_pct_p95": 0.0,
+        "cpu_pct_max": 0.0,
+        "sampler_overhead_pct": 0.18592279757263647,
+        "flags": [
+          "no_k6_summary",
+          "no_steady_window"
+        ]
+      },
+      "flags": [
+        "exit_status",
+        "unattained",
+        "errors_in_mixed",
+        "no_k6_summary",
+        "no_steady_window"
+      ]
+    },
+    {
+      "run": {
+        "kind": "mixed",
+        "rate_offered": 8.0,
+        "rep": 3,
+        "achieved_rate": 0.0,
+        "cpu_pct_mean": 0.0,
+        "rss_peak_bytes": 33734656,
+        "rusage_cpu_s": 0.030996999999999997,
+        "sampled_cpu_s": 0.0,
+        "exit_status": 107,
+        "error_rate": 1.0,
+        "shed": 0,
+        "miss": 0,
+        "vus_max": 0,
+        "tier1": 0,
+        "tier2": 0,
+        "dropped": 0,
+        "discarded_ticks": 0,
+        "n_ticks": 0,
+        "cpu_pct_p95": 0.0,
+        "cpu_pct_max": 0.0,
+        "sampler_overhead_pct": 0.22696862916117852,
+        "flags": [
+          "no_k6_summary",
+          "no_steady_window"
+        ]
+      },
+      "flags": [
+        "exit_status",
+        "unattained",
+        "errors_in_mixed",
+        "no_k6_summary",
+        "no_steady_window"
+      ]
+    }
+  ]
+}

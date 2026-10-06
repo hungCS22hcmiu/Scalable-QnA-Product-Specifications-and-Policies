@@ -1,0 +1,106 @@
+{
+  "started": "2026-10-07T00:48:08+0700",
+  "git_sha": "17bf221dd6868e430abfedd964a6fc2afd2b42de",
+  "tree_dirty": true,
+  "sut_dirty": false,
+  "k6_version": "k6 v1.7.1 (commit/devel, go1.26.1, darwin/arm64)",
+  "machine": {
+    "ncpu": 8,
+    "perf_cores": 4,
+    "eff_cores": 4
+  },
+  "ollama_keep_alive": "5m0s",
+  "args": {
+    "cmd": "run",
+    "rates": "",
+    "duration": 60,
+    "reps": 3,
+    "vus": 40,
+    "mixed": true,
+    "mixed_rate": 8,
+    "variants": 300,
+    "seed": 1,
+    "interval": 1.0,
+    "cooldown": 10.0,
+    "sut_every": 5,
+    "gateway_url": "http://localhost:8080",
+    "gateway_port": 8080,
+    "rag_port": 50051,
+    "redis_port": 6379,
+    "ollama_port": 11434,
+    "llm_blob": "sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520",
+    "llm_tag": "qwen3.5:2b-q4_K_M",
+    "embed_tag": "nomic-embed-text",
+    "num_ctx": 8192,
+    "out": "docs/work/2026-10-06-loadgen-footprint/evidence/footprint-mixed"
+  },
+  "sut_pids": {
+    "gateway": 61779,
+    "rag_server": 61737,
+    "redis": 1409,
+    "ollama_serve": 39478,
+    "llm_runner": 54223,
+    "embed_runner": 54200
+  },
+  "before": {
+    "ollama_ps": "NAME                       ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \nqwen3.5:2b-q4_K_M          124a03c34777    1.6 GB    100% GPU     8192       4 minutes from now    \nnomic-embed-text:latest    0a109f422b47    370 MB    100% GPU     2048       4 minutes from now    \n",
+    "vm_stat": {
+      "Pages free": 5293,
+      "Pages active": 161768,
+      "Pages inactive": 157398,
+      "Pages speculative": 4056,
+      "Pages throttled": 0,
+      "Pages wired down": 343492,
+      "Pages purgeable": 49,
+      "\"Translation faults\"": 7164839897,
+      "Pages copy-on-write": 307083048,
+      "Pages zero filled": 6798811285,
+      "Pages reactivated": 1959031453,
+      "Pages purged": 222332847,
+      "File-backed pages": 104706,
+      "Anonymous pages": 218516,
+      "Pages stored in compressor": 1725932,
+      "Pages occupied by compressor": 340723,
+      "Decompressions": 1887128719,
+      "Compressions": 2176889428,
+      "Pageins": 167976433,
+      "Pageouts": 3602008,
+      "Swapins": 4703439,
+      "Swapouts": 7216354
+    },
+    "top5_cpu": [
+      " 21.5 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer",
+      " 19.7 /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal",
+      " 15.7 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/152.0.7977.77/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper",
+      " 15.0 /Applications/Ollama.app/Contents/Resources/llama-server",
+      " 13.3 /System/Library/CoreServices/talagentd"
+    ],
+    "memory_pressure": [
+      "Pages wired down: 343492 ",
+      "",
+      "Compressor Stats:",
+      "Pages used by compressor: 340686 ",
+      "Pages decompressed: 1887128823 ",
+      "Pages compressed: 2176889428 ",
+      "",
+      "File I/O:",
+      "Pageins: 167976442 ",
+      "Pageouts: 3602008 ",
+      "",
+      "System-wide memory free percentage: 32%"
+    ],
+    "sysctl": {
+      "vm_pressure_level": 2,
+      "memstatus_level": 32,
+      "swap_used_mb": 9038.06
+    }
+  },
+  "cache_keys_before_start_flush": {
+    "t1:": 0,
+    "t2:": 0,
+    "dep:": 0,
+    "entry:": 0,
+    "lru:": 0,
+    "corpus:": 44
+  }
+}

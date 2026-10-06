@@ -3,30 +3,34 @@
 | Script | Measures |
 | :--- | :--- |
 | `ask.js` | the mixed workload at a **constant arrival rate** — hit rate, goodput, shed rate |
-| `mu_hit.js` | **μ_hit**, the 100 %-hit service rate — Phase 1's exit criterion |
+| `mu_hit.js` | **μ_hit**, the 100 %-hit service rate (item 7.2) |
 
-## ⚠️ Run it off-box
+## Where it runs: co-hosted, and what that makes citable (ADR-001)
 
-the off-box measurement rule and proposal §7: the load generator must not share a host with the system under test. On a
-16 GB machine whose whole claim is that generation is memory-bound, a co-hosted k6 competes for the
-envelope it is measuring. A co-hosted run is **invalid**, not merely noisy.
+No second machine exists and none is dated, so the load generator **shares the host** with the system
+under test (`decisions.md` ADR-001; `Final_Proposal.md` §7). That fixes what a number from here may claim:
+
+- A co-hosted generator depresses the system's service rates, so a co-hosted **μ_hit is a lower bound,
+  never a ceiling**; goodput is a lower bound and shed rate an upper bound. **p95 is two-sided and is not a
+  bound at all**: report it only beside k6's concurrent CPU from the same run, and as loopback latency.
+- The claim that survives is S1's *inequality*, and only for its μ_hit leg (ADR-001's per-quantity table;
+  `super-plan.md`'s "Measuring without a second machine" carries a pointer to it). μ_gen, for `h*`, is measured
+  with a sequential client and **no** load generator.
+- `make footprint` (item 1.6) drives `ask.js` under `experiments/scripts/loadgen_footprint.py`, which wraps
+  any k6 invocation and records k6's CPU and RSS beside the memory readings. It is **exploratory**.
 
 ```sh
-# on the SECOND machine
-k6 run -e GATEWAY_URL=http://<sut-ip>:8080 \
+k6 run -e GATEWAY_URL=http://localhost:8080 \
        -e WORKLOAD=/path/to/workload.json \
        -e ZIPF_SKEW=1.1 -e RATE_RPS=20 -e VUS=40 -e DURATION=10m \
        ask.js
 ```
 
-The gateway binds `:8080` on all interfaces by default (`HTTP_ADDR`), so the second machine needs
-only the SUT's LAN address.
-
 ## Environment
 
 | Var | Default | Notes |
 | :--- | :--- | :--- |
-| `GATEWAY_URL` | `http://localhost:8080` | **Override it.** The default is the co-hosted case, which is invalid for measurement |
+| `GATEWAY_URL` | `http://localhost:8080` | The co-hosted case, which is the supported one (ADR-001). Point it elsewhere only if a second machine ever exists |
 | `WORKLOAD` | *(built-in smoke set)* | JSON array of `{question, stratum?, product_id?}`. Without it the script runs five hard-coded questions — enough to prove the harness works, **never** something to report |
 | `ZIPF_SKEW` | `1.1` | The redundancy knob. Protocol §6 sweeps three levels; `manifest.yaml` records it |
 | `RATE_RPS`, `VUS`, `DURATION` | `10`, `20`, `2m` | Recorded in `manifest.yaml` as `k6_scenario` |
@@ -55,11 +59,14 @@ need revising.** The script evaluates the trigger itself and prints the verdict,
 read past.
 
 ```sh
-# on the SECOND machine
-k6 run -e GATEWAY_URL=http://<sut-ip>:8080 -e MODE=tier2 \
+# co-hosted (ADR-001): whatever it prints is a LOWER BOUND on μ_hit, never a ceiling
+k6 run -e GATEWAY_URL=http://localhost:8080 -e MODE=tier2 \
        -e WORKLOAD=/path/to/workload.json -e RATE_RPS=400 -e VUS=100 -e DURATION=60s \
        mu_hit.js
 ```
+
+Co-hosted, a non-zero `dropped_iterations` cannot tell the target saturating from k6 starving itself, so
+the script's "ceiling vs lower bound" verdict is not decisive there. Item 7.2 owns that (ADR-001).
 
 **`MODE` picks which ceiling.** They are different numbers and the difference is the point of
 `interfaces.md` §F: a Tier-1 hit is a hash lookup; a Tier-2 hit pays an embedding round-trip, which
@@ -89,8 +96,9 @@ Four things it refuses to do:
    stop the gateway → `make demo-reset` → restart.
 
 `make mu-hit` runs a **co-hosted shakedown** of the same script. It proves the harness works; its
-numbers are not citable, and on this machine it drives memory pressure out of green by itself —
-which is the off-box measurement rule demonstrating its own reason for existing.
+numbers are not citable, and on this machine it has driven memory pressure out of green by itself — an
+instance of co-hosting depressing what it measures, which is why a co-hosted μ_hit is only ever reported as
+a lower bound (ADR-001).
 
 ## Before a run counts
 

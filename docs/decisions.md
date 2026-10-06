@@ -40,11 +40,12 @@ warning. Writing the entry is the only trace such a change leaves.
 
 | ADR | Title | Status | Invalidates |
 | :--- | :--- | :--- | :--- |
-| ADR-001 | *Reserved* — co-hosted load generation and the load generator's footprint (`super-plan.md` item 1.6; named by Phase 1's exit criterion) | not yet written | — |
+| ADR-001 | Load generation is co-hosted; a co-hosted figure is a bound, an indicative reading or nothing, never a ceiling | in force (one open item: how 7.5 measures μ_gen) | none — no runs yet; relabels the 2026-09-06 μ_hit probes; supersedes the off-box wording in the k6 files, two Makefile banners and `experiments/README.md`, and the "lower bound on h*" wording in CLAUDE.md, super-plan.md and Final_Proposal.md (stale until the author edits it) |
 | ADR-002 | `v1` draws from six Amazon-PQA leaves mapped onto four departments | in force | none — no runs yet |
 | ADR-003 | The generation envelope serves one slot; the admission pool bounds queueing, not memory | in force | no `run_id`; relabels μ_gen as a one-slot planning figure; voids the spike grid's `NUM_PARALLEL` axis |
 | ADR-004 | The unfiltered Tier-2 phase is retired in code | in force | none — no runs yet; logs written before the 1.3 commit carry the old meanings under the same keys |
 | ADR-005 | Served answer text is stored content-addressed in `raw/answers/` | in force | none — no runs yet; a log written before the 1.5 commit has no answer store and cannot be judged |
+| ADR-006 | `t_generate_ms` means "this request's own `Answer` call was attempted" | in force (one open item: the 1 ms threshold) | none — no runs yet; ABANDONED and GENERATION_FAILED records' `t_generate_ms` is null before the F-H commit and not comparable across it, and any derived overhead is not either |
 
 ---
 
@@ -67,7 +68,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | Support-gate threshold | **`τ_s = 0.6`**, pinned | Taken from the published value. It is **never swept** — sweeping it would turn an adopted mechanism into a tuned one |
 | Doc-id kind prefix | `policy-` / `product-` | The reuse rule's lane selection depends on it, so it is a contract and not a naming habit |
 | Corpus | `v1` from **Amazon-PQA**; redistribution **not granted** | Ship a download-and-build script plus a hash manifest, never the raw corpus. Cite Rozen et al., NAACL-HLT 2021. `dev-v0` is the development corpus and is **not citable in any result** |
-| Load generation | **co-hosted**, reported as such | No second machine exists. The capacity claim is stated as a lower bound rather than a ceiling — see `super-plan.md`, "Measuring without a second machine" |
+| Load generation | **co-hosted**, reported as such (**ratified by ADR-001**) | No second machine exists. The capacity claim is stated as a lower bound rather than a ceiling — see `super-plan.md`, "Measuring without a second machine" |
 
 ## Open questions carried into the thesis phase
 
@@ -80,8 +81,183 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 
 ## Decisions
 
-*ADR-001 is reserved for the co-hosted-measurement decision named by Phase 1's exit criterion and is
-not yet written.*
+### ADR-001 — Load generation is co-hosted; a co-hosted figure is a bound, an indicative reading or nothing, never a ceiling
+**Decided (method)** · 2026-10-07 · *`super-plan.md` item 1.6 and "Measuring without a second machine", `experiments/k6/README.md`, `Final_Proposal.md` §7 and §9.4 (read-only); trail `docs/work/2026-10-06-loadgen-footprint/`*
+
+The load generator (k6) runs on the same machine as the system under test, because no second machine exists
+and none is dated. This **ratifies** the inherited row "Load generation: co-hosted, reported as such" above,
+which was frozen without a numbered entry, and **supersedes** the prose that called a co-hosted run invalid
+(`experiments/k6/README.md`, the headers of `ask.js` and `mu_hit.js`, two `Makefile` banners,
+`experiments/README.md`). `Final_Proposal.md` §7 and §9.4 already said co-hosted and already named this ADR as
+the record of it, so nothing there needs editing for the *decision to co-host*; **but their "lower bound on
+`h*`" wording (§7 `:345`, §9.4 `:460`) is superseded by the corrected argument below**, as is the same wording
+in `CLAUDE.md` (`:162-167`) and in `super-plan.md` (Phase 7's exit line, item 7.2's Done-when, and "Measuring
+without a second machine"). Those edits wait for the author (see **Invalidates**). A figure taken co-hosted is reported as a
+**bound**, an **indicative reading**, or **not at all** — never as a ceiling. Item 1.6 measured what the
+generator costs: **k6 used 1.0 % → 4.8 % of one core as the offered rate went 2 → 32 req/s (0.6 % of the
+8-core machine at 32), and its `phys_footprint` read 21 – 28 MB** (the larger of two spot readings per row;
+the exact peak resident set, `ru_maxrss`, was 59 MB). The author's pre-registered rule
+(A = 25 % of one core, B = 250 MB, `approvals.md`, set before any file of the recorded runs existed) therefore
+says **adopt co-hosting unmitigated**. That is a statement about k6's own cost. It is **not** a measurement of
+interference, and the second half of this entry says what follows and what does not.
+
+**What the measurement is** (`evidence/footprint/footprint.md`, run A; `evidence/footprint-mixed/footprint.md`,
+run B; the outcome in `evidence/outcome.md`). Steady-state mean over the ticks from 5 s after k6 started to 5 s before its last tick (49 – 50 s of a 60 s row), % of **one**
+core, three repetitions per rate, HEAD `17bf221`, `gateway/` and `rag/` unmodified:
+
+| Regime | Offered req/s | Achieved | k6 CPU, mean (spread over reps) | % of the machine | k6 peak RSS | SUT total CPU | Sampler's own cost |
+| :--- | ---: | ---: | :--- | ---: | ---: | ---: | ---: |
+| all-hit | 2 | 2.01 | 1.01 % (0.88 – 1.10) | 0.13 % | 54 MB | 1.4 – 1.5 % | 2.66 % |
+| all-hit | 8 | 8.01 | 1.94 % (1.82 – 2.04) | 0.24 % | 56 MB | 1.9 – 2.0 % | 2.39 % |
+| all-hit | 16 | 16.02 | 2.70 % (2.28 – 3.20) | 0.34 % | 56 MB | 2.4 – 3.1 % | 2.29 % |
+| all-hit | **32** | 32.02 | **4.80 %** (4.58 – 5.10) | 0.60 % | 59 MB | 4.4 – 4.8 % | 2.75 % |
+| mixed | 8 | 8.02 | 1.41 % (1.37 – 1.48) | 0.18 % | 56 MB | 77 – 97 % | 2.33 % |
+
+*All-hit* is the five-question smoke set after a warm-up, so every request is a Tier-1 hit and Ollama is idle.
+*Mixed* is a seeded Zipf draw over the smoke set plus 300 suffixed variants, each repetition from a **cold
+cache**: it produced Tier-1, Tier-2, MISS and shed outcomes together (tier mix 263 / 84 / 41 in the first
+repetition, 63 – 93 sheds per row, the LLM runner at 41 – 55 % of a core and the embedding runner at 24 – 30 %).
+k6's cost is linear in the rate: **CPU % = 0.81 + 0.124 × req/s**, about 0.0012 CPU-seconds per request. The two spot
+`phys_footprint` readings per row stayed between 21 and 28 MB in every kept row.
+
+- **Rationale:**
+  - **The decision was already made; the record was missing.** Every Phase 7 number would otherwise be taken in
+    breach of a rule the repository still printed in five places, with nothing on record saying the rule had
+    been set aside.
+  - **The plan's argument needed one empirical premise** — that at the rates the sweep offers, k6 costs little
+    enough to leave the SUT's headroom intact. It holds for k6's own cost: the figure above is small and
+    linear. **It does not by itself license the conclusion below it** (see the next section).
+  - **The memory pressure was not gated, by the author's decision of 2026-10-06** (development, not a
+    benchmark). The consequence is stated in terms below.
+- **What is citable co-hosted — one row per quantity, with the direction co-hosting biases it:**
+
+  | Quantity | Co-hosting bias | Status | What Phase 7 must add |
+  | :--- | :--- | :--- | :--- |
+  | goodput | **lower bound**: the generator takes CPU from the SUT | bound | k6's concurrent CPU from the same run |
+  | shed rate | **upper bound** | bound | the same |
+  | μ_hit | **lower bound** | bound, **never a ceiling**. The 2026-09-06 Tier-1 figure (≈ 8000 req/s) is **not rescued**: it is a ceiling, and it was taken at *urgent* pressure. The Tier-2 figure (≈ 61 req/s) stays a planning lower bound | per mode and per sweep point (item 7.2) |
+  | hit rate under load | **two-sided**: slower generation leaves more duplicate misses in flight (coalesced followers lower the measured hit rate), while `ask.js` computes it over answered requests, which excludes sheds that are always misses (raises it) | indicative | pin `h_r` to the workload's ρ ceiling or a low-load replay |
+  | **μ_gen** | co-hosting depresses it, which **raises `h*`**: anti-conservative | **not citable co-hosted for `h*`** | measure it with a sequential closed-loop client and **no** load generator (concurrency 1 saturates one slot, so `b = 1` by construction) — ⟦PENDING: the author confirms that item 7.5 does this⟧ |
+  | **p95** | **two-sided**: CPU contention raises it; loopback removes network RTT; k6's `http_req_duration` may omit a request sent late (a reviewer's claim, **unverified here**) | **not a bound of either kind** | reported **only** with k6's concurrent CPU from the same run, and stated as loopback latency |
+  | the **1.6 footprint** | biased by pressure (below) | **indicative, unconditionally**; the run is **exploratory** under standing constraint 4 | **not** Phase 7's interference measurement |
+
+- **The `h*` argument, corrected.** `h* > h_r` ⟺ `μ_hit/μ_gen > h_r/(1 − h_r)`, one inequality; at
+  `h_r = 0.988` the threshold is **≈ 82.3**. The planning ratio is 61/0.19 ≈ 321, a margin of **3.9×**
+  (61/15.6). **That is the plan's 3.8× (61 against ≈ 16 req/s; 3.90 unrounded) restated in μ_gen units, not a second cushion**, and both inputs are
+  non-citable (`dev-v0` with no `run_id`; a planning figure, ADR-003). With `a` and `b` the factors by which
+  co-hosting depresses μ_hit and μ_gen, a ratio measured with both co-hosted is `R_measured = R_true · a/b`,
+  so the claim holds iff **`b/a > 0.257`** (≈ 0.26) at `R_measured = 321`. "A co-hosted figure is a lower bound on `h*`"
+  is therefore true of the **μ_hit leg only**. `h_r` is a third term that co-hosting moves in both directions
+  (table above).
+- **The footprint does not satisfy Phase 7's interference clause** (*"every co-hosted number carries its
+  interference measurement"*). CPU share does not measure cache, memory-bandwidth or scheduler contention
+  against the embedding server, which is the mechanism the lower-bound argument runs through. A comparison
+  "with and without k6" is **not runnable** (no load without a generator). Two candidate methods are not
+  designed here: (a) a **matched-burner test**, **assigned to item 7.1 to design** — a synthetic CPU burner
+  sized from this footprint, run beside k6, to see whether the measured quantities move; (b) the no-generator
+  μ_gen measurement above, which is **item 7.5's**. The sweep's real rate grid is item 7.1's and is not defined yet: **2, 8, 16 and 32 req/s
+  bracket it; they do not measure it.**
+- **Read the table with its regime.** The all-hit rows run against an **idle** SUT (Ollama near 0 %); the mixed
+  row against a **busy** one (77 – 97 % of a core). A footprint judged against an idle SUT says nothing about
+  headroom against a busy one. At the same 8 req/s k6 used 1.94 % in run A's all-hit rows and 1.41 % in run B's
+  mixed rows (−27 %). That is a **difference between two runs**, taken in different sessions (swap 8.4 – 8.5 GB
+  against 9.0 – 9.2 GB, a different gateway process, an LLM runner at 14 MiB against 286 – 968 MiB), and within
+  each run the rates ran in ascending order, so drift aliases with rate. It is **not** a measured property of
+  the regime and it is no bound: it says only that the all-hit figure was the higher of these two. k6's RSS is set by its VU allocation (`VUS = 40` was fixed; `vus_max` was 40 in every row) and is flat
+  across rates by construction; it is an allocation floor, not a response to load.
+- **The LLM was mostly not resident, although `ollama ps` listed it as loaded.** The LLM runner's resident set
+  (`ps rss`, sampled every fifth tick; the column "LLM runner RSS MiB" in each table) was **2,047 – 2,334 MiB**
+  in the three 2 req/s rows, **13 – 19 MiB throughout in 8 of the 12 all-hit rows** (a ninth, `allhit-r8-rep1`,
+  rose from 19 to 2,048 MiB inside the row) and **286 – 968 MiB in the mixed rows** while it was generating.
+  Its weights were compressed or swapped out for most of the run, and the instrument's `assert_models_loaded`
+  reads only `ollama ps`, which cannot tell. This does not change k6's own CPU (k6 never touches the LLM), but
+  spec decision 3 ("both models resident") held in name only, the "idle SUT" of the all-hit rows had a
+  swapped-out generator, and the mixed rows' 77 – 97 % SUT CPU is the CPU of a generation that was paging its
+  own weights. **A later run that needs a resident SUT must gate on the runner's resident set, not on
+  `ollama ps`.**
+- **The cache was unbounded.** The gateway ran with `CACHE_CAPACITY` unset (unbounded, its default): every kept
+  row shows `lru:` at 0 beside non-zero `t2:` counts, and the same invocation's banner in `probes.md` reads
+  `cache_capacity=0 UNBOUNDED`. The banner of the recorded gateway itself was not captured, so this is an
+  inference. The mixed row's tier mix therefore comes from an unbounded cache, an upper bound on hit rate that
+  no deployment reaches, with the capacity ratio (0.25 × K) not in force.
+- **The instrument's own cost is the same order as what it measures.** The sampler spent **2.3 – 2.75 % of a
+  core per rate (2.1 – 3.1 % per run)**, more than k6 below about 16 req/s (k6: 1.0 % at 2, 1.94 % at 8). It was reduced once during the
+  shakedown (SUT processes are sampled every fifth tick; it had been ~3× k6's cost) and is reported beside
+  k6's figure in every row. **Phase 7 inherits it** if it runs the sampler at 1 Hz with these calls and
+  should state it, or lower the frequency, or replace the `ps` and `sysctl` calls.
+- **Pressure.** The reading is **raw and never mapped to a colour**: the repository says `0` is green, the
+  sysctl read **2** throughout (one row's minimum was **1**), `memstatus_level` ran 28 – 55 %, **swap in use was
+  8.4 – 9.2 GB and growing across the session, and every kept row shows swap-in or page-in activity** (up to
+  7,980 swap-ins and 11,512 swap-outs in one row). Background daemons held the CPU at the start
+  (`translationd` 46 %, `modelcatalogd` 38 %, `mobileassetd` 30 % in the top-5 before run A). Paging inflates
+  CPU readings and shrinks RSS, so **the figure is indicative whatever the zone was**. This is the divergence
+  from `Final_Proposal.md` §7 (`:343`) and §9.4 (`:461`), which discard a run that leaves green: **this run was
+  not gated and is classified exploratory.** *Exploratory* here means: kept as a development characterisation,
+  **not citable and not an input to any result**. It is **not** a run that standing constraint 4 would accept
+  (a run outside green is discarded and repeated): that constraint is **unamended**, and this run falls outside
+  it only because it is not a thesis run, by the author's decision of 2026-10-06. No number in the results chapter is
+  sourced from this table; Phase 7's footprint comes from Phase 7's own runs. The encoding of
+  `kern.memorystatus_vm_pressure_level` is **unverified** (the repository's `0 = green` may be wrong; XNU is
+  recalled as returning 1 / 2 / 4), and if so `make measure`'s `!= 0` gate can never pass. That is outside this
+  decision and is recorded for the author.
+- **The pre-registration, and what it is worth.** A and B were fixed before any recorded file existed, so the
+  rule could have sent the ADR to a mitigation. The author chose the values **after** being told that the
+  exploratory shakedown, which is not evidence, had shown about 1.8 % and about 23 MB, so the rule was unlikely
+  to bind, and it did not (margin 5.2× to A, 8.9× to B). The outcome is a statement about k6's own cost and
+  nothing more.
+- **There is no p95 headroom threshold.** An earlier draft carried one. It was dropped: a value fixed after
+  seeing this table is a choice of which rates' p95 become citable. In its place, with no parameter
+  (`super-plan.md`'s first option): **every co-hosted p95 is reported with k6's own concurrent CPU from the same
+  run.** The sampler wraps any k6 invocation for that reason.
+- **Alternatives:**
+  - **A second machine.** None exists and none is dated.
+  - **Keep the off-box rule and run co-hosted anyway.** Rejected: it leaves every Phase 7 number in breach of a
+    frozen rule with nothing on record, which is the silent-deviation failure this log exists to prevent.
+  - **Pin k6 to the efficiency cores with `taskpolicy`.** Not evaluated: the pre-registered rule did not call
+    for a mitigation. A possible response if a later run exceeds A.
+  - **An in-process closed-loop generator.** Rejected: a closed loop cannot saturate the target, which is the
+    whole subject of S1.
+- **Consequences:**
+  - **Not measured, and not claimed:** interference with the embedding server; any rate above 32 req/s; the
+    Tier-1 μ_hit probe regime (~400 req/s), which `super-plan.md` calls a different regime and which this entry
+    records as **not rescued**; the footprint under green pressure; and the footprint against v1 content (the
+    workload was the built-in smoke set and seeded variants; nothing from `data/`).
+  - **Item 7.1** designs the interference method; **item 7.5** measures μ_gen without a generator (⟦PENDING⟧
+    above); **item 7.2** owns `mu_hit.js`'s verdict logic. Co-hosted, a non-zero `dropped_iterations` cannot
+    tell the target saturating from k6 starving itself, and `mu_hit.js`'s verdict line (`mu_hit ~= X`) prints it as if it were a
+    ceiling. This entry names that and does not change it.
+  - **`interfaces.md:164` records a lost measurement, not merely stale wording.** It promises "off-box
+    end-to-end" latency, and that measurement will now not exist: co-hosted p95 is loopback latency and
+    excludes the network. The contract is **not** edited here (a v0.13 bump and the contract phase for a
+    sentence about a record this item does not touch); this entry is where it is recorded.
+  - **Nothing from this footprint reaches a result.** What Phase 7 may cite is the table in this entry's
+    second section, with the "what Phase 7 must add" column.
+  - **What the sampler does to the SUT's cache.** `make footprint` **deletes** the `t1:`, `t2:` and `lru:`
+    keys of the Redis the SUT uses, at the start of a run and before every mixed repetition (never `corpus:`),
+    and **refuses to run while `dep:` or `entry:` keys exist** (the dependency region has one writer once C2
+    is built; a deletion from outside would leave an unpurgeable entry with no error). The Makefile banner
+    and comment now say so, `NO_FLUSH=1` skips it (refused with the mixed row), and the author's confirmation of
+    this behaviour, which went beyond the single `make demo-reset` that decision 9 covered, is **pending**
+    (`approvals.md`). Item 6.3's pre-populated static-cache arm must not meet this tool.
+  - **The instrument changed after the recorded runs, and the numbers did not.** Review added guards (a wrong
+    process, sampled CPU far below `wait4`'s total, many discarded ticks, a flush that spares the dependency
+    region and follows `--redis-port`), the LLM runner's RSS column, a non-zero exit status when rows are
+    excluded, and file hashes in the header. The tables of both runs were **regenerated from the stored CSVs**
+    with the changed module and every number, the fit and every exclusion are identical
+    (`evidence/provenance.md`). The sampler and `ask.js` were uncommitted when the runs were taken, so the
+    headers carry no hash of them; `provenance.md` says what is and is not recoverable.
+  - **Run history, kept as it happened.** Run A's three mixed rows died (k6 exit 107: a relative `--out`; k6
+    resolves `open()` against the script's directory) and are excluded in its table with their flags; the
+    mixed row was taken again as run B, in its own directory, after the fix and a green `/verify`. Neither was
+    edited. `ABANDONED` and `GENERATION_FAILED` are **vacuous for the all-hit regime** and are not claimed
+    settled for the mixed one (the log counter cannot tell them apart; every kept row had `error_rate = 0` and
+    k6 exit 0).
+- **Invalidates:** *none — no runs yet.* `experiments/results/` holds no run and no k6 footprint was ever
+  recorded. It **relabels** the 2026-09-06 μ_hit probes, which were never citable (co-hosted, `dev-v0`, no
+  `run_id`). What it **supersedes** is prose, not a value: the off-box wording listed above, **and the "lower bound on
+  `h*`" wording** at `CLAUDE.md:162-167`, in `super-plan.md` (Phase 7's exit line, item 7.2's Done-when and
+  "Measuring without a second machine", which now carries a pointer here) and at `Final_Proposal.md` §7 `:345`
+  and §9.4 `:460`. Those stand until the author edits them: **read them through the corrected argument above.**
 
 ### ADR-002 — `v1` draws from six Amazon-PQA leaves, mapped onto four departments
 **Decided (data)** · 2026-10-04 · *`data-card.md` §1–§3, `docs/work/2026-10-03-pqa-category-choice/`*
@@ -454,3 +630,74 @@ is **gitignored**. This is the decision `super-plan.md` item 1.5 said §H needed
     was served. It bears on 5.1, where hash dedupe saves nothing if every miss produces a new text.
 - **Invalidates:** none — no runs yet. A log written before the 1.5 commit has no answer store, so its
   answers are not recoverable and **it cannot be judged**.
+
+### ADR-006 — `t_generate_ms` means "this request's own `Answer` call was attempted"
+**Decided (method)** · 2026-10-06 · *`interfaces.md` §H v0.12, `gateway/internal/httpapi/handler.go`, `super-plan.md` finding F-H; trail `docs/work/2026-10-06-fh-generate-ms-on-abandoned/`*
+
+The evaluation log's `t_generate_ms` is non-null **iff this request's own `Answer` call was attempted**,
+whether it succeeded or not (for a record with a non-empty `cache`; a leader that panics after `Answer` is
+logged with `cache: ""` and no value). The gateway now carries it on `ABANDONED` and `GENERATION_FAILED` leaders
+that reached `Answer`, where it previously carried it on a MISS only. §H is amended to say so (v0.12,
+doc-only). No field, key, wire shape or frozen value changes.
+
+- **Rationale:**
+  - **The code left a stage that ran with no span**, against the intent of §H's note that a `t_*_ms` is
+    null where its stage did not run (a one-directional rule, so this is a tightening, not a breach). The
+    stage (the gateway's span around `ragclient.Answer`) ran on a failed or cancelled attempt, and the
+    closure computed the duration, then dropped it on every non-success path.
+  - **It answers two questions that were unanswerable.** *Did an abandoned request's own `Answer` get
+    attempted?* Before, only a filter on `permit_queue_depth >= 1` selected one subset and could not see a
+    request that took `Acquire`'s fast path and left. *How long did a failed generation take?* The
+    duration separates an immediate failure (ms) from a long one (s). It cannot separate an upstream hang
+    from a slow generation: under k6 both read ≈ 120 s minus the time before `Answer`, and a hang already
+    lands in `ABANDONED`.
+  - **Why a contract entry for a one-line fix.** The field's *presence* used to mean exactly
+    `cache == MISS ∧ ¬coalesced`. It no longer does. An analyst reading the example comment who selects
+    MISS service times by presence would take in ABANDONED durations censored near 120 s and bias μ_gen,
+    silently. The selection rule must live where the field is defined, not in a trail.
+- **Alternatives:**
+  - **Leave §H unchanged and record the rule in the trail.** Rejected by the design review: the example
+    comment *"null unless generation ran"* can be read as forbidding the new values (the fast-path
+    dead-context request makes no RPC), and a trail is closed when its task is.
+  - **A new field** (`reached_server`, an RPC-sent timestamp). Rejected: a new §H field is a contract
+    decision this bug does not need, and `t_generate_ms` plus the threshold below is enough.
+  - **Also move `rec.Coalesced = shared` above the outcome switch.** Rejected for now: the same flaw, but
+    a **second measurement change** (an extension field would appear on SHED, ABANDONED and
+    GENERATION_FAILED records, and a follower of a shed leader would read SHED plus `coalesced`). Recorded
+    as a finding next to F-D.
+  - **Copy the value inside the closure** rather than after `Do`. Rejected: it changes the leader-panics
+    path for no gain.
+- **Consequences:**
+  - **Per-statistic selection** (§H v0.12 field note): service-time and μ_gen select
+    `cache == "MISS" ∧ t_generate_ms != null` (a MISS follower's value is null, a leader's is not, so this
+    is exactly what presence selected before; `coalesced` is an extension field §H does not define and is
+    **absent**, never `false`, on a leader), and while F-L is open that is necessary but **not
+    sufficient**; permit-occupancy statistics may select on presence, but `t_generate_ms` is a **lower
+    bound** on a MISS's hold (the permit is held through write-back) and no permit exists when admission
+    is disabled; filters use `!= null`, never `> 0`.
+  - **What a null means after the fix:** on GENERATION_FAILED a follower; on ABANDONED either a request
+    that left while queued or a follower (`coalesced` is set only on a served MISS), so the two cannot be
+    told apart offline except by a `t1_key` time-interval join. **F-L** is the `super-plan.md` finding that
+    `rag.server` keeps generating after its RPC is cancelled; **F-D** is the one that a coalesced follower
+    inherits its leader's cancellation.
+  - **ABANDONED's value is censored** (F-L): at most the generation's true duration, and silent on
+    whether `rag.server` finished. It tightens the orphan upper bound; it does not turn it into a count.
+  - **The "RPC never left" split needs a threshold, and the threshold is pre-registered before anyone
+    looks at the distribution.** *Default: 1 ms.* The gap defends the split, not the number: microseconds
+    for an RPC that never left against seconds for one cancelled during a real generation. The failure
+    mode is a never-sent tail above 1 ms (under `-race`, GC pauses, co-hosted CPU contention, a cancel
+    during a lazy connect), which would read as "reached `rag.server`" with nothing to flag it. So an
+    analysis **reports the count of ABANDONED values in [1 ms, 100 ms] beside the split and calls it
+    unresolved if that count is not negligible.** The number is the author's to confirm and belongs in
+    P1's manifest. ⟦PENDING: the author confirms or replaces the 1 ms default⟧
+  - **Recorded, not fixed here:**
+    - `t_permit_wait_ms` is **null on every fast-path request** (`Acquire` returns a permit with
+      `Waited == 0` and the gateway renders a zero duration as null), which contradicts §H's *"null
+      unless a permit was requested"*;
+    - **and on a request that queued and then left**, because the closure returns before it is set;
+    - `coalesced` is set only on a served MISS.
+  - **Nothing here changes a count or a label.** Item 1.6's `ABANDONED` count is comparable across the
+    commit. **1.6's first `RUN_ID` must be taken after this commit**: logs carry no gateway SHA until P1.
+- **Invalidates:** none — no runs yet. A log written before the F-H commit has null `t_generate_ms` on
+  `ABANDONED` and `GENERATION_FAILED` records; those two fields are **not comparable across it**, and any
+  derived overhead is not either.

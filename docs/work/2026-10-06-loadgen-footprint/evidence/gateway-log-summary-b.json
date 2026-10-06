@@ -1,0 +1,11 @@
+{
+  "lines": 1453,
+  "sha256": "cdb9aaa9eb186ebcb7c755c5d55639b26e684a9704441e56aa4bdc295281faae",
+  "by_cache": {
+    "MISS": 151,
+    "TIER1_HIT": 815,
+    "SHED": 237,
+    "TIER2_HIT": 250
+  },
+  "shed": 237
+}

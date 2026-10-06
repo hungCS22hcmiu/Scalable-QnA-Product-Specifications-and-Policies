@@ -472,6 +472,15 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		}, nil
 	})
 
+	// t_generate_ms (interfaces.md §H v0.12, ADR-006): non-null iff THIS request's own Answer call was
+	// attempted, successful or not. It is copied here, BEFORE the outcome switch, so that every outcome
+	// inherits it and a case added later cannot forget it. generateMS is set only by this request's own
+	// closure after Answer returns, so it stays nil, with no special case, for a SHED, for a client that
+	// left while queued (both return from Acquire before genStart), and for every coalesced follower
+	// (its closure never runs). It is deliberately NOT written inside the closure: that would change what
+	// a leader that panics is logged with.
+	rec.GenerateMS = generateMS
+
 	switch {
 	case errors.Is(err, admission.ErrShed):
 		// The frozen shed contract (interfaces.md A). Counted by the scalability eval as a
@@ -520,7 +529,6 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	rec.Cache, rec.EntryID = cacheMiss, gen.EntryID
 	rec.EntrySources = gen.SourceChunkIDs
 	rec.SetAnswer(gen.Text)
-	rec.GenerateMS = generateMS
 	rec.Coalesced = shared
 	_, _ = permitWait, queueDepth
 

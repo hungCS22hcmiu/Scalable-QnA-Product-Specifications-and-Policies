@@ -1,9 +1,11 @@
-// The μ_hit probe — Phase 1 exit criterion.
+// The μ_hit probe (item 7.2).
 //
-// ⚠️ RUN THIS OFF-BOX, like every other load scenario (proposal §7). A co-hosted
-// generator competes for the envelope it is measuring.
+// CO-HOSTED, per decisions.md ADR-001: no second machine exists, and a co-hosted generator depresses what it
+// measures, so whatever this prints is a LOWER BOUND on μ_hit, never a ceiling. Co-hosted, a non-zero
+// dropped_iterations cannot tell the target saturating from k6 starving itself, so the verdict below is
+// not decisive there (item 7.2 owns that).
 //
-//   k6 run -e GATEWAY_URL=http://<sut-ip>:8080 -e WORKLOAD=workload.json experiments/k6/mu_hit.js
+//   k6 run -e GATEWAY_URL=http://localhost:8080 -e WORKLOAD=workload.json experiments/k6/mu_hit.js
 //
 // ## Why this number can change the report
 //
