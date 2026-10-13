@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui seam-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -343,6 +343,43 @@ seam-check: ## Item 1.4: texts flow Python -> Go aligned, oracle = Redis (NOT a 
 	   echo "FAIL — the test did not genuinely run (a skip, no matching test, or a cached result)"; exit 1; \
 	 fi; \
 	 echo "  PASS — texts aligned with chunk_ids on L1-L3, splice fired, shift rejected. Log: $$log"
+
+# Item 2.1: the lexical support gate fed with text from the running retrieval service
+# (docs/work/2026-10-10-support-gate-lexical-arm/plan.md, step 8b). seam-check's guards, same
+# reasons: it OWNS its rag.server on a private port (never whatever answers on :50051), and it
+# fails unless the log shows every subtest PASS. The startup block is COPIED from seam-check, not
+# shared, so that editing this target can never reopen item 1.4's verified one.
+# Retrieval only: loads nomic-embed-text (the query is embedded), not the LLM. Not a measurement,
+# and not a request to /ask (the gate is not wired in yet). Same SEAM_* variables.
+support-check: ## Item 2.1: lexical support gate on live retrieved text, oracle = Redis (NOT a measurement)
+	@set -euo pipefail; \
+	 log="$(SEAM_LOG)"; [ -n "$$log" ] || log=$$(mktemp -t support-check); \
+	 echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (0 = green; recorded, not gated)"; \
+	 redis-cli -u $(SEAM_REDIS_URL) PING >/dev/null 2>&1 || { echo "FAIL — redis unreachable at $(SEAM_REDIS_URL)"; exit 1; }; \
+	 n=$$( (lsof -t -nP -iTCP:50051 -sTCP:LISTEN 2>/dev/null || true) | sort -u | wc -l | tr -d ' '); \
+	 echo "  info: $$n process(es) listening on :50051 (rag-server-reuseport; not used by this check)"; \
+	 if lsof -t -nP -iTCP:$(SEAM_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+	   echo "FAIL — port $(SEAM_PORT) already has a listener; SO_REUSEPORT would share it"; exit 1; \
+	 fi; \
+	 ( cd $(RAG) && RAG_GRPC_ADDR=127.0.0.1:$(SEAM_PORT) REDIS_URL=$(SEAM_REDIS_URL) exec $(PY) -m rag.server ) & \
+	 rag_pid=$$!; \
+	 trap 'kill $$rag_pid 2>/dev/null || true' EXIT INT TERM; \
+	 for i in $$(seq 60); do \
+	   kill -0 $$rag_pid 2>/dev/null || { echo "FAIL — rag.server exited on startup"; exit 1; }; \
+	   if nc -z 127.0.0.1 $(SEAM_PORT) 2>/dev/null; then break; fi; \
+	   [ $$i -lt 60 ] || { echo "FAIL — rag.server not listening on $(SEAM_PORT) after 30 s"; exit 1; }; \
+	   sleep 0.5; \
+	 done; \
+	 echo "  rag.server pid $$rag_pid on 127.0.0.1:$(SEAM_PORT), started from the working tree"; \
+	 ( cd $(GATEWAY) && RAG_SEAM_ADDR=127.0.0.1:$(SEAM_PORT) REDIS_URL=$(SEAM_REDIS_URL) \
+	   go test -count=1 -v -run '^TestSupportLive$$' ./internal/ragclient/ ) 2>&1 | tee "$$log"; \
+	 for want in TestSupportLive TestSupportLive/fidelity TestSupportLive/paraphrase-query TestSupportLive/warranty-query; do \
+	   grep -q -- "--- PASS: $$want (" "$$log" || { echo "FAIL — no '--- PASS: $$want' in $$log"; exit 1; }; \
+	 done; \
+	 if grep -qE -- '--- SKIP|no tests to run|\(cached\)' "$$log"; then \
+	   echo "FAIL — the test did not genuinely run (a skip, no matching test, or a cached result)"; exit 1; \
+	 fi; \
+	 echo "  PASS — fixture text matches Redis, live retrieval scored, texts aligned. Verdicts are LOGGED, not asserted. Log: $$log"
 
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
