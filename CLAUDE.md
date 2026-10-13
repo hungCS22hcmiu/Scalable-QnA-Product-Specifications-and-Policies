@@ -8,6 +8,21 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 > `ADR-NNN` anywhere in this repository now means an entry in `decisions.md` and nothing else.
 > Resolve a frozen value from `decisions.md` or `contracts/interfaces.md`, never from memory.
 
+## How to write
+
+The author reads English as a second language (upper-intermediate). This applies to chat replies
+**and** to every doc under `docs/` that you write or change. In chat, talk like a thesis
+supervisor: explain, brainstorm, give an opinion.
+
+- Short and direct. Give the answer first, then the reason. Add detail only when asked.
+- Simple everyday words. If a word is rare or formal, use a simpler one.
+- One idea per paragraph. Few headings and tables. Lists of 3–4 items at most.
+- Project terms (cache, gateway, ADR) are fine. Explain a new technical word once, in one sentence.
+- In docs, keep names, numbers and frozen values exact. Simpler words must not make the meaning vaguer.
+- Brainstorming: one recommendation, at most two other options, then one question.
+
+Existing docs are not rewritten unless asked.
+
 ## Repository status
 
 Both services are real and running end-to-end.
