@@ -46,6 +46,8 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-004 | The unfiltered Tier-2 phase is retired in code | in force | none — no runs yet; logs written before the 1.3 commit carry the old meanings under the same keys |
 | ADR-005 | Served answer text is stored content-addressed in `raw/answers/` | in force | none — no runs yet; a log written before the 1.5 commit has no answer store and cannot be judged |
 | ADR-006 | `t_generate_ms` means "this request's own `Answer` call was attempted" | in force (one open item: the 1 ms threshold) | none — no runs yet; ABANDONED and GENERATION_FAILED records' `t_generate_ms` is null before the F-H commit and not comparable across it, and any derived overhead is not either |
+| ADR-007 | Redis holds only derived state; the corpus of record is the versioned file corpus | in force (one open item: P1 must record `redis_version` + `rdb_last_save_time`) | none — no runs yet; no run ever depended on Redis persistence config, which was unrecorded until this entry; the restart-voids-a-run rule binds forward from P1's manifest |
+| ADR-008 | The dataset epoch is sourced from outside the Redis keyspace it guards | in force (binds forward — the epoch is a constant stub until Phase 4) | none — no runs yet; `dataset_epoch_at_retrieval` carries no information while `DATASET_EPOCH_STUB = 0` |
 
 ---
 
@@ -702,3 +704,117 @@ doc-only). No field, key, wire shape or frozen value changes.
 - **Invalidates:** none — no runs yet. A log written before the F-H commit has null `t_generate_ms` on
   `ABANDONED` and `GENERATION_FAILED` records; those two fields are **not comparable across it**, and any
   derived overhead is not either.
+
+---
+
+### ADR-007 — Redis holds only derived state; the corpus of record is the versioned file corpus
+**Decided (scope | frozen)** · 2026-10-10 · *`docs/architecture.md`, `interfaces.md` §D/§E, `Final_Proposal.md` §7/§9.4, `Makefile` (`redis-check`); trail `docs/work/2026-10-10-redis-as-sole-store/`*
+
+There is **no separate database server, and none will be added.** The store of record is
+`data/<dataset_version>/*.json` plus the frozen chunking config — for `v1`, the download-and-build
+script plus the hash manifest. Everything Redis holds is **derived**: `corpus::{chunk_id}` text and
+vectors are rebuildable by `make ingest`; `t1:*`, `t2:*`, `dep:*` and `lru:entries` are cache state
+whose total loss costs hit rate and nothing else. Redis is therefore a **derived-state store**, not
+the system's database, and its durability requirements are correspondingly weak.
+
+**What this does not claim.** It does not claim the storage design would scale. It claims only that
+losing Redis entirely is recoverable, and that the measurement is unaffected by which store holds
+the derived copy. **Recoverable does not mean survivable.** The corpus index shares the process with
+the cache, so Redis down is an outage, not a degradation (see the second rationale point below).
+
+- **Rationale:**
+  - **A second store would sit on the measured path.** It adds its own latency component to every
+    retrieval, consumes part of a memory envelope that is already the binding constraint (~9–10 GB
+    before any Ollama test), and moves **neither contribution**: C1 is set intersection over chunk
+    IDs computed in Go, C2 is a reverse index. The cost is measurement noise for no movement on the
+    claim.
+  - **A mutable RDBMS would weaken reproducibility.** A `dataset_version` tag plus a hash manifest
+    is what makes a run repeatable; a store that can be edited out of band is the opposite of that.
+  - **Durability does not need a second store, and a second store does not provide availability.**
+    *(Corrected the same day. The first draft said total loss of Redis degrades to the no-cache arm,
+    which is true of the cache keys only; see trail F11.)* Losing Redis loses no data, because
+    everything in it is rebuildable. It is still an **outage, not a degradation**: `idx:corpus` and
+    `corpus::*` share the process with the cache, and the no-cache arm still retrieves. With Redis
+    down, every request fails until Redis returns and, if the keyspace was lost, until `make ingest`
+    rebuilds the index. Redis is a single point of failure for availability, not for durability. A
+    database server would not change that, because it would be a second single point of failure on
+    the retrieval path. Availability needs replicas and failover, which is scale-out (§12). The
+    outage is accepted because availability under store failure is not a measured property, and a
+    restart already voids the run (Consequences).
+- **Alternatives:**
+  - **Postgres/pgvector as store of record** — rejected on the measured-path argument above. It is
+    the right answer for a deployment and the wrong answer for this measurement.
+  - **In-memory vector search + external document store** (the split Category-Aware Semantic
+    Caching reports, arXiv 2510.26835, at 30 ms → 2 ms miss cost) — rejected for the same reason,
+    and **cited rather than adopted**: it is the industry answer to this question and belongs in the
+    write-up as such.
+  - **Treating Redis as the store of record and hardening it** (AOF with `F_FULLFSYNC`, replica).
+    AOF is rejected because it solves a durability problem that F1 shows does not exist, at a cost in
+    write latency on the measured path. A replica would address availability, which is a real
+    problem (F11), but a replica is scale-out and out of scope.
+- **Consequences:**
+  - **Redis durability is deliberately weak, and that is now a recorded position rather than an
+    accident.** The live posture on 2026-10-10 was `appendonly no`, `save 3600 1 300 100 60 10000` —
+    i.e. the **cask's shipped default**, which no decision had ever examined.
+  - **Two costs are accepted and named.** (i) An unclean stop rolls the keyspace back by up to
+    1 hour / 5 min / 60 s depending on write volume, which **silently undoes invalidations that had
+    already fired** (trail F3, demonstrated). (ii) The config file lives at
+    `/opt/homebrew/Caskroom/redis-stack-server/7.4.0-v8/etc/redis-stack.conf` — a version-pinned
+    path a `brew upgrade` replaces wholesale, and the LaunchAgent passes no config argument — so the
+    posture is mutable by an unrelated upgrade with no announcement.
+  - **Therefore: a Redis restart during a run invalidates that run.** The rollback is not visible
+    from inside Redis (trail F2: the dependency map comes back consistent with the entries it
+    indexes), so this cannot be checked after the fact from `raw/` alone. **P1's run manifest must
+    record `redis_version` and `rdb_last_save_time`**, which is the only way the check becomes
+    possible. Carried as an **RR**, not an NFR: violating it voids a result silently.
+  - **What is *not* a consequence:** correctness invariant 1 is unaffected. An evicted dependency
+    record remains the only route to an unpurgeable entry, and `make redis-check` already closes it.
+- **Invalidates:** none — no runs yet, and no run has ever depended on Redis persistence
+  configuration, which until this entry was unrecorded. The restart-voids-a-run rule is **forward
+  only**: it binds from the first run taken under P1's manifest, since no earlier log can be checked
+  against it.
+
+---
+
+### ADR-008 — The dataset epoch is sourced from outside the Redis keyspace it guards
+**Decided (method | frozen)** · 2026-10-10 · *`interfaces.md` §E, `rag/src/rag/config.py`, `rag/src/rag/retrieve.py`, `gateway/internal/deps/` (unbuilt); trail `docs/work/2026-10-10-redis-as-sole-store/`*
+
+When C2 is built in Phase 4, `dataset_epoch` **must not be stored as a Redis key.** It is derived
+from the corpus of record — the manifest hash, or a file written by the ingest step — so that
+comparing an entry's stamped epoch against the current epoch is a **cross-medium** comparison.
+Today it is `DATASET_EPOCH_STUB = 0`, a Python constant (`rag/src/rag/config.py:34`), so the guard
+is inert and this entry binds forward rather than describing current behaviour.
+
+- **Rationale:**
+  - **An epoch inside the keyspace rolls back with the data it guards, so it cannot see the
+    rollback.** This was demonstrated, not argued (trail, `rdb-rollback.sh`, isolated instance on
+    port 6399): a purged entry was resurrected by an RDB restore **and** the epoch counter reset
+    from 8 to 7 — the same value stamped on the resurrected entry. The guard compares 7 against 7,
+    agrees, and admits stale data. Correctness invariant 3 fails **silently**, which is the exact
+    failure it exists to close.
+  - **Cross-medium is what makes it detectable.** `data/` does not roll back when the Redis
+    keyspace does, so an epoch read from the corpus manifest still reads 8 after the restore, and
+    the mismatch is visible at the first comparison.
+  - **Now is the cheap moment.** `gateway/internal/deps/` is a one-line stub. Retrofitting the
+    epoch's source after Phase 4 ships would touch the write-back path, the purge path and §E
+    together.
+- **Alternatives:**
+  - **Epoch as a Redis counter** (`INCR epoch_counter`) — the obvious implementation, and the one
+    this entry forbids. Rejected on the measured demonstration above.
+  - **Epoch as a Redis counter plus AOF** — narrows the window, does not close it, and puts an
+    `fsync` on the write path; on macOS an `fsync` is not durable without `F_FULLFSYNC`
+    (`interfaces.md` §H already notes this).
+  - **Detect the rollback instead of surviving it** (compare `rdb_last_save_time` at startup) —
+    rejected as a weaker guarantee than making the comparison cross-medium in the first place, and
+    it would only fire at startup rather than per write-back.
+- **Consequences:**
+  - §E gains a sourcing requirement, not a new field: the wire format and the `dataset_epoch` field
+    on `t2:*` records are unchanged, so **no contract version bump** and no change at the seam.
+  - The ingest step becomes the epoch's author. It must write the epoch where both services can
+    read it, which makes a corpus rebuild and an epoch advance the same event — the property §E
+    already assumes.
+  - Phase 4's design must state where the epoch is read from; a design that reads it from Redis is
+    refused against this entry.
+- **Invalidates:** none — no runs yet. The epoch is a constant stub today, so no prior log's
+  `dataset_epoch_at_retrieval` carries information, and none becomes comparable or incomparable
+  because of this entry.
