@@ -52,8 +52,12 @@ func Overlap(retrieved, entrySources []string) float64 {
 // direct comparison against published practice.
 //
 // It costs NOTHING on the hit path and must stay that way: interfaces.md H already logs both
-// retrieved_chunk_ids and entry_sources, so the run-level figure is derived exactly, offline, from
-// the evaluation log. Nothing calls this per request.
+// retrieved_chunk_ids and the judged candidate's candidate_sources, so the run-level figure is derived
+// exactly, offline, from the evaluation log. Nothing calls this per request.
+//
+// Take the entry's sources from candidate_sources, or from entry_sources ONLY on a TIER2_HIT. On a
+// refusal entry_sources names the entry the miss then wrote, whose sources equal retrieved_chunk_ids,
+// so a Jaccard taken from it reads 1.0 on every support refusal (interfaces.md H v0.13).
 //
 // Two empty sets score 0, not 1. A vacuous "perfect agreement" between two answers with no
 // recorded provenance would be indistinguishable in the numbers from genuine agreement, and

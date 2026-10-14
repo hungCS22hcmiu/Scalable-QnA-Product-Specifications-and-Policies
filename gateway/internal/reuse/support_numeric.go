@@ -12,13 +12,14 @@ import (
 // read blocks reuse. Fail-closed: when unsure, refuse. Standard library only, no I/O, so it can be
 // falsified in isolation (docs/architecture.md 2), like support.go.
 //
-// Nothing on the served path calls this yet. Wiring needs the refusal cause code (item 2.3) and the
-// on/off switch (item 2.4).
+// Called from the cascade since item 2.3, through CheckSupport and Thresholds.Judge (cause.go). The
+// on/off switch is item 2.4.
 //
 // The rules below ARE the arm's definition, in the same way the stopword list is part of S_lex. The
 // arm has no threshold, so the grammar is the only knob, and an edit to any rule, list or table in
-// this file silently rescales every support_numeric_ok logged before it. Once a run has logged it,
-// an edit needs a numbered decisions.md entry with an Invalidates line. The approved text of the
+// this file silently rescales every support_numeric_ok logged before it. Once the first run on v1 has
+// logged it (ADR-009: a dev-v0 run is not citable and does not count), an edit needs a numbered
+// decisions.md entry with an Invalidates line. The approved text of the
 // rules (R1-R9) is docs/work/2026-10-14-numeric-arm/approvals.md, "Frozen artefact". The tests pin
 // them: TestNumericReaderGolden, TestNumericReaderRules, TestNumericNormalisation,
 // TestNumericUnitListPinned, TestNumericNumberWordsPinned, TestNumericUnicodeNumbers.
@@ -68,8 +69,8 @@ func (v NumericVerdict) Admits() bool {
 // retrievedChunkIDs is the chunk IDs of the FRESH retrieval, as in SupportLexical, and is used only
 // to tell a stale server from an empty retrieval: texts empty with chunk IDs present is not scored.
 // An empty retrieval has no special case: an answer with a number is refused (the number is
-// unsupported), an answer with no numbers is admitted. Closing the zero-chunk hole is item 2.3's job,
-// in the cascade.
+// unsupported), an answer with no numbers is admitted. The zero-chunk hole is closed in the cascade
+// (item 2.3), which never offers the gate an empty retrieval.
 func SupportNumeric(answer string, texts []string, retrievedChunkIDs []string) NumericVerdict {
 	if len(texts) == 0 && len(retrievedChunkIDs) > 0 {
 		return NumericVerdict{}

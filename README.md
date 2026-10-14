@@ -64,8 +64,8 @@ reuse  iff  sim(q, e) ≥ τ
 ```
 
 > **What runs today is a subset of this rule** — see [Status](#status). The gateway serves
-> `sim ≥ τ ∧ namespace`; the containment test is computed and logged but gates nothing, and the
-> support gate is not built.
+> `sim ≥ τ ∧ namespace ∧ support`; the containment test is computed and logged but gates nothing.
+> The support gate is always on (the on/off switch is item 2.4).
 
 Every term is deterministic and inspectable — chunk-ID set intersection and token overlap, no model
 on the hit path. The claim under test is narrow and falsifiable: *at a stated false-hit budget, the
@@ -157,9 +157,9 @@ three lanes, admission control and request coalescing are built and tested, and 
 on every exit path of `Ask`. Three things are **not** true yet, and the claim above should be read
 with them:
 
-- **The served Tier-2 rule is `similarity ∧ namespace`.** θ is computed and logged as a
-  counterfactual but gates nothing (open finding F-K in `docs/super-plan.md`), and the support gate
-  is Phase 2.
+- **The served Tier-2 rule is `similarity ∧ namespace ∧ support`.** θ is computed and logged as a
+  counterfactual but gates nothing (open finding F-K in `docs/super-plan.md`). The support gate is
+  served and always on since item 2.3; every judged candidate logs one `refusal_cause`.
 - **Source-aware invalidation (C2) is not built.** `gateway/internal/deps/` is a stub (Phase 4).
 - **No citable result exists.** The `v1` corpus, workload generator, judge and figure pipeline are
   Phases 3–5, and `dev-v0` is a development corpus.

@@ -6,8 +6,8 @@ import "strings"
 // token arithmetic. Same constraint as rule.go: standard library only, no I/O, so the gate can be
 // falsified in isolation (docs/architecture.md 2). Design: docs/work/2026-10-10-support-gate-lexical-arm/.
 //
-// Nothing on the served path calls this yet. Wiring it into the cascade needs a refusal cause code
-// to log it under (item 2.3) and a switch to turn it off (item 2.4).
+// Called from the cascade since item 2.3, through CheckSupport and Thresholds.Judge (cause.go), which
+// also own the refusal cause. The switch that turns the gate off is item 2.4.
 
 // TauSupportLexical is the lexical gate's threshold, pinned at the value GroundedCache published and
 // never swept (decisions.md, inherited frozen values). It is a constant, not a Thresholds field:
@@ -19,9 +19,10 @@ const TauSupportLexical = 0.6
 // and not imported (reuse/ takes no dependencies).
 //
 // It is part of S_lex's definition exactly as much as TauSupportLexical is, and TauSupportLexical
-// cannot move to compensate for an edit here. Once any run has logged support_lex, a change to this
-// list, to the three-character rule, or to the tokenizer below silently rescales every score logged
-// before it: it takes a numbered decisions.md entry, not a quiet edit. TestSupportStopwordsArePinned
+// cannot move to compensate for an edit here. Once the first run on v1 has logged support_lex (ADR-009
+// reads "the first logged run" as a run on v1: a dev-v0 run is not citable), a change to this list, to
+// the three-character rule, or to the tokenizer below silently rescales every score logged before it:
+// it takes a numbered decisions.md entry, not a quiet edit. TestSupportStopwordsArePinned
 // pins the list; TestContentTokensRules pins the tokenizer and the length rule. Recorded in
 // decisions.md's inherited frozen-values table.
 var supportStopwords = map[string]struct{}{
@@ -154,10 +155,11 @@ func (v SupportVerdict) Refuses() bool {
 //
 // Granularity: the score takes only multiples of 1/ContentTokenCount. See SupportVerdict.
 //
-// An empty retrieval returns Scored with Score 0, which refuses it. That is deliberate: the
-// cascade today checks retrieved == nil but not len(retrieved.ChunkIDs) == 0, and the spec lane's
-// namespace falls back to the request's product ID, so a zero-chunk retrieval can reach a served
-// hit with no evidence behind it. Item 2.3 should claim the closing of that hole on purpose.
+// An empty retrieval returns Scored with Score 0, which refuses it. That is deliberate. The cascade
+// no longer lets one reach the gate (item 2.3: tryTier2 returns before deriving a namespace when the
+// retrieval has no chunks), because the spec lane's namespace falls back to the request's product ID
+// and a zero-chunk retrieval could otherwise reach a served hit with no evidence behind it. The
+// score stays 0 here so the function is safe on its own.
 func SupportLexical(answer string, texts []string, retrievedChunkIDs []string) SupportVerdict {
 	if len(texts) == 0 && len(retrievedChunkIDs) > 0 {
 		return SupportVerdict{}

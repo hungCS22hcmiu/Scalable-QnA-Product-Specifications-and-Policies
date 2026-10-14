@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hung/thesis/gateway/internal/admission"
@@ -108,6 +109,11 @@ type Handler struct {
 	// Counters back GET /stats for the demo's required counters sidebar. In-memory and
 	// process-local; the measurement channel is the evaluation log, never this.
 	Counters Counters
+
+	// notScoredLogged keeps the NOT_SCORED alarm to one line per process. A stale RAG server answers
+	// every request the same way, and a line per request would bury the one that matters. Its zero
+	// value is ready to use, so a Handler built as a struct literal still works.
+	notScoredLogged atomic.Bool
 }
 
 func NewHandler(c cacheStore, r *ragclient.Client, e *embed.Client, t reuse.Thresholds, band reuse.LaneBand, pool *admission.Pool) *Handler {
@@ -270,8 +276,9 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	// --- Tier 2: nearest neighbour, then the lane rule. ---
 	t2 := h.tryTier2(ctx, req.ProductID, vec, retrieved, &timings)
 
-	// The similarity travels on any judged candidate, served or refused. The overlap travels only
-	// on a banded one, which while the served rule is similarity AND namespace is always a hit.
+	// The similarity travels on any judged candidate, served or refused. The overlap travels on a
+	// banded one (sim >= tau), which is a hit unless the support gate then refused it: a SUPPORT or
+	// NOT_SCORED request is a MISS that carries an overlap (interfaces.md §A v0.13).
 	var similarity, sourceOverlap *float64
 	var overlapDecision *bool
 	if t2.Found {
@@ -282,8 +289,8 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		o := t2.Decision.Overlap
 		sourceOverlap = &o
 		// The counterfactual travels on every banded response. While F-K stands -- theta is not
-		// in the served decision -- that is every TIER2_HIT, and overlap_decision: false marks a
-		// reuse the containment conjunct would have refused.
+		// in the served decision -- that is every TIER2_HIT and every support refusal, and
+		// overlap_decision: false marks a reuse the containment conjunct would have refused.
 		d := t2.Decision.Reuse
 		overlapDecision = &d
 	}
@@ -291,15 +298,17 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	rec.Similarity, rec.SourceOverlap = similarity, sourceOverlap
 	rec.EnteredBand = t2.EnteredBand
 	rec.ReuseRule = t2.NSDecision.Rule
+	h.recordCause(&rec, t2, requestID)
 	if retrieved != nil {
 		rec.RetrievedChunkIDs = retrieved.ChunkIDs
 		epoch := retrieved.DatasetEpoch
 		rec.DatasetEpoch = &epoch
 	}
 
-	// The two-lane rule decides. Containment is computed but not consulted -- it is the
-	// baseline being measured against.
-	if t2.NSDecision.Reuse {
+	// The lane rule AND the support gate decide, through the one cause: serve only on NONE
+	// (reuse.Judgement.Served), never on "no arm refused", which would serve a stale server.
+	// Containment is computed but not consulted -- it is the baseline being measured against.
+	if t2.Served {
 		modelUsed := modelUsedConstant
 		rec.Cache, rec.EntryID = cacheTier2Hit, t2.Candidate.Entry.EntryID
 		rec.EntrySources = t2.Candidate.Entry.SourceChunkIDs
@@ -549,6 +558,38 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		Namespace:       writeNS,
 		OverlapDecision: overlapDecision,
 	})
+}
+
+// recordCause copies item 2.3's fields into the evaluation record. It runs BEFORE the miss path, so a
+// request that is then shed, abandoned or fails to generate keeps the Tier-2 cause it earned: those
+// records would otherwise read as "no candidate was judged".
+//
+//   - refusal_cause: set whenever a candidate was judged, null otherwise (Cause == "").
+//   - support_lex and support_numeric_ok: set only when the gate SCORED. A stale server leaves them
+//     null and the cause (NOT_SCORED) says why, so it is never mistaken for the gate-off arm.
+//   - candidate_entry_id and candidate_sources: the entry that was judged. On a refusal the record's
+//     entry_id and entry_sources are the entry the miss then wrote, not this one (interfaces.md §H).
+//
+// Every value is copied into its own variable, so no pointer in the record aliases a reused one.
+func (h *Handler) recordCause(rec *telemetry.Record, t2 tier2Outcome, requestID string) {
+	if t2.Found {
+		rec.CandidateEntryID = t2.Candidate.Entry.EntryID
+		rec.CandidateSources = t2.Candidate.Entry.SourceChunkIDs
+	}
+	if t2.Cause == "" {
+		return
+	}
+	cause := t2.Cause
+	rec.RefusalCause = &cause
+	if s := t2.Support; s != nil && s.Scored() {
+		lex, numericOK := s.Lex.Score, s.Numeric.Admits()
+		rec.SupportLex, rec.SupportNumericOK = &lex, &numericOK
+	}
+	if cause == reuse.CauseNotScored && h.notScoredLogged.CompareAndSwap(false, true) {
+		log.Printf("gateway: ERROR request_id=%s refusal_cause=NOT_SCORED: the RAG service sent chunk IDs with no "+
+			"evidence text (a pre-1.4 server?). Every Tier-2 candidate that clears tau will be refused and a run "+
+			"taken now is NOT admissible (interfaces.md §H rule 10). Logged once per process.", requestID)
+	}
 }
 
 // touch records an LRU access. Deliberately swallows its error: an access this drops only makes

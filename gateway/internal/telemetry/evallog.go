@@ -44,6 +44,15 @@ type Record struct {
 	SourceOverlap *float64 `json:"source_overlap"`
 	EnteredBand   bool     `json:"entered_band"`
 
+	// The refusal cause and the two gate arms (interfaces.md H v0.13, item 2.3). All three are
+	// pointers WITHOUT omitempty: a null is a statement ("no candidate was judged", "the gate did not
+	// run"), and a log from before the 2.3 commit lacks the keys altogether, so key presence is what
+	// tells the two sides of that commit apart. RefusalCause is a plain string and not a reuse type:
+	// this package imports nothing from the repository (docs/architecture.md).
+	RefusalCause     *string  `json:"refusal_cause"`
+	SupportLex       *float64 `json:"support_lex"`
+	SupportNumericOK *bool    `json:"support_numeric_ok"`
+
 	RetrievedChunkIDs []string `json:"retrieved_chunk_ids"`
 	EntrySources      []string `json:"entry_sources"`
 	EntryID           string   `json:"entry_id"`
@@ -76,6 +85,14 @@ type Record struct {
 	// extension, but "% reaching the provenance check" is computed from it (ADR-004), so dropping
 	// it voids that metric silently.
 	ReuseRule string `json:"reuse_rule,omitempty"`
+	// CandidateEntryID and CandidateSources name the Tier-2 candidate that was JUDGED, present iff one
+	// was (like ReuseRule), refusals included. They exist because on a refusal the record's entry_id and
+	// entry_sources name the entry the miss then WROTE, whose sources equal retrieved_chunk_ids: an
+	// offline overlap or Jaccard taken from entry_sources would read 1.0 on every support refusal
+	// (design-review F1). interfaces.md H v0.13 says entry_* is the entry served or written, never the
+	// candidate on a refusal.
+	CandidateEntryID string   `json:"candidate_entry_id,omitempty"`
+	CandidateSources []string `json:"candidate_sources,omitempty"`
 	// ProductID records the request's product scope now that it is part of the Tier-1 key
 	// (⚠️ BYPASS 2026-09-09, reverses the rejection -- cache.Key). Required, not optional,
 	// because handler.go's offline stratum join on query_normalized was exact only under
