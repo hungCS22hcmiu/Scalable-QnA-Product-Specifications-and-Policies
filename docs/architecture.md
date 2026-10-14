@@ -162,12 +162,15 @@ unchanged, and any new edge should be checked against it.
 | **Shed** | permit unavailable inside budget → `503 busy, retry` | counted as graceful degradation, never as served load |
 | **Invalidation** | *(not built — Phase 4)* edit → channel → single writer → COW swap → Redis purge (both tiers), **off** the critical path | — |
 
-**What the Tier-2 row serves today is `similarity ∧ namespace ∧ support`** (item 2.3, ADR-009).
+**What the Tier-2 row serves today is `similarity ∧ namespace ∧ support` with the gate on, and
+`similarity ∧ namespace` with it off** (items 2.3 and 2.4, ADR-009 and ADR-010).
 `DecideLane` still computes the containment test, but its result reaches only the logged counterfactual
 (finding F-K, `super-plan.md`; ADR-004 records what it does not ratify), so θ is not in the served rule
 and `CONTAINMENT` is never written as a refusal cause. The support gate is called from the cascade
-through `reuse.Thresholds.Judge`, which returns the one refusal cause, always on: the switch is item
-2.4. The four-conjunct rule is still the design this row is built toward, with θ the missing term.
+through `reuse.Thresholds.Judge`, which returns the one refusal cause. Its first parameter is the arm,
+`reuse.Gate`: `SUPPORT_GATE=on|off` is read once in `cmd/gateway` (unset = on), held in one field,
+`Handler.SupportGate`, and written to every evaluation record as `support_gate`. The four-conjunct rule
+is still the design this row is built toward, with θ the missing term.
 
 **Where the contributions live:** C1 → `reuse/` · C2 → `deps/` (+ the epoch check in `ragclient/` and
 write-back) · resource governance → `admission/` · the measurement protocol → `experiments/`.
@@ -200,9 +203,9 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 
 | State | Packages |
 | :--- | :--- |
-| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms and the refusal cause) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) |
+| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
-| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the support gate's **on/off switch** (item 2.4; the gate itself is served since item 2.3, always on) · `data/v1/` · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
+| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · `data/v1/` · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
 
 ## 6. Invariants that fail silently
 

@@ -57,7 +57,7 @@ func TestJudgeCauses(t *testing.T) {
 		{"both arms refuse", same, 0.93, cachedAnswer, warrantyEvidence, warrantyChunkIDs, CauseSupport, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			j := judgeTh.Judge(c.d, c.sim, c.answer, c.texts, c.ids)
+			j := judgeTh.Judge(GateOn, c.d, c.sim, c.answer, c.texts, c.ids)
 			if j.Cause != c.want {
 				t.Fatalf("cause = %q, want %q", j.Cause, c.want)
 			}
@@ -87,7 +87,7 @@ func TestJudgeAgreesWithDecideLane(t *testing.T) {
 					for _, en := range nss {
 						d := judged(sim, ql, qn, el, en)
 						// Evidence that the gate admits, so the only way to a refusal is the lane rule.
-						j := judgeTh.Judge(d, sim, cachedAnswer, paraphraseEvidence, paraphraseChunkIDs)
+						j := judgeTh.Judge(GateOn, d, sim, cachedAnswer, paraphraseEvidence, paraphraseChunkIDs)
 						gateRan := j.Cause == CauseNone || j.Cause == CauseSupport || j.Cause == CauseNotScored
 						if d.Reuse != gateRan {
 							t.Fatalf("sim=%v q=%s/%q e=%s/%q: DecideLane.Reuse=%v but cause=%q",
@@ -108,7 +108,7 @@ func TestJudgeAgreesWithDecideLane(t *testing.T) {
 
 	// A zero decision is "no candidate". Judge must never be called with one, and if it is, the
 	// answer is NAMESPACE, never NONE: a missing candidate must not be servable.
-	if j := judgeTh.Judge(NamespaceDecision{}, 0.99, cachedAnswer, paraphraseEvidence, paraphraseChunkIDs); j.Cause != CauseNamespace || j.Served() {
+	if j := judgeTh.Judge(GateOn, NamespaceDecision{}, 0.99, cachedAnswer, paraphraseEvidence, paraphraseChunkIDs); j.Cause != CauseNamespace || j.Served() {
 		t.Errorf("zero NamespaceDecision: %+v, want NAMESPACE and not served", j)
 	}
 }
@@ -118,7 +118,7 @@ func TestJudgeAgreesWithDecideLane(t *testing.T) {
 // is the one that notices.
 func TestJudgeServedIsCauseNoneOnly(t *testing.T) {
 	d := judged(0.93, LaneSpec, "a", LaneSpec, "a")
-	j := judgeTh.Judge(d, 0.93, cachedAnswer, nil, paraphraseChunkIDs)
+	j := judgeTh.Judge(GateOn, d, 0.93, cachedAnswer, nil, paraphraseChunkIDs)
 	if j.Support == nil || j.Support.Scored() {
 		t.Fatalf("setup: a stale server must reach the gate and come back unscored: %+v", j.Support)
 	}
@@ -197,7 +197,7 @@ func BenchmarkJudge(b *testing.B) {
 	d := judged(0.93, LaneSpec, "a", LaneSpec, "a")
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if j := judgeTh.Judge(d, 0.93, cachedAnswer, paraphraseEvidence, paraphraseChunkIDs); !j.Served() {
+		if j := judgeTh.Judge(GateOn, d, 0.93, cachedAnswer, paraphraseEvidence, paraphraseChunkIDs); !j.Served() {
 			b.Fatal("benchmark input stopped being served")
 		}
 	}

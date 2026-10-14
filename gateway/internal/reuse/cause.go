@@ -63,8 +63,9 @@ func (r SupportResult) Refuses() bool { return r.Scored() && (r.Lex.Refuses() ||
 type Judgement struct {
 	// Cause is never empty. It is one of the Cause* constants other than CauseContainment.
 	Cause string
-	// Support is non-nil exactly when the candidate cleared the lane rule and tau, so the gate ran.
-	// It is non-nil on NOT_SCORED too, with Scored() false: the caller logs null for the values then.
+	// Support is non-nil exactly when the gate ran: the gate is on and the candidate cleared the lane
+	// rule and tau. It is nil with the gate off (item 2.4), whatever the candidate. It is non-nil on
+	// NOT_SCORED too, with Scored() false: the caller logs null for the values then.
 	Support *SupportResult
 }
 
@@ -78,27 +79,42 @@ func (j Judgement) Served() bool { return j.Cause == CauseNone }
 // request's retrieval. It must not be called without a candidate: a zero NamespaceDecision comes back
 // as NAMESPACE, never NONE, so a missing candidate cannot be served.
 //
+// g is the gate's on/off switch (item 2.4). It is the first parameter so that no caller can leave it
+// out: a Judge without it would compile and ignore the switch. Only the exact value GateOff skips the
+// gate; any other value runs it.
+//
 // The order is NAMESPACE, then SIMILARITY, then the support gate:
 //
 //	namespace term fails          -> NAMESPACE    (gate not run)
 //	not (similarity >= tau)       -> SIMILARITY   (gate not run; written positively so NaN refuses)
+//	g == GateOff                  -> NONE         (gate not run; Support nil)
 //	gate could not score          -> NOT_SCORED
 //	either arm refuses            -> SUPPORT
 //	otherwise                     -> NONE
+//
+// The GateOff line sits AFTER the two checks above it, so a zero NamespaceDecision, a NaN similarity
+// and a wrong-namespace candidate are refused on both arms. Moving it up would serve them.
 //
 // NAMESPACE goes first on purpose: it is an alarm (the search should have made it impossible), and if
 // SIMILARITY won when both applied the alarm would count too few. It cannot change a false-hit
 // count, since false hits are served records, which all carry NONE.
 //
 // Consistency with DecideLane, which TestJudgeAgreesWithDecideLane enforces on every input: the
-// lane rule reuses exactly when this returns NONE, SUPPORT or NOT_SCORED. The namespace term here is
-// the same expression as there (Match, and for the composite rule also LaneMatch), with the same >=.
-func (t Thresholds) Judge(d NamespaceDecision, similarity float64, answer string, texts, retrievedChunkIDs []string) Judgement {
+// lane rule reuses exactly when this returns NONE, SUPPORT or NOT_SCORED with the gate on, and
+// exactly when it returns NONE with the gate off (TestJudgeAgreesWithDecideLaneGateOff). The namespace
+// term here is the same expression as there (Match, and for the composite rule also LaneMatch), with
+// the same >=.
+func (t Thresholds) Judge(g Gate, d NamespaceDecision, similarity float64, answer string, texts, retrievedChunkIDs []string) Judgement {
 	if !(d.Match && (d.Rule != RuleComposite || d.LaneMatch)) {
 		return Judgement{Cause: CauseNamespace}
 	}
 	if !(similarity >= t.Tau) {
 		return Judgement{Cause: CauseSimilarity}
+	}
+	if g == GateOff {
+		// The ablation arm: the gate is not run and texts are not read, so a stale server cannot change
+		// what this arm serves. Support stays nil, which the log writes as null for both support fields.
+		return Judgement{Cause: CauseNone}
 	}
 	sr := CheckSupport(answer, texts, retrievedChunkIDs)
 	switch {

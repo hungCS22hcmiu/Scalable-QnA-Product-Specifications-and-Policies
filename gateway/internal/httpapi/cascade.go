@@ -65,8 +65,9 @@ type tier2Outcome struct {
 	// candidate was judged: no embedding or retrieval, no chunks, an empty namespace, a search error,
 	// or nothing in the query's namespace. A cold cache is therefore null, never NAMESPACE.
 	Cause string
-	// Support holds both arms' verdicts when the candidate cleared the lane rule and tau. Non-nil with
-	// Scored() false means a stale server: the caller logs null for the values and the cause says why.
+	// Support holds both arms' verdicts when the gate is on and the candidate cleared the lane rule and
+	// tau; it is nil with the gate off (item 2.4), whatever the candidate. Non-nil with Scored() false
+	// means a stale server: the caller logs null for the values and the cause says why.
 	Support *reuse.SupportResult
 	// Served is the ONLY serve decision: Cause == NONE. It is never "no arm refused", because an
 	// unscored result does not refuse (reuse.Judgement.Served).
@@ -76,8 +77,9 @@ type tier2Outcome struct {
 // tryTier2 runs: lane + namespace -> one namespace-scoped search -> the two-lane rule, computing
 // the containment rule alongside it as the counterfactual when the candidate cleared tau, then
 // reuse.Thresholds.Judge, which adds the support gate and returns the ONE refusal cause. The served
-// rule is therefore similarity AND namespace AND support (interfaces.md §H v0.13, ADR-009). The
-// query text is not a parameter, so the gate cannot read it.
+// rule is therefore similarity AND namespace AND support with the gate on, and similarity AND namespace
+// with it off (h.SupportGate; interfaces.md §H v0.14, ADR-009, ADR-010). The query text is not a
+// parameter, so the gate cannot read it.
 //
 // It does not call Retrieve: the caller runs that concurrently with the embedding and passes the
 // result in, which is what turns the hit path from the SUM of those two round-trips into their
@@ -167,8 +169,10 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 	// The cause, and the support gate behind it. THIS request's evidence goes in -- retrieved.Texts
 	// and retrieved.ChunkIDs -- and never c.Entry.SourceChunkIDs: with the entry's IDs a stale server
 	// (chunk IDs, no text) would read as "scored 0" instead of "not scored". The cached answer is
-	// c.Entry.Answer; the query text is nowhere in this call.
-	j := h.Thresholds.Judge(out.NSDecision, c.Similarity, c.Entry.Answer, retrieved.Texts, retrieved.ChunkIDs)
+	// c.Entry.Answer; the query text is nowhere in this call. The first argument is the gate's arm
+	// (item 2.4): h.SupportGate is the same field that labels the record, so what ran and what the log
+	// says it ran cannot differ. With GateOff the gate does not run and retrieved.Texts is not read.
+	j := h.Thresholds.Judge(h.SupportGate, out.NSDecision, c.Similarity, c.Entry.Answer, retrieved.Texts, retrieved.ChunkIDs)
 	out.Cause, out.Support, out.Served = j.Cause, j.Support, j.Served()
 
 	// The two verdicts side by side ARE the experiment. rule= names which TERM judged the lane
@@ -176,12 +180,12 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 	// false-hit rate is attributed per lane. cause= is the one value that reaches the log.
 	log.Printf("gateway: cascade lane=%s ns=%s entry_lane=%s entry_ns=%s sim=%.4f\n"+
 		"          ns_decision=%v (rule=%s lane_match=%v)  band=%v overlap_decision=%v (overlap=%.2f)\n"+
-		"          cause=%s support=%s\n"+
+		"          cause=%s gate=%s support=%s\n"+
 		"          retrieved=%v\n          entry_sources=%v",
 		out.QueryLane, out.QueryNS, c.Entry.Lane, c.Entry.Namespace, c.Similarity,
 		out.NSDecision.Reuse, out.NSDecision.Rule, out.NSDecision.LaneMatch,
 		out.EnteredBand, out.Decision.Reuse, out.Decision.Overlap,
-		out.Cause, supportSummary(out.Support),
+		out.Cause, h.SupportGate, supportSummary(out.Support),
 		retrieved.ChunkIDs, c.Entry.SourceChunkIDs)
 
 	return out

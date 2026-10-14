@@ -7,7 +7,8 @@ import "strings"
 // falsified in isolation (docs/architecture.md 2). Design: docs/work/2026-10-10-support-gate-lexical-arm/.
 //
 // Called from the cascade since item 2.3, through CheckSupport and Thresholds.Judge (cause.go), which
-// also own the refusal cause. The switch that turns the gate off is item 2.4.
+// also own the refusal cause. The gate has an on/off switch since item 2.4 (gate.go): with the gate off,
+// Judge returns before it reaches this file's code, so a candidate is never scored.
 
 // TauSupportLexical is the lexical gate's threshold, pinned at the value GroundedCache published and
 // never swept (decisions.md, inherited frozen values). It is a constant, not a Thresholds field:

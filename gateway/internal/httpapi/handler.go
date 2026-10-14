@@ -91,6 +91,14 @@ type Handler struct {
 	ConfigID int
 	Mutation string
 
+	// SupportGate is the support gate's arm (item 2.4, interfaces.md H v0.14): GateOn runs the gate,
+	// GateOff is the ablation arm. The ZERO VALUE IS GateOn, on purpose: this struct is built as a
+	// literal by the test harness and the field is never set there, so a zero value that meant "off"
+	// would ablate the gate in all of it. ONE field feeds both the Judge call (cascade.go) and the
+	// record's support_gate key (Ask), so the behaviour and its label cannot come from two places
+	// (design.md F2). It is set once, in main, before the server listens, and never changed.
+	SupportGate reuse.Gate
+
 	// Capacity is the bounded cache's size in ENTRIES, round(0.25 * K) per the capacity ratio. Zero means
 	// unbounded, which is a valid thing to measure but never a thing to measure by accident --
 	// main.go logs which one is in force at startup.
@@ -173,6 +181,10 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	t1Key := cache.Key(normalized, req.ProductID)
 	rec := telemetry.Record{
 		RequestID: requestID, RunID: h.RunID, ConfigID: h.ConfigID, Mutation: h.Mutation,
+		// Set HERE, in the literal, with config_id and mutation: every exit below emits this record, so
+		// the Tier-1 lookup error, TIER1_HIT, SHED, ABANDONED and GENERATION_FAILED all carry the arm.
+		// Set later, a Tier-1 record would carry "" and read as a different era of log (H, v0.14).
+		SupportGate:     h.SupportGate.String(),
 		TS:              start.UTC().Format(time.RFC3339Nano),
 		QueryRaw:        req.Question,
 		QueryNormalized: normalized,
@@ -305,8 +317,9 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		rec.DatasetEpoch = &epoch
 	}
 
-	// The lane rule AND the support gate decide, through the one cause: serve only on NONE
-	// (reuse.Judgement.Served), never on "no arm refused", which would serve a stale server.
+	// The lane rule AND the support gate decide (the gate only while h.SupportGate is GateOn), through
+	// the one cause: serve only on NONE (reuse.Judgement.Served), never on "no arm refused", which would
+	// serve a stale server.
 	// Containment is computed but not consulted -- it is the baseline being measured against.
 	if t2.Served {
 		modelUsed := modelUsedConstant
@@ -566,7 +579,9 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 //
 //   - refusal_cause: set whenever a candidate was judged, null otherwise (Cause == "").
 //   - support_lex and support_numeric_ok: set only when the gate SCORED. A stale server leaves them
-//     null and the cause (NOT_SCORED) says why, so it is never mistaken for the gate-off arm.
+//     null and the cause (NOT_SCORED) says why, so it is never mistaken for the gate-off arm. That arm
+//     is named by the record's support_gate key (item 2.4), and its support fields are null by
+//     construction: the gate did not run.
 //   - candidate_entry_id and candidate_sources: the entry that was judged. On a refusal the record's
 //     entry_id and entry_sources are the entry the miss then wrote, not this one (interfaces.md §H).
 //

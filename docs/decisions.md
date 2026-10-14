@@ -49,6 +49,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-007 | Redis holds only derived state; the corpus of record is the versioned file corpus | in force (one open item: P1 must record `redis_version` + `rdb_last_save_time`) | none — no runs yet; no run ever depended on Redis persistence config, which was unrecorded until this entry; the restart-voids-a-run rule binds forward from P1's manifest |
 | ADR-008 | The dataset epoch is sourced from outside the Redis keyspace it guards | in force (binds forward — the epoch is a constant stub until Phase 4) | none — no runs yet; `dataset_epoch_at_retrieval` carries no information while `DATASET_EPOCH_STUB = 0` |
 | ADR-009 | The support gate is served, and every judged Tier-2 candidate carries one refusal cause | in force (one open item: the real-answer sample, `plan.md` steps 1c–1e, not yet run) | none citable — no runs yet; logs written before the 2.3 commit carry `cache = TIER2_HIT`, `entered_band`, `source_overlap` and `t_search_ms` under an older meaning and lack the five new keys; the 2026-10 item-1.6 Tier-2 hits were served with no gate |
+| ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 is still open) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
 
 ---
 
@@ -71,7 +72,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | Support-gate threshold | **`τ_s = 0.6`**, pinned | Taken from the published value. It is **never swept** — sweeping it would turn an adopted mechanism into a tuned one |
 | Support-gate lexical score definition | `S_lex = \|content-tokens(a) ∩ tokens(C)\| / \|content-tokens(a)\|`: stopwords = **Lucene `StopAnalyzer.ENGLISH_STOP_WORDS_SET`** (33 words, transcribed in `reuse/support.go`); tokens under 3 characters dropped; lowercase then split on `[^a-z0-9]+` (ASCII-only, deliberately not `cache.Normalize`); **no stemming**; sets, not multisets; refused when `S_lex < τ_s` | `τ_s` is pinned and never swept, so the list, the length rule and the tokenizer carry the leverage a tuned threshold would: an edit to any of them silently rescales every `support_lex` logged before it. **Added 2026-10-12 by item 2.1, not pre-thesis.** The proposal specifies only "a fixed stopword list", so Lucene's is this thesis's choice, not the published system's, and that `τ_s = 0.6` transfers to this definition is **assumed, not measured** (to be checked on ~10–20 real generated answers before item 2.3). Pinned by `TestSupportStopwordsArePinned` and `TestContentTokensRules`; record: `docs/work/2026-10-10-support-gate-lexical-arm/approvals.md`. **After the first logged run, any edit to the list, the length rule or the tokenizer needs a numbered ADR with an `Invalidates:` line.** **"After the first logged run" means the first run on `v1` (a citable run), not a `dev-v0` run, which is not citable; decided in ADR-009, 2026-10-14. The unit list stays draft until the Phase 3 freeze and is frozen before any false-hit sample is looked at.** |
 | Support-gate numeric arm definition | Every number in the cached answer must be in **one** evidence chunk that holds the same value and, if a listed unit follows the number, the same unit attached to a number in that chunk; a number the arm cannot read blocks. Number = ASCII digits with `,ddd` groups and a `.d+` part, compared clean (no commas, no leading zeros, no trailing zeros after the point, integer zeros kept). Unit = the word right after the number (glued, after spaces, or after one hyphen; a space is ` `, tab, `U+00A0` or `U+202F`, a hyphen is `-` or `U+2011`, a line break is neither), only if on a **closed list**: second…year · g, kg, mg, lb, oz · mm, cm, km, inch, ft · ml, litre · w, kw, v, mah, wh · hz…db · rpm · percent (`%`) · `$ € £` before; aliases; a plural `s` is dropped only if 2+ letters remain. Letter-digit tokens (`IPX7`, `3rd`) are *codes* and must appear whole. Number words (`zero`…`ninety`, compounds) are read only before a listed unit. Unreadable = refuse: `1,5`, `5.3.1`, `.5`, non-ASCII number characters, `hundred`/`half`/… before a unit. Chunks are read alone, never joined. No threshold | The arm has no threshold, so the grammar is its only knob: an edit to any rule, list or table silently rescales every `support_numeric_ok` logged before it. **Added 2026-10-14 by item 2.2, not pre-thesis.** The rules are this thesis's choice, not the published system's. The unit list is **draft until the Phase 3 corpus freeze** and is frozen before any false-hit sample is looked at. **After the first logged run, any edit needs a numbered ADR with an `Invalidates:` line.** Known gaps, accepted: right number with the wrong unit in the same chunk; words between number and unit (counted in `Unitless`); `a year`; other Unicode spaces and dashes (en dash, `U+2010`, thin space) between number and unit (the answer is then read by value only, and in evidence the unit is lost, so that chunk cannot support a unit). Pinned by `TestNumericReaderGolden`, `TestNumericReaderRules`, `TestNumericUnitListPinned`, `TestNumericNumberWordsPinned`; full text: `docs/work/2026-10-14-numeric-arm/approvals.md` **"After the first logged run" means the first run on `v1` (a citable run), not a `dev-v0` run, which is not citable; decided in ADR-009, 2026-10-14. The unit list stays draft until the Phase 3 freeze and is frozen before any false-hit sample is looked at.** |
-| Refusal cause (served Tier-2 rule) | The served rule is similarity ∧ namespace ∧ support. One `refusal_cause` per **judged** candidate, in this order: `NAMESPACE` → `SIMILARITY` → `SUPPORT` / `NOT_SCORED` → `NONE`. `null` = no candidate judged (never `NAMESPACE`: a cold cache is a MISS with no candidate). `NOT_SCORED` = chunk IDs with no evidence text: refused, never counted as `SUPPORT`. `CONTAINMENT` is never written (θ is outside the served rule, F-K). A retrieval with no chunks makes no Tier-2 attempt. Serve only on `NONE`. | The order, the strings and the serve rule decide what every figure that reads `refusal_cause` means; a change silently re-labels every record logged before it. **Added 2026-10-14 by item 2.3 (ADR-009).** Pinned by `TestJudgeCauses`, `TestJudgeAgreesWithDecideLane`, `TestJudgeServedIsCauseNoneOnly`, `TestCauseValuesArePinned` and 31 hand mutants (`docs/work/2026-10-14-refusal-cause-code/mutation-check.py`). **After the first run on `v1`, any change needs a numbered ADR with an `Invalidates:` line** |
+| Refusal cause (served Tier-2 rule) | The served rule is similarity ∧ namespace ∧ support **with the gate on, and similarity ∧ namespace with it off** (`SUPPORT_GATE`, ADR-010). One `refusal_cause` per **judged** candidate, in this order: `NAMESPACE` → `SIMILARITY` → `SUPPORT` / `NOT_SCORED` → `NONE`. `null` = no candidate judged (never `NAMESPACE`: a cold cache is a MISS with no candidate). `NOT_SCORED` = chunk IDs with no evidence text: refused, never counted as `SUPPORT`. `CONTAINMENT` is never written (θ is outside the served rule, F-K). A retrieval with no chunks makes no Tier-2 attempt. Serve only on `NONE`. | The order, the strings and the serve rule decide what every figure that reads `refusal_cause` means; a change silently re-labels every record logged before it. **Added 2026-10-14 by item 2.3 (ADR-009).** Pinned by `TestJudgeCauses`, `TestJudgeAgreesWithDecideLane`, `TestJudgeServedIsCauseNoneOnly`, `TestCauseValuesArePinned` and 31 hand mutants (`docs/work/2026-10-14-refusal-cause-code/mutation-check.py`). **Amended 2026-10-14 by ADR-010 (item 2.4): the served rule is per arm, the off-arm returns `NONE` with no support result after the namespace and similarity checks, and the cause order is unchanged.** **After the first run on `v1`, any change needs a numbered ADR with an `Invalidates:` line** |
 | Doc-id kind prefix | `policy-` / `product-` | The reuse rule's lane selection depends on it, so it is a contract and not a naming habit |
 | Corpus | `v1` from **Amazon-PQA**; redistribution **not granted** | Ship a download-and-build script plus a hash manifest, never the raw corpus. Cite Rozen et al., NAACL-HLT 2021. `dev-v0` is the development corpus and is **not citable in any result** |
 | Load generation | **co-hosted**, reported as such (**ratified by ADR-001**) | No second machine exists. The capacity claim is stated as a lower bound rather than a ceiling — see `super-plan.md`, "Measuring without a second machine" |
@@ -81,7 +82,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | # | Question | Blocks |
 | :--- | :--- | :--- |
 | **F1** — ✅ **resolved by ADR-003, 2026-10-04** | Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for this model. If the permit pool bounds to a concurrency the model server never offers, every shed rate measured so far describes the harness rather than the gateway | ~~No admission-control number is citable until this resolves.~~ Resolved: one slot frozen, one permit, `make env-check` verifies the live runner. Phase 1, item 1.1 |
-| **P1** | The run-manifest schema, the frozen judge prompt, the operational metric definitions and the pre-registration record were deleted with the old protocol document and exist nowhere — not in the proposal, not in code. `experiments/k6/ask.js` still prints values "for manifest.yaml" | Phases 5, 6 and 7 all produce artefacts with no defined shape |
+| **P1** | The run-manifest schema, the frozen judge prompt, the operational metric definitions and the pre-registration record were deleted with the old protocol document and exist nowhere — not in the proposal, not in code. `experiments/k6/ask.js` still prints values "for manifest.yaml". **ADR-010:** the manifest must record `SUPPORT_GATE`, taking the arm from the records or checking that the environment and the records agree, never from the environment alone | Phases 5, 6 and 7 all produce artefacts with no defined shape |
 
 ---
 
@@ -913,3 +914,103 @@ entry the miss wrote, not the candidate.
   across the 2.3 commit; ADR-001's k6-cost conclusion does not depend on what the gateway served. A log
   written before the 2.3 commit has none of the five keys and the older meanings above; do not mix the
   two derivations in one figure.
+
+### ADR-010 — The support gate is switchable per run, and every record names the arm
+**Decided (method | frozen)** · 2026-10-14 · *`interfaces.md` §H (v0.14), `gateway/internal/reuse/gate.go` and `cause.go`, `httpapi/cascade.go` and `handler.go`, `telemetry/evallog.go`, `cmd/gateway/main.go`; trail `docs/work/2026-10-14-support-gate-switch/`*
+
+Configuration 4 is two ablation arms, the support gate **off** and **on**, and a gateway process runs
+exactly one of them. The arm is chosen by the environment variable `SUPPORT_GATE`: `on`, `off`, or unset
+meaning `on`. Any other value, including a set-but-empty one, stops the process before it opens Redis,
+the RAG connection or the evaluation log. The arm is a typed value, `reuse.Gate` (`GateOn` is the zero
+value), passed as the **first** parameter of `Thresholds.Judge`; only the exact value `GateOff` skips the
+gate. It lives in **one** field, `Handler.SupportGate`, which feeds both the `Judge` call and the new
+required record key `support_gate` (`"on"` or `"off"`, on every record, never null, no `omitempty`). With
+the gate off, `Judge` returns cause `NONE` with no support result **after** the namespace and similarity
+checks, so both support fields are null and every cause that comes before the gate is the same on both
+arms. The served Tier-2 rule is now **per arm**: *similarity ∧ namespace ∧ support* with the gate on,
+*similarity ∧ namespace* with it off. **Row 2.4's Done-when** ("`support_gate` in the run manifest
+selects the arm") is met by this reading: there is no run manifest (P1), the gateway reads `SUPPORT_GATE`,
+and P1's manifest must record it.
+
+- **Rationale:**
+  - **A switch with no label cannot be read.** After ADR-009 many records have null support fields
+    (refused before the gate, `NOT_SCORED`, no candidate), so null does not name the off-arm. A run with
+    no served Tier-2 hit could not be told gate-on from gate-off at all. `raw/` is write-once and there is
+    no manifest, so the record is the only durable place for the arm.
+  - **The zero value is the safe one.** The test harness builds `Handler` as a struct literal and never
+    sets the field, as would any future literal. A zero value that meant "off" would silently ablate the
+    gate. `GateOn` is `0` and a test pins it; `Judge` runs the gate for any value other than `GateOff`.
+  - **One field, so the label and the behaviour cannot differ.** The parameter is required and first: a
+    wrapper that kept the old signature would compile and ignore the switch, and a `bool` at a call site
+    cannot be read without the signature.
+  - **Parsed first, so a typo cannot burn a run id.** `gateFromEnv` takes `os.LookupEnv`'s shape,
+    because `getenv` reads an empty value as unset and `make dev SUPPORT_GATE=` would quietly pick the
+    default. The startup line is printed after the field is set and from it, so a forgotten assignment
+    would show.
+  - **A stale RAG server is not a gap on the off-arm.** The only non-test reader of `retrieved.Texts` is
+    the `Judge` call, and the off-arm returns before it. So the off-arm serves the same entries with or
+    without a stale server, and rule 10 (which exists because the on-arm's hit rate would describe the
+    server) has nothing to check there. This is stated in §H and pinned by a test.
+  - **Rule 11 is about the start state, not the arm.** The off-arm writes Tier-2 entries and Tier-1
+    promotions that no gate checked, and they outlive the process; a later gate-on process serves them as
+    `TIER1_HIT`, which runs no rule. The arm that wrote a foreign entry can never be known, not even with
+    P1's manifest. But the start state can be checked from `raw/` alone: every `entry_id` on a hit and
+    every `candidate_entry_id` is the `entry_id` of some `MISS` record of the same run (invariant I9).
+- **Alternatives:**
+  - *A `bool` parameter, or a wrapper keeping the old `Judge`* — rejected: both compile when the switch is
+    forgotten.
+  - *A minimal run manifest now* — rejected: it is P1's work and fixes the shape of every later run.
+  - *Shadow scoring on the off-arm* (compute and log the gate's verdict without enforcing it) — rejected:
+    a different measurement, it puts gate code on a path labelled gate-off, and the Done-when says null.
+  - *Separate lexical-only and numeric-only modes* — rejected: nothing in the plan needs a third mode, and
+    on a gate-on run the two logged values already show what each arm alone would have refused (not
+    exactly: a different refusal leaves a different cache behind).
+  - *A Redis marker key, or a `SCAN` check at start, to detect a cross-arm cache* — rejected: a marker adds
+    schema and breaks "Redis holds only derived state" (ADR-007); a check at start guards the wrong side
+    (the false hits come from an **on-arm** process serving off-arm entries) and would block every
+    deliberate warm start.
+  - *`support_gate` or `refusal_cause` in the HTTP response* — rejected: the arm belongs to the process.
+  - *A `CONFIG_ID` cross-check at start* — out of scope: `CONFIG_ID` selects no behaviour yet (F-K).
+- **Consequences:**
+  - **This supersedes, without editing them:** ADR-009's "always on" and its forward note that 2.4 "adds
+    one parameter to `Judge`" (done). The frozen-table row for the refusal cause is **amended in place**
+    to the per-arm rule; its own trigger ("after the first run on `v1`") has not happened.
+  - **Run identity.** A configuration-4 run is identified by `(config_id, mutation, support_gate)`.
+    Configuration 5 is defined with the gate on (invariant I8). `CLAUDE.md:202-203` and
+    `Final_Proposal.md:391` still say `(config_id, mutation)`; they are the author's files and are **not
+    edited by this entry**, so this entry is the authority until the author edits them.
+  - **Every reader of `support_gate` also filters `config_id ∈ {4, 5}`.** Configuration 3 will have no
+    gate and will log cause `NONE` with null support fields; labelled `on`, it would break invariant I7's
+    on-clause in a healthy run and enter the refusal-rate denominator with zero refusals. What
+    configurations 1–3 write is left to the owner of F-K (recommended: `off`).
+  - **Joins name their arm.** *Decisions changed by provenance* is the **3 ⋈ 4-off** join (provenance
+    alone); 3 ⋈ 4-on mixes provenance with the support gate. A per-request join **between** 4-off and 4-on
+    is valid only on the static-cache arm (item 6.3), because online the two caches drift apart. Online, the
+    arms are compared in aggregate only.
+  - **The price of the gate is read from the gap between the arms' hit rates, and part of that gap is
+    ADR-009's `k=1` effect:** a refused entry stays the nearest one and refuses each paraphrase in turn.
+    Report the share of `SUPPORT` refusals whose `candidate_entry_id` repeats, next to the gap. The second
+    pre-registered null (the gate refuses so much that the hit rate collapses) is read from that gap.
+  - **Phase 7** compares μ_hit with the gate on against off **on a probe set the gate admits**, so both arms
+    serve the same hits; the arms otherwise differ in hit mix and in the background writes each hit
+    triggers (`BumpHitCount` and the Tier-1 promotion), so an unmatched comparison is not the gate's cost
+    alone. The gate itself costs about 30 µs per judged candidate (a benchmark, not a measurement of the
+    system).
+  - **Phase 4** — the completeness run must use the off-arm (or read `dep:*` and `entry:*` directly),
+    because the on-arm's numeric check can hide a missed purge (ADR-009); and Phase 4 **defines the cache
+    reset** that rule 11 needs once `dep:` and `entry:` exist.
+  - **P1's manifest records `SUPPORT_GATE`**, taking the arm from the records or checking that the
+    environment and the records agree, never from the environment alone.
+  - **Known limits, not fixed:** I9 cannot see old entries that are never touched (it matters only once
+    capacity is bounded), and gives a false alarm only when a MISS record never reached the log (F-F: a
+    request in flight at SIGTERM can vanish with `Dropped()` at 0). It does **not** give one for a MISS
+    leader whose client left: that record still names its entry (corrected after `/ai-review`, which found
+    the first wording of this limit false, `docs/work/2026-10-14-support-gate-switch/review.md`);
+    `main()` has no test, so "`main.go` assigns the field" is a manual check; the real-answer
+    sample of ADR-009 (`τ_s = 0.6` on generated answers) is still open and decides whether the two arms
+    differ at all on real answers.
+- **Invalidates:** none citable — `experiments/results/` holds only `.gitkeep` and no `requests.jsonl`
+  exists. A log from the 2.3 commit `94ed44b` up to the 2.4 commit has `refusal_cause` and no
+  `support_gate`: it is **gate-on**. A log from before `94ed44b` has neither key: it had no gate and is
+  **neither arm**; never pool it with an off-arm log. No frozen value changes: `τ_s`, the stopword list, the
+  tokenizer, the numeric rules and the unit list are untouched.

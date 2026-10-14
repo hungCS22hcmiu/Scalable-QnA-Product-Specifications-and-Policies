@@ -34,6 +34,13 @@ type Record struct {
 	Mutation  string `json:"mutation"`
 	TS        string `json:"ts"`
 
+	// SupportGate is the support gate's arm, "on" or "off" (interfaces.md H v0.14, item 2.4), on EVERY
+	// record, written from reuse.Gate.String() by the handler. A plain string so this package keeps
+	// importing nothing from the repository (docs/architecture.md), and WITHOUT omitempty: the reading
+	// table in H tells a 2.3-era log (no key, gate on) from a pre-2.3 log (neither key, neither arm) by
+	// key presence, so a record that lost the key when it was empty would read as the wrong thing.
+	SupportGate string `json:"support_gate"`
+
 	QueryRaw        string  `json:"query_raw"`
 	QueryNormalized string  `json:"query_normalized"`
 	T1Key           string  `json:"t1_key"`

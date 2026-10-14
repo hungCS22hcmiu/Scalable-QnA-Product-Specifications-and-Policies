@@ -712,6 +712,11 @@ type harness struct {
 	gates     []*gate
 	nextFresh int
 	asks      sync.WaitGroup
+
+	// offArm: the test switched the support gate off with useGateOff (item 2.4), so checkEveryRecord
+	// expects support_gate "off". It is false for every other test, whose handler literal never sets
+	// SupportGate and so runs on the zero value, which must label every record "on".
+	offArm bool
 }
 
 // newHarness builds one Handler the way cmd/gateway/main.go does, around a fresh cache, RAG
@@ -1026,6 +1031,14 @@ func (hs *harness) checkEveryRecord(t *testing.T, c *call) {
 	rec.str("run_id", testRunID)
 	rec.number("config_id", testConfigID)
 	rec.str("mutation", testMutation)
+	// Item 2.4: every record names the support gate's arm. The expected label is a LITERAL, not read
+	// from the handler: the handler literal in newHarness never sets SupportGate, so "on" here is what
+	// the zero value must produce, and a zero value that turned the gate off would fail every test.
+	wantGate := "on"
+	if hs.offArm {
+		wantGate = "off"
+	}
+	rec.str("support_gate", wantGate)
 	rec.str("product_id", c.req.productID)
 	rec.str("stratum", testStratum)
 	rec.str("query_raw", c.req.question)
