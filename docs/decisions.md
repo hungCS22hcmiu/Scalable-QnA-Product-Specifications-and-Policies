@@ -48,8 +48,8 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-006 | `t_generate_ms` means "this request's own `Answer` call was attempted" | in force (one open item: the 1 ms threshold) | none — no runs yet; ABANDONED and GENERATION_FAILED records' `t_generate_ms` is null before the F-H commit and not comparable across it, and any derived overhead is not either |
 | ADR-007 | Redis holds only derived state; the corpus of record is the versioned file corpus | in force (one open item: P1 must record `redis_version` + `rdb_last_save_time`) | none — no runs yet; no run ever depended on Redis persistence config, which was unrecorded until this entry; the restart-voids-a-run rule binds forward from P1's manifest |
 | ADR-008 | The dataset epoch is sourced from outside the Redis keyspace it guards | in force (binds forward — the epoch is a constant stub until Phase 4) | none — no runs yet; `dataset_epoch_at_retrieval` carries no information while `DATASET_EPOCH_STUB = 0` |
-| ADR-009 | The support gate is served, and every judged Tier-2 candidate carries one refusal cause | in force (one open item: the real-answer sample, `plan.md` steps 1c–1e, not yet run) | none citable — no runs yet; logs written before the 2.3 commit carry `cache = TIER2_HIT`, `entered_band`, `source_overlap` and `t_search_ms` under an older meaning and lack the five new keys; the 2026-10 item-1.6 Tier-2 hits were served with no gate |
-| ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 is still open) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
+| ADR-009 | The support gate is served, and every judged Tier-2 candidate carries one refusal cause | in force (the real-answer sample, `plan.md` steps 1c–1e, **ran 2026-10-14**: `docs/work/2026-10-14-real-answer-sample/`, no stop rule fired, nothing tuned) | none citable — no runs yet; logs written before the 2.3 commit carry `cache = TIER2_HIT`, `entered_band`, `source_overlap` and `t_search_ms` under an older meaning and lack the five new keys; the 2026-10 item-1.6 Tier-2 hits were served with no gate |
+| ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 has run, `docs/work/2026-10-14-real-answer-sample/`) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
 
 ---
 
@@ -891,9 +891,13 @@ entry the miss wrote, not the candidate.
   - **Known limit, not fixed:** the search is `k=1`. A refused entry is never touched, so it can stay
     the nearest entry for its paraphrases and refuse each in turn. It shows as one `candidate_entry_id`
     refused many times in a run.
-  - **Open:** the real-answer sample (`plan.md` steps 1c–1e) has not run, because memory pressure was
-    level 2. `τ_s = 0.6` is not changed by it whatever it shows: a bad result is a finding for the
-    author, not a reason to tune.
+  - **Open at the time:** the real-answer sample (`plan.md` steps 1c–1e) had not run, because memory
+    pressure was level 2. `τ_s = 0.6` is not changed by it whatever it shows: a bad result is a finding for
+    the author, not a reason to tune. **Update 2026-10-14: it ran** (`docs/work/2026-10-14-real-answer-sample/`,
+    dev-v0, n = 27, not citable). The second pre-registered null did not occur (0 of 5 paraphrases refused);
+    2 of 21 answers fell below `τ_s`; `τ_s` and the lexical definition were **not** changed. Two findings are
+    carried to item 6.1: about one answer in ten is refused against its own evidence, and the lexical arm
+    penalises answers that narrate "the context".
   - **The reading of "after the first logged run"** in the two support-gate frozen rows is now fixed:
     it means the first run on `v1`. A `dev-v0` run is not citable, so the Phase 3 unit-list edit needs
     no ADR, and must still come before any false-hit sample is looked at.

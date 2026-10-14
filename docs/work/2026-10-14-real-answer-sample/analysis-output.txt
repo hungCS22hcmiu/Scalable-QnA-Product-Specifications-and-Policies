@@ -1,0 +1,93 @@
+# analysis_stats.py on sample-results.md
+floor (a + b own): n=21  S_lex sorted=[0.333, 0.556, 0.6, 0.652, 0.667, 0.667, 0.667, 0.691, 0.708, 0.714, 0.75, 0.8, 0.842, 0.939, 1, 1, 1, 1, 1, 1, 1]
+   below 0.6: 2/21  Wilson95 [0.027, 0.289]   numeric refuses: 0/21  Wilson95 [0.000, 0.155]   numeric refuses where lexical admits: 0
+   exactly at tau_s (0.600): ['a12']   median=0.75  min=0.333
+part a only: n=16  S_lex sorted=[0.333, 0.556, 0.6, 0.652, 0.667, 0.667, 0.708, 0.714, 0.75, 0.8, 0.842, 1, 1, 1, 1, 1]
+   below 0.6: 2/16  Wilson95 [0.035, 0.360]   numeric refuses: 0/16  Wilson95 [0.000, 0.194]   numeric refuses where lexical admits: 0
+   exactly at tau_s (0.600): ['a12']   median=0.75  min=0.333
+part b paraphrase (the reuse case): n=5  S_lex sorted=[0.667, 0.691, 0.939, 1, 1]
+   below 0.6: 0/5  Wilson95 [0.000, 0.434]   numeric refuses: 0/5  Wilson95 [0.000, 0.434]   numeric refuses where lexical admits: 0
+   exactly at tau_s (0.600): []   median=0.939  min=0.667
+
+yes/no in part a: [('a03', 0.333), ('a05', 0.75), ('a12', 0.6), ('a13', 0.652)]  below 0.6: 1/4
+non-yes/no in part a below 0.6: [('a15', 0.556)]
+
+--- part c ---
+c1 same namespace       gate-would-refuse=True (lex=True, num=False)  system-namespaces-equal=True
+c2 same namespace, yn   gate-would-refuse=True (lex=True, num=False)  system-namespaces-equal=True
+c3 gate alone           gate-would-refuse=True (lex=False, num=True)  system-namespaces-equal=False
+c4 same namespace       gate-would-refuse=True (lex=True, num=True)  system-namespaces-equal=True
+c5 same namespace       gate-would-refuse=False (lex=False, num=False)  system-namespaces-equal=False
+c6 gate alone, yn       gate-would-refuse=True (lex=True, num=False)  system-namespaces-equal=False
+refused by either arm: 5/6; admitted: ['c5']
+pairs whose namespaces the system really assigned equal (the gate sees them in config 4): ['c1', 'c2', 'c4']  refused: ['c1', 'c2', 'c4']
+
+--- does the word 'context' in the answer go with a low S_lex? (all 32 rows; descriptive only) ---
+with 'context': n=14 mean S_lex=0.602 refused by lexical=4  ids=['a03', 'a10', 'a12', 'a13', 'a16', 'b2', 'b2p', 'b3', 'b3p', 'b5', 'b5p', 'c2', 'c4', 'c6']
+without       : n=18 mean S_lex=0.852 refused by lexical=2
+
+lexical refusals (all rows): [('a03', 'own', 0.333, True), ('a15', 'own', 0.556, False), ('c1', 'same name', 0.556, False), ('c2', 'same name', 0.231, True), ('c4', 'same name', 0.396, True), ('c6', 'gate alon', 0.25, True)]
+
+--- what the numeric arm had to work with (floor rows: part a + part b own) ---
+answers with at least one number: 19/21   answers with at least one 'unitless' number (checked by value only): 9/21  ids=['a01', 'a04', 'a05', 'a11', 'a12', 'a13', 'a15', 'b1', 'b3']
+numbers in total: 49, unsupported: 0, unreadable: 0, unitless: 19
+
+# analysis_inspect.py on sample-results.md
+
+[a03 own] Q: Does the SoundMax ANC Lite have active noise cancelling?
+   S_lex=0.333/12 numRef=False  evidence=['product-headphones-02#chunk-0']
+   A: 'Yes, the SoundMax ANC Lite has active noise cancelling, as indicated by the spec "anc: yes" listed in the context.'
+
+[a15 own] Q: what is the battery life of the EarBuds Pop 3
+   S_lex=0.556/9 numRef=False  evidence=['product-headphones-03#chunk-0']
+   A: 'The battery life of the EarBuds Pop 3 is 6 hours, with an additional 24 hours when using the case.'
+
+[a12 own] Q: Can I return the EarBuds Pop 3 after 30 days?
+   S_lex=0.600/20 numRef=False  evidence=['policy-returns-electronics#chunk-0', 'product-headphones-03#chunk-0', 'policy-returns-furniture#chunk-0']
+   A: 'No, you cannot return the EarBuds Pop 3 after 30 days because the provided context states that items in the headphones category may be returned only within the first 30 days of delivery.'
+
+[a01 own] Q: What is the battery life of the EarBuds Pop 3?
+   S_lex=0.667/9 numRef=False  evidence=['product-headphones-03#chunk-0']
+   A: 'The battery life of the EarBuds Pop 3 is 6 hours (24 hours with case), as listed under their specs.'
+
+[c1 same namespace] Q: What is the battery life of the EarBuds Pop 3?
+   evidence from: How much does the EarBuds Pop 3 weigh?
+   S_lex=0.556/9 numRef=False  evidence=['product-headphones-03#chunk-0']
+   A: 'The EarBuds Pop 3 has a battery life of **6 hours** per charge, or up to **24 hours with the case**.'
+
+[c2 same namespace, yn] Q: Does the EarBuds Pop 3 Pro have active noise cancelling?
+   evidence from: Is the EarBuds Pop 3 Pro water resistant?
+   S_lex=0.231/39 numRef=False  evidence=['product-headphones-04#chunk-0']
+   A: 'No, the context does not state that the EarBuds Pop 3 Pro has active noise cancelling. The provided information lists the product type as in-ear true wireless, mentions an ANC (Active Noise Cancellation) spec label but without defining what features that represents in this specific context, or confirms their presence. Therefore,'
+
+[c3 gate alone] Q: What is the battery life of the SoundMax ANC Pro?
+   evidence from: What is the battery life of the SoundMax ANC Lite?
+   S_lex=0.667/6 numRef=True  evidence=['product-headphones-02#chunk-0']
+   A: 'The battery life of the SoundMax ANC Pro is 40 hours.'
+
+[c4 same namespace] Q: How long is the warranty on headphones?
+   evidence from: How long is the warranty on laptops?
+   S_lex=0.396/48 numRef=True  evidence=['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'product-laptops-06#chunk-0', 'product-laptops-08#chunk-0', 'product-laptops-09#chunk-0']
+   A: 'The warranty on headphones depends on the specific product listed in the context:\n\n*   **Headphones** generally carry a **1-year manufacturer warranty** covering electronic and battery defects. However, this excludes accidental damage.\n    *   Specific product details (Product: EarBuds Pop 3 Pro) include "water_resistance: IPX4,'
+
+[c5 same namespace] Q: How long do I have to return a laptop for a full refund?
+   evidence from: Who pays for return shipping if I change my mind?
+   S_lex=0.781/32 numRef=False  evidence=['policy-returns-furniture#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-shipping#chunk-0', 'product-furniture-07#chunk-0', 'product-furniture-08#chunk-0']
+   A: "You can return the laptop within 30 days of delivery for a full refund, provided it is unused and all accessories are included. If the item has defective components reported within this window, you will receive a free replacement or refund at the customer's choice, with shipping only covered if it is defective (the customer cove"
+
+[c6 gate alone, yn] Q: Does the EarBuds Pop 3 have active noise cancelling?
+   evidence from: Does the EarBuds Pop 3 Pro have active noise cancelling?
+   S_lex=0.250/20 numRef=False  evidence=['product-headphones-04#chunk-0']
+   A: 'No, the EarBuds Pop 3 does not have active noise cancelling based on the context provided. The "anc" specification in the specs section explicitly states "no," indicating that the product lacks active noise cancellation.'
+
+=== same-evidence check (the answered question's own chunks, from part a, same question text) ===
+c1 evidence(p) vs a01 own(q): identical=True  shared=['product-headphones-03#chunk-0']  only_p=[]  only_q=[]
+c4 evidence(p) vs a09 own(q): identical=False  shared=['policy-returns-electronics#chunk-0', 'policy-warranty#chunk-0']  only_p=['product-laptops-06#chunk-0', 'product-laptops-08#chunk-0', 'product-laptops-09#chunk-0']  only_q=['product-headphones-01#chunk-0', 'product-headphones-03#chunk-0', 'product-headphones-04#chunk-0']
+c5 evidence(p) vs a07 own(q): identical=False  shared=['policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0']  only_p=['policy-shipping#chunk-0', 'product-furniture-07#chunk-0', 'product-furniture-08#chunk-0']  only_q=['policy-warranty#chunk-0', 'product-laptops-06#chunk-0', 'product-laptops-09#chunk-0']
+
+=== part b: is the paraphrase retrieval the same chunks as the question's own? ===
+b1 same chunks: True 5 chunks
+b2 same chunks: True 5 chunks
+b3 same chunks: True 5 chunks
+b4 same chunks: False 5 chunks
+b5 same chunks: True 5 chunks
