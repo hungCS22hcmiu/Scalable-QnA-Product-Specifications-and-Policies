@@ -29,7 +29,8 @@ type RetrieveResult struct {
 	// e.g. a server that predates texts. A reader (the support gate) must not score such a request,
 	// must not refuse it as SUPPORT, and must not log it as the gate-off arm (support_lex: null):
 	// each would misattribute a stale server to the gate. Key on len(ChunkIDs) > 0, because an
-	// empty retrieval is nil too.
+	// empty retrieval is nil too. On the gate-off arm (item 2.4) nothing reads Texts, so a stale
+	// server is not seen there and cannot change what that arm serves (interfaces.md H, rule 10).
 	Texts []string
 }
 

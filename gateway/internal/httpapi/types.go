@@ -28,7 +28,10 @@ type askRequest struct {
 // is no value -- the contract calls out showing them side by side as the whole observability point
 // of the pair, so `null` must render, not be silently dropped. A lookalike from another namespace
 // is a MISS with similarity null; inside a namespace, a TIER2_HIT with overlap_decision: false is a
-// reuse the containment conjunct would have refused.
+// reuse the containment conjunct would have refused. Since item 2.3 a MISS can also carry a
+// similarity AND an overlap: the support gate refused a candidate the lane rule had accepted, and
+// `sources` on that MISS is the entry the miss wrote, not the refused candidate. The response has no
+// field for the reason; the evaluation log's refusal_cause does (interfaces.md H v0.13).
 type askResponse struct {
 	Answer        string   `json:"answer"`
 	Cache         string   `json:"cache"` // TIER1_HIT | TIER2_HIT | MISS | BYPASS
@@ -54,11 +57,11 @@ type askResponse struct {
 	ReuseRule string `json:"reuse_rule,omitempty"`
 
 	// OverlapDecision is the COUNTERFACTUAL: what the containment rule (Thresholds.Decide) would
-	// have decided on the candidate the served rule judged -- configuration 4's support-off rule,
-	// since that candidate is already in the query's namespace. Null unless the candidate cleared
-	// tau. It must be captured at decision time: it cannot be reconstructed later against cache
-	// state that no longer exists (interfaces.md §H). Carrying both is what makes the two rules
-	// comparable without a second run.
+	// have decided on the candidate the lane rule judged -- a logged counterfactual, since theta is
+	// not in the served rule (F-K). Null unless the candidate cleared tau, and present on a candidate
+	// the support gate then refused. It must be captured at decision time: it cannot be reconstructed
+	// later against cache state that no longer exists (interfaces.md §H). Carrying both is what makes
+	// the two rules comparable without a second run.
 	OverlapDecision *bool `json:"overlap_decision"`
 }
 

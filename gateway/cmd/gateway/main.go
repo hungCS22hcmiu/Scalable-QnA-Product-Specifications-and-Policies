@@ -58,6 +58,26 @@ func retiredEnv(getenv func(string) string) error {
 	return nil
 }
 
+// gateFromEnv reads the support gate's switch (item 2.4, interfaces.md H v0.14): SUPPORT_GATE is "on" or
+// "off", and unset means "on". It takes os.LookupEnv's shape and not getenv's on purpose: getenv reads
+// an empty value as unset, so `make dev SUPPORT_GATE=` would quietly run the gate-on arm while the
+// operator asked for something else. Set-but-empty, "ON", " off" and every other value are errors, and
+// the caller stops the process, before it opens Redis or the evaluation log: a run id burned by a typo
+// is the F-M pattern that getenvInt("CONFIG_ID") already has. Pure, on retiredEnv's pattern, so the
+// rule is testable. On error the Gate returned is GateOn.
+func gateFromEnv(lookup func(string) (string, bool)) (reuse.Gate, error) {
+	v, set := lookup("SUPPORT_GATE")
+	if !set {
+		return reuse.GateOn, nil
+	}
+	g, err := reuse.ParseGate(v)
+	if err != nil {
+		return reuse.GateOn, fmt.Errorf("SUPPORT_GATE=%q is not \"on\" or \"off\" (unset means \"on\"): "+
+			"the support gate's arm is chosen for the whole run, so a value that is almost right stops the gateway", v)
+	}
+	return g, nil
+}
+
 // runCounts is everything that can make a finished run inadmissible. A struct rather than
 // positional arguments, so two int64 counts cannot be passed in the wrong order.
 type runCounts struct {
@@ -142,6 +162,12 @@ func spaHandler(dir string) http.Handler {
 
 func main() {
 	if err := retiredEnv(os.Getenv); err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
+	// Right after retiredEnv and before ANYTHING with a side effect (Redis, the RAG connection,
+	// telemetry.Open): a bad SUPPORT_GATE must not leave a run directory behind.
+	supportGate, err := gateFromEnv(os.LookupEnv)
+	if err != nil {
 		log.Fatalf("gateway: %v", err)
 	}
 
@@ -272,6 +298,21 @@ func main() {
 	handler.RunID = getenv("RUN_ID", "")
 	handler.ConfigID = getenvInt("CONFIG_ID", 0)
 	handler.Mutation = getenv("MUTATION", "off")
+	handler.SupportGate = supportGate
+
+	// Printed AFTER the assignment and read back from the handler, never from the parsed variable
+	// (design.md F14): if the assignment above were ever forgotten, this line would still say what the
+	// process runs, and the mismatch with the operator's SUPPORT_GATE would show. main() has no test, so
+	// this ordering is a manual check in the plan.
+	if handler.SupportGate == reuse.GateOff {
+		log.Printf("gateway: support_gate=%s  -- the ABLATION ARM: Tier-2 serves on similarity and namespace only;\n"+
+			"         support_lex and support_numeric_ok are not computed and log null", handler.SupportGate)
+	} else {
+		log.Printf("gateway: support_gate=%s  (default: a candidate that clears tau and the namespace is refused\n"+
+			"         when the cached answer is not supported by this request's evidence)", handler.SupportGate)
+	}
+	log.Printf("gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first\n" +
+		"         (interfaces.md rule 11). Records carry support_gate so a log names its arm.")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ask", handler.Ask)
