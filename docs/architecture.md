@@ -47,7 +47,7 @@ thesis/
 │   └── internal/
 │       ├── httpapi/                POST /ask, the cascade, 503 shedding → contracts/interfaces.md §A
 │       ├── cache/                  tier1, tier2, key norm   → contracts/interfaces.md §D, the key-normalisation function
-│       ├── reuse/                  lanes + overlap rule     → proposal §5 C1   [C1]
+│       ├── reuse/                  lanes + overlap rule + support arms (support*.go, unwired)  → proposal §5 C1   [C1]
 │       ├── deps/                   dependency map, COW, writer goroutine
 │       │                                                    → contracts/interfaces.md §E  [C2]  NOT BUILT: a stub doc.go
 │       ├── admission/              permit pool, queue, shed → proposal §6.1
@@ -178,7 +178,7 @@ Use `make`; do not invent ad-hoc invocations. `make help` is the authority; the 
 | Group | Targets |
 | :--- | :--- |
 | **Run** | `dev` · `ask` · `ingest` · `ui` · `demo` · `demo-reset` |
-| **Check the code** | `verify` (= `lint` + build + `test`) · `lint` · `test` · `seam-check` — the one live check; `verify` never runs it |
+| **Check the code** | `verify` (= `lint` + build + `test`) · `lint` · `test` · `seam-check` (item 1.4) and `support-check` (item 2.1) — the two live checks; `verify` never runs either |
 | **Check the envelope** | `env-check` (ADR-003, loads both models) · `redis-check` · `measure` (gates a *measured* run on green pressure) |
 | **Exploratory, not citable** | `load-smoke` · `mu-hit` · `footprint` (**deletes** `t1:` / `t2:` / `lru:` cache keys; needs `make dev`) |
 | **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash |
@@ -200,7 +200,7 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 | :--- | :--- |
 | **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
-| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the answer–evidence support gate (Phase 2) · `data/v1/` · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
+| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the answer–evidence support gate (Phase 2; only the two arms exist (items 2.1, 2.2), as unwired functions in `reuse/support.go` and `reuse/support_numeric.go` — the cause code, the on/off switch and the cascade wiring are not built) · `data/v1/` · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
 
 ## 6. Invariants that fail silently
 
