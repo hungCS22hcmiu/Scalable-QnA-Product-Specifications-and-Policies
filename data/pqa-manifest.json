@@ -1,0 +1,374 @@
+{
+  "builder_sha256": "b2000c53090d78856f1b8e0000bb66e06ed33824aa527b70b80a546c7ba71543",
+  "cross_leaf": {
+    "chairs|home_office_desks": 0,
+    "led_&_lcd_tvs|chairs": 0,
+    "led_&_lcd_tvs|home_office_desks": 0,
+    "led_&_lcd_tvs|over-ear_headphones": 0,
+    "over-ear_headphones|chairs": 0,
+    "over-ear_headphones|home_office_desks": 0,
+    "traditional_laptops|chairs": 0,
+    "traditional_laptops|home_office_desks": 0,
+    "traditional_laptops|led_&_lcd_tvs": 0,
+    "traditional_laptops|over-ear_headphones": 0,
+    "unlocked_cell_phones|chairs": 0,
+    "unlocked_cell_phones|home_office_desks": 0,
+    "unlocked_cell_phones|led_&_lcd_tvs": 0,
+    "unlocked_cell_phones|over-ear_headphones": 0,
+    "unlocked_cell_phones|traditional_laptops": 0
+  },
+  "leaves": {
+    "chairs": {
+      "answer_aggregated": {
+        "N/A": 56312,
+        "neutral": 15937,
+        "no": 7344,
+        "yes": 8675
+      },
+      "answers_bad": 0,
+      "bad_type": {},
+      "duplicate_question_ids": 0,
+      "field_nonempty": {
+        "answer_aggregated": 88268,
+        "answers": 88268,
+        "asin": 88268,
+        "brand_name": 52080,
+        "bullet_point1": 84863,
+        "bullet_point2": 82578,
+        "bullet_point3": 82016,
+        "bullet_point4": 78255,
+        "bullet_point5": 72051,
+        "item_name": 88268,
+        "product_description": 30186,
+        "question_id": 88268,
+        "question_text": 88268,
+        "question_type": 88268
+      },
+      "interim_bytes": 55821541,
+      "interim_file": "chairs.jsonl",
+      "interim_sha256": "c3585b0976e308d84039653a0547914b8859203d4ce3db6df574e05e62fc4fd1",
+      "lines_read": 88268,
+      "products": 19193,
+      "prose_conflicts": 31,
+      "prose_median_chars": 517,
+      "question_type": {
+        "WH": 56312,
+        "yes-no": 31956
+      },
+      "questions": 88268,
+      "records_parsed": 88268,
+      "skipped": {
+        "bad_json": 0,
+        "bad_question_text": 0,
+        "blank_line": 0,
+        "missing_asin": 0,
+        "not_object": 0
+      },
+      "surrogate_replacements": 0,
+      "unknown_keys": {}
+    },
+    "home_office_desks": {
+      "answer_aggregated": {
+        "N/A": 32101,
+        "neutral": 11634,
+        "no": 4318,
+        "yes": 7250
+      },
+      "answers_bad": 0,
+      "bad_type": {},
+      "duplicate_question_ids": 0,
+      "field_nonempty": {
+        "answer_aggregated": 55303,
+        "answers": 55303,
+        "asin": 55303,
+        "brand_name": 31523,
+        "bullet_point1": 54259,
+        "bullet_point2": 53587,
+        "bullet_point3": 53414,
+        "bullet_point4": 52432,
+        "bullet_point5": 50443,
+        "item_name": 55303,
+        "product_description": 20866,
+        "question_id": 55303,
+        "question_text": 55303,
+        "question_type": 55303
+      },
+      "interim_bytes": 33613029,
+      "interim_file": "home_office_desks.jsonl",
+      "interim_sha256": "283c04c2f7157d0061bd3f09d411834f7f3710e025b96677e583c1671ae559fa",
+      "lines_read": 55303,
+      "products": 6986,
+      "prose_conflicts": 7,
+      "prose_median_chars": 672,
+      "question_type": {
+        "WH": 32101,
+        "yes-no": 23202
+      },
+      "questions": 55303,
+      "records_parsed": 55303,
+      "skipped": {
+        "bad_json": 0,
+        "bad_question_text": 0,
+        "blank_line": 0,
+        "missing_asin": 0,
+        "not_object": 0
+      },
+      "surrogate_replacements": 0,
+      "unknown_keys": {}
+    },
+    "led_&_lcd_tvs": {
+      "answer_aggregated": {
+        "N/A": 67858,
+        "neutral": 32878,
+        "no": 10917,
+        "yes": 26228
+      },
+      "answers_bad": 0,
+      "bad_type": {},
+      "duplicate_question_ids": 0,
+      "field_nonempty": {
+        "answer_aggregated": 137881,
+        "answers": 137881,
+        "asin": 137881,
+        "brand_name": 123245,
+        "bullet_point1": 136407,
+        "bullet_point2": 133192,
+        "bullet_point3": 132545,
+        "bullet_point4": 129101,
+        "bullet_point5": 118860,
+        "item_name": 137881,
+        "product_description": 17906,
+        "question_id": 137881,
+        "question_text": 137881,
+        "question_type": 137881
+      },
+      "interim_bytes": 65684128,
+      "interim_file": "led_&_lcd_tvs.jsonl",
+      "interim_sha256": "59f441f3c49ee37aa689cb355f04ff77d04a717c8de5a25e5179a7e40928edcb",
+      "lines_read": 137881,
+      "products": 3970,
+      "prose_conflicts": 13,
+      "prose_median_chars": 413,
+      "question_type": {
+        "WH": 67858,
+        "yes-no": 70023
+      },
+      "questions": 137881,
+      "records_parsed": 137881,
+      "skipped": {
+        "bad_json": 0,
+        "bad_question_text": 0,
+        "blank_line": 0,
+        "missing_asin": 0,
+        "not_object": 0
+      },
+      "surrogate_replacements": 0,
+      "unknown_keys": {}
+    },
+    "over-ear_headphones": {
+      "answer_aggregated": {
+        "N/A": 65714,
+        "neutral": 35245,
+        "no": 11578,
+        "yes": 26609
+      },
+      "answers_bad": 0,
+      "bad_type": {},
+      "duplicate_question_ids": 0,
+      "field_nonempty": {
+        "answer_aggregated": 139146,
+        "answers": 139146,
+        "asin": 139146,
+        "brand_name": 88697,
+        "bullet_point1": 133857,
+        "bullet_point2": 131665,
+        "bullet_point3": 129223,
+        "bullet_point4": 126366,
+        "bullet_point5": 118745,
+        "item_name": 139143,
+        "product_description": 42448,
+        "question_id": 139146,
+        "question_text": 139146,
+        "question_type": 139146
+      },
+      "interim_bytes": 80446207,
+      "interim_file": "over-ear_headphones.jsonl",
+      "interim_sha256": "97681dc4a947f5f1ff6f168b8d19b8eb889e654cc4d9cda833aaf8be61fb3766",
+      "lines_read": 139146,
+      "products": 6605,
+      "prose_conflicts": 1,
+      "prose_median_chars": 957,
+      "question_type": {
+        "WH": 65714,
+        "yes-no": 73432
+      },
+      "questions": 139146,
+      "records_parsed": 139146,
+      "skipped": {
+        "bad_json": 0,
+        "bad_question_text": 0,
+        "blank_line": 0,
+        "missing_asin": 0,
+        "not_object": 0
+      },
+      "surrogate_replacements": 0,
+      "unknown_keys": {}
+    },
+    "traditional_laptops": {
+      "answer_aggregated": {
+        "N/A": 129157,
+        "neutral": 64594,
+        "no": 34058,
+        "yes": 64087
+      },
+      "answers_bad": 0,
+      "bad_type": {},
+      "duplicate_question_ids": 0,
+      "field_nonempty": {
+        "answer_aggregated": 291896,
+        "answers": 291896,
+        "asin": 291896,
+        "brand_name": 186422,
+        "bullet_point1": 284271,
+        "bullet_point2": 272921,
+        "bullet_point3": 270981,
+        "bullet_point4": 266126,
+        "bullet_point5": 239745,
+        "item_name": 291895,
+        "product_description": 98386,
+        "question_id": 291896,
+        "question_text": 291896,
+        "question_type": 291896
+      },
+      "interim_bytes": 135636768,
+      "interim_file": "traditional_laptops.jsonl",
+      "interim_sha256": "18bfc278ee18918cb0c846e57b0368aaec6f91476cf2bed19a6d3a8dc77f4b4d",
+      "lines_read": 291896,
+      "products": 19742,
+      "prose_conflicts": 21,
+      "prose_median_chars": 749,
+      "question_type": {
+        "WH": 129157,
+        "yes-no": 162739
+      },
+      "questions": 291896,
+      "records_parsed": 291896,
+      "skipped": {
+        "bad_json": 0,
+        "bad_question_text": 0,
+        "blank_line": 0,
+        "missing_asin": 0,
+        "not_object": 0
+      },
+      "surrogate_replacements": 0,
+      "unknown_keys": {}
+    },
+    "unlocked_cell_phones": {
+      "answer_aggregated": {
+        "N/A": 216625,
+        "neutral": 109418,
+        "no": 37112,
+        "yes": 136380
+      },
+      "answers_bad": 0,
+      "bad_type": {},
+      "duplicate_question_ids": 0,
+      "field_nonempty": {
+        "answer_aggregated": 499535,
+        "answers": 499535,
+        "asin": 499535,
+        "brand_name": 194583,
+        "bullet_point1": 479834,
+        "bullet_point2": 463321,
+        "bullet_point3": 453493,
+        "bullet_point4": 440841,
+        "bullet_point5": 409580,
+        "item_name": 499535,
+        "product_description": 268002,
+        "question_id": 499535,
+        "question_text": 499535,
+        "question_type": 499535
+      },
+      "interim_bytes": 201434679,
+      "interim_file": "unlocked_cell_phones.jsonl",
+      "interim_sha256": "caa6fd3c9dcfe7005ad58623758d6b8aacebb00aef75a65ee4778029e3428305",
+      "lines_read": 499539,
+      "products": 15298,
+      "prose_conflicts": 5,
+      "prose_median_chars": 782,
+      "question_type": {
+        "WH": 216625,
+        "yes-no": 282910
+      },
+      "questions": 499535,
+      "records_parsed": 499535,
+      "skipped": {
+        "bad_json": 0,
+        "bad_question_text": 4,
+        "blank_line": 0,
+        "missing_asin": 0,
+        "not_object": 0
+      },
+      "surrogate_replacements": 0,
+      "unknown_keys": {}
+    }
+  },
+  "manifest_version": 1,
+  "note": "Covers the 3.1 interim files only. It is not the v1 snapshot digest (item 3.6).",
+  "sources": [
+    {
+      "bytes": 821444488,
+      "department": "phones",
+      "file": "amazon_pqa_unlocked_cell_phones.json",
+      "leaf": "unlocked_cell_phones",
+      "sha256": "007178b847b2fb2b3bbdee7a79982dfcf7c51818f7cc909c5b4b5381c249424c",
+      "url": "https://amazon-pqa.s3.amazonaws.com/amazon_pqa_unlocked_cell_phones.json"
+    },
+    {
+      "bytes": 403702059,
+      "department": "laptops",
+      "file": "amazon_pqa_traditional_laptops.json",
+      "leaf": "traditional_laptops",
+      "sha256": "86452e67a51d029d8ff7419b2f4fe3037c2a1fcf27a2de199d859e35bf098b5f",
+      "url": "https://amazon-pqa.s3.amazonaws.com/amazon_pqa_traditional_laptops.json"
+    },
+    {
+      "bytes": 178273635,
+      "department": "electronics",
+      "file": "amazon_pqa_led_&_lcd_tvs.json",
+      "leaf": "led_&_lcd_tvs",
+      "sha256": "bd8e9530c3ae2b678fd773c612e612770ce7b601b3b340d38f468767861622f1",
+      "url": "https://amazon-pqa.s3.amazonaws.com/amazon_pqa_led_%26_lcd_tvs.json"
+    },
+    {
+      "bytes": 278531682,
+      "department": "electronics",
+      "file": "amazon_pqa_over-ear_headphones.json",
+      "leaf": "over-ear_headphones",
+      "sha256": "b784c7e144257dbc1eb77e76ab46aaaba786d73280b533701a2314860344b320",
+      "url": "https://amazon-pqa.s3.amazonaws.com/amazon_pqa_over-ear_headphones.json"
+    },
+    {
+      "bytes": 138252584,
+      "department": "furniture",
+      "file": "amazon_pqa_chairs.json",
+      "leaf": "chairs",
+      "sha256": "b015bea4871be949d5ca332a605fb0b1f1ebba5d89a903e277a857b1567b73c0",
+      "url": "https://amazon-pqa.s3.amazonaws.com/amazon_pqa_chairs.json"
+    },
+    {
+      "bytes": 95549762,
+      "department": "furniture",
+      "file": "amazon_pqa_home_office_desks.json",
+      "leaf": "home_office_desks",
+      "sha256": "2d89b15fc9c592539a4af9f4806517896e04594c7333ffdd68e5418a34fcba74",
+      "url": "https://amazon-pqa.s3.amazonaws.com/amazon_pqa_home_office_desks.json"
+    }
+  ],
+  "stage": "3.1-interim",
+  "totals": {
+    "products_distinct_across_leaves": 71794,
+    "products_sum_of_leaf_distinct": 71794,
+    "questions": 1212029
+  }
+}

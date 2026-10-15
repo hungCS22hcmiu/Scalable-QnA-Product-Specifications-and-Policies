@@ -361,10 +361,37 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 
 *Four jobs, not a download. Longest lead, and it can fail its own gate and need rework.* ~45 h.
 
+**Progress, 2026-10-15:** item 3.1 is done. The builder checks the six source files by sha256, parses them against
+the real field names, and stops on a bad parse; it writes `data/v1-draft/pqa/*.jsonl` and the manifest
+`data/pqa-manifest.json` (hashes and counts only). Real run: 1,212,029 questions over 71,794 products, 4 skipped.
+**Phase 3 exit is not met** (run on 2026-10-15: `make gate-corpus` fails, no corpus and no workload; 22 `TODO(W8)`
+markers are still open in `data-card.md`). Items 3.2 – 3.6 are open.
+
+**Found while closing 3.1, not yet items — each waits on the author's decision** (trail
+`docs/work/2026-10-15-pqa-build-script/`, `review.md`, `evidence/live-run.md`):
+
+- **For 3.2:** read the interim only through `iter_interim`, and record the sha256 of `data/pqa-manifest.json` it
+  consumed (`make pqa-verify` prints it). Write drafts to a fresh `data/v1-draft/products/` and refuse to run while
+  `data/v1-draft/product-*.json` exist (open question 4, option A). The interim's `leaf` is metadata: it must not become
+  `category` or reach embedded text. 3.2 owns the interim schema and rebuilds the manifest when it changes it.
+- **What the real data showed 3.2 has to decide on:** 78 asins (0.11 %) have product fields that differ between records
+  (the builder keeps the first parsed record). No asin is in two leaves and no `question_id` repeats.
+- **The 175 wrong-dataset files are not on this disk.** The builder looks for `data/v1-draft/product-*.json` on every build
+  and found none. The guard stays; the danger it covers is not present today.
+- **For 3.6:** the skip rules, "first parsed record wins" and surrogate replacement shape the question pool that `K` comes
+  from. Write them into `data-card.md`; after the freeze a change needs a new `dataset_version`.
+- **Stale prose, waiting for the author:** `docs/data-card.md:48` still says the builder downloads with resume (it does not;
+  `make pqa-fetch` uses `curl -C -`); `CLAUDE.md` "Commands that work today" does not list `make pqa-fetch` / `pqa-build` /
+  `pqa-verify`. The resume path of `pqa-fetch` has never run against the real host (the files were already on disk).
+- **Workflow:** `docs/0. progress 16-10.md` is modified in the working tree by the author and is not part of 3.1; keep it out
+  of the 3.1 commit. Ten older files in `experiments/` are not `ruff format` clean (pre-existing, untouched), and the
+  `format-lint` hook formats a Python file on every Edit/Write.
+
+
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 3.1 | **PQA build script**, replacing `fetch_corpus_v1.py`. ⚠️ **Write it against the bytes, not the readme** — the dataset's own documentation names fields the data does not use, and a builder written from it returns empty records **silently** | C1, C3 | Amazon-PQA | now | The script asserts a non-zero parse rate and refuses to write on zero; it emits a **hash manifest**, never the raw corpus |
-| 3.2 | **Select into the thick tail.** Questions-per-product is skewed within a category and varies ~4× between categories; a uniform draw returns mostly single-question products, from which no stratum A or C pair can be built | C1 | Amazon-PQA | 3.1 | The selection rule is recorded in `data-card.md`, and the realised questions-per-product distribution is reported with it |
+| 3.1 | **PQA build script**, replacing `fetch_corpus_v1.py`. ⚠️ **Write it against the bytes, not the readme** — the dataset's own documentation names fields the data does not use, and a builder written from it returns empty records **silently** | C1, C3 | Amazon-PQA | ✅ **Done 2026-10-15** — no ADR (no contract or frozen value changed; ADR-002 is used as written), trail `docs/work/2026-10-15-pqa-build-script/`. `experiments/scripts/build_pqa.py`, `make pqa-fetch` / `pqa-build` / `pqa-verify`. The Done-when's wording is **not amended**. The Done-when tests are `test_build_stops_on_readme_field_names_and_writes_nothing` (zero parse: exit 2, nothing written) and the manifest allow-list test (hashes and counts, no PQA text). On the six real files all four stops pass and two builds give one manifest hash. 103 tests, 75 hand mutants all caught. The manifest `data/pqa-manifest.json` is **not committed yet** | The script asserts a non-zero parse rate and refuses to write on zero; it emits a **hash manifest**, never the raw corpus |
+| 3.2 | **Select into the thick tail.** Questions-per-product is skewed within a category and varies ~4× between categories; a uniform draw returns mostly single-question products, from which no stratum A or C pair can be built | C1 | Amazon-PQA | 3.1 ✅ | The selection rule is recorded in `data-card.md`, and the realised questions-per-product distribution is reported with it |
 | 3.3 | **Author the policy documents.** Per-category return *and* warranty windows that genuinely differ, ≥3 chunks each, and ⚠️ **opposing conditions in separate documents, not separate chunks** — a chunk-level split is invisible to the namespace, which is document-granular by design, and leaves all four conjuncts blind at once | C1, C2 | `v1` corpus model, condition-splitting, opposing conditions in distinct documents | now | Every policy document yields ≥3 chunks and **no two opposing conditions share a `doc_id`**. Note this raises the count above 8: one category's return policy split into *opened* / *unopened* is two documents |
 | 3.4 | **Workload generator** — does not exist. Strata A / B-within / B-cross / C / D, Zipf popularity, and the validation/test split partitioned **by seed-question cluster**, never by pair, which would leak paraphrases | C1, C3 | `v1` corpus model, B-within / B-cross split | 3.2, 3.3 | Every query carries exactly one stratum and one split assignment; no seed cluster spans both splits |
 | 3.5 | **G5 in `corpus_gate.py`.** `data-card.md` §7 requires five criteria; the code implements four. Structural, stage 1, beside G3 and G4 | C1 | condition-splitting, opposing conditions in distinct documents | 3.3 | The gate fails a corpus where two opposing conditions share a `doc_id`, and names both |

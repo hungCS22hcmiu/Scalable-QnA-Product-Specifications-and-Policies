@@ -1,7 +1,7 @@
 # System Architecture & Repository Structure
 
 **Status:** authority for folder structure and module boundaries · **Created:** 2026-08-09 ·
-**Revised:** 2026-10-07
+**Revised:** 2026-10-15
 **Companion to:** `Final_Proposal.md` §6 (architecture), `contracts/interfaces.md` (frozen
 contracts), `decisions.md` (the decision log), `super-plan.md` (build order)
 
@@ -75,7 +75,7 @@ thesis/
 │
 ├── experiments/
 │   ├── README.md
-│   ├── scripts/                    corpus_gate · env_check · fetch_corpus_v1 · loadgen_footprint
+│   ├── scripts/                    corpus_gate · env_check · build_pqa · loadgen_footprint
 │   │                               · load_burst (not citable) · verify_admission.sh
 │   │                               NOT BUILT: workload generator, replay, judge, figures
 │   │                               → super-plan items 3.4, 5.1, 5.4
@@ -97,7 +97,10 @@ thesis/
     ├── dev-v0/                     development corpus, not citable → the `dev-v0` rule
     ├── v1/                         frozen experimental corpus (Phase 3) → data-card.md §7
     │                               gitignored; empty until built
-    ├── v1-draft/                   fetch_corpus_v1.py's output — gitignored, never frozen, absent until the script runs
+    ├── v1-draft/                   gitignored, never frozen. Must hold no top-level product-*.json: the retired fetch
+    │                               script wrote wrong-dataset ones here, and build_pqa.py warns if any exist
+    │   └── pqa/                      build_pqa.py's interim files, one per leaf (item 3.1); read only through iter_interim
+    ├── pqa-manifest.json           TRACKED: hashes and counts of the 3.1 interim files, no PQA text. NOT the v1 snapshot digest (item 3.6)
     └── raw/pqa/                    Amazon-PQA source files — gitignored permanently, never redistributed (ADR-002)
 ```
 
@@ -186,7 +189,7 @@ Use `make`; do not invent ad-hoc invocations. `make help` is the authority; the 
 | **Check the code** | `verify` (= `lint` + build + `test`) · `lint` · `test` · `seam-check` (item 1.4) and `support-check` (item 2.1) — the two live checks; `verify` never runs either |
 | **Check the envelope** | `env-check` (ADR-003, loads both models) · `redis-check` · `measure` (gates a *measured* run on green pressure) |
 | **Exploratory, not citable** | `load-smoke` · `mu-hit` · `footprint` (**deletes** `t1:` / `t2:` / `lru:` cache keys; needs `make dev`) |
-| **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash |
+| **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash · `pqa-fetch` (curl, resume) · `pqa-build` (Stops 0–3, then the interim files and `data/pqa-manifest.json`) · `pqa-verify` (offline hash check) — item 3.1 |
 | **Housekeeping** | `setup` · `proto` · `spike` (spent: the envelope is frozen) · `check` (documentation consistency sweep) |
 | **Not yet runnable** | `figures` — it invokes `experiments/scripts/make_figures.py`, which does not exist (super-plan item 5.4) |
 
@@ -199,11 +202,11 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 > gave `gateway/internal/deps/` a slot it never occupied — that package is still a six-line
 > `doc.go`. A build order that disagrees with the tree teaches you to stop trusting it.
 
-**What is actually built, 2026-10-07** — the inventory, not a schedule:
+**What is actually built, 2026-10-15** — the inventory, not a schedule:
 
 | State | Packages |
 | :--- | :--- |
-| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) |
+| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
 | **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · `data/v1/` · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
 

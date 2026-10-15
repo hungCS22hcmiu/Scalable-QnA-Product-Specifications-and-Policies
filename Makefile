@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -161,6 +161,10 @@ ask: ## One query end to end.  make ask Q="can I return this laptop?"
 # FLUSHALL, never FT.DROPINDEX. Dropping the index leaves the t2:* hashes behind; the gateway
 # re-creates idx:cache at startup (EnsureCacheIndex) and RediSearch re-indexes those orphans,
 # giving a warm cache that PRESENTS as cold -- the exact failure this target exists to prevent.
+#
+# Only data/dev-v0/ is restored and checked: it is the corpus `make ingest` reads. A wider path would
+# also run `git checkout` over the tracked data/pqa-manifest.json (item 3.1) and silently revert a
+# regenerated, uncommitted manifest, and would list it as a file that "WILL be ingested".
 demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing
 	@redis-cli PING >/dev/null 2>&1 || { echo "FAIL -- redis not reachable (see CLAUDE.md)"; exit 1; }
 	@lsof -ti tcp:8080 >/dev/null 2>&1 && { \
@@ -180,13 +184,13 @@ demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing
 	   echo "       Inspect: redis-cli --scan | grep -vE '^(corpus:|t1:|t2:|dep:|entry:|lru:)'"; \
 	   exit 1; \
 	 fi
-	@dirty=$$(git status --porcelain -- data/ | grep -v '^??' || true); \
+	@dirty=$$(git status --porcelain -- data/dev-v0/ | grep -v '^??' || true); \
 	 if [ -n "$$dirty" ]; then \
 	   echo "  restoring corpus files edited since the last commit (step 5 undoes itself here):"; \
 	   printf '%s\n' "$$dirty" | sed 's/^/    /'; \
-	   git checkout -- data/; \
+	   git checkout -- data/dev-v0/; \
 	 else echo "  corpus clean -- nothing to restore"; fi
-	@untracked=$$(git status --porcelain -- data/ | grep '^??' || true); \
+	@untracked=$$(git status --porcelain -- data/dev-v0/ | grep '^??' || true); \
 	 if [ -n "$$untracked" ]; then \
 	   echo "  NOTE -- untracked files left in place (not deleted); they WILL be ingested:"; \
 	   printf '%s\n' "$$untracked" | sed 's/^/    /'; \
@@ -409,6 +413,35 @@ gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the sna
 	   exit 1; }
 	$(PY) experiments/scripts/corpus_gate.py --version $(VERSION) --workload $(WORKLOAD) \
 	  $(if $(STRUCTURAL),--structural-only,) $(if $(REPORT),--report $(REPORT),)
+
+# Item 3.1: the Amazon-PQA builder (docs/data-card.md 1, ADR-002). The builder has NO network code.
+# pqa-fetch is the only step that touches the network, and it only downloads: the builder verifies
+# every byte by sha256 before it parses a line. The pinned file list lives in build_pqa.py only; this
+# target reads it with --list, so there is no second copy to drift. The & in led_&_lcd_tvs is %26 in
+# the URL and & in the file name; the list already says so.
+#
+#   make pqa-fetch     # download or resume into data/raw/pqa/ (gitignored, never redistributed)
+#   make pqa-build     # Stops 0-3, then data/v1-draft/pqa/*.jsonl and the tracked data/pqa-manifest.json
+#   make pqa-verify    # offline: hash the files on disk against the manifest
+PQA_DIR ?= data/raw/pqa
+pqa-fetch: ## Item 3.1: download or resume the six Amazon-PQA files into data/raw/pqa/ (network; ~1.9 GB)
+	@command -v curl >/dev/null || { echo "FAIL -- curl not found"; exit 1; }
+	@mkdir -p "$(PQA_DIR)"
+	@list=$$(mktemp); trap 'rm -f "$$list"' EXIT; \
+	 $(PY) experiments/scripts/build_pqa.py --list > "$$list" || exit 1; \
+	 while read -r file url size; do \
+	   have=$$( [ -f "$(PQA_DIR)/$$file" ] && wc -c < "$(PQA_DIR)/$$file" | tr -d ' ' ); \
+	   if [ "$${have:-0}" = "$$size" ]; then echo "  present  $$file"; continue; fi; \
+	   echo "  fetching $$file ($${have:-0} of $$size bytes)"; \
+	   curl -fL --retry 5 --retry-delay 5 -C - -o "$(PQA_DIR)/$$file" "$$url" || exit 1; \
+	 done < "$$list"
+	@echo "  done. Next: make pqa-build (it checks every file by sha256 before parsing)"
+
+pqa-build: ## Item 3.1: verify, parse and check the six PQA files; write data/v1-draft/pqa/ and data/pqa-manifest.json
+	$(PY) experiments/scripts/build_pqa.py
+
+pqa-verify: ## Item 3.1: offline -- hash the PQA files and the interim files on disk against data/pqa-manifest.json
+	$(PY) experiments/scripts/build_pqa.py --verify
 
 mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }

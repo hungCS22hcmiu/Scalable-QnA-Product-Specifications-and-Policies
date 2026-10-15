@@ -25,14 +25,15 @@ docs/Final_Proposal.md
 # hash manifest instead of the raw data.
 data/v1/
 # v1-draft is the same unresolved licence, one directory earlier in the pipeline.
-# fetch_corpus_v1.py's own header says "do not git add data/v1-draft/"; 175 files
-# had been staged anyway. Regenerate it by re-running that script, don't track it.
+# 175 files from the retired fetch script (wrong dataset) were once staged here by mistake. The
+# Amazon-PQA builder (experiments/scripts/build_pqa.py) writes data/v1-draft/pqa/ and is the only
+# thing that should; regenerate it with `make pqa-build`, never track it.
 data/v1-draft/
 # Raw Amazon-PQA source files, as downloaded. Redistribution is NOT granted (the
 # dataset's own readme carries the ACM personal/classroom notice) and this remote
 # is public, so these never get tracked — permanently, not pending a licence check.
-# Not under data/v1/: rag.ingest globs that directory. Hashes live in
-# docs/work/2026-10-03-pqa-category-choice/spec.md.
+# Not under data/v1/: rag.ingest globs that directory. Hashes live in docs/data-card.md §1
+# and in build_pqa.py (a test checks the two are equal).
 data/raw/
 
 # --- Build output --------------------------------------------------------------
