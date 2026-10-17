@@ -1,0 +1,290 @@
+# Manual-demo preview, 2026-10-15T18:12:28Z, memory pressure 1 (exploratory, dev-v0, not citable)
+
+## demo_preview.py
+q1   [product-headphones-03] How long does the battery last?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'product-headphones-03#chunk-0']
+q1b  [product-headphones-03] What is the battery life of the EarBuds Pop 3?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+q3   [product-headphones-03] What is the battery life of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+q3b  [product-headphones-03] How many hours of battery do I get?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+q3c  [product-headphones-03] How long will the battery last on a full charge?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['product-headphones-03#chunk-0', 'policy-warranty#chunk-0']
+q5   [product-headphones-03] How much do they weigh?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+q5b  [product-headphones-03] Do they have noise cancelling?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+q6   [product-headphones-04] How long does the battery last?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'product-headphones-04#chunk-0']
+q6b  [product-headphones-01] How long does the battery last?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['product-headphones-01#chunk-0', 'policy-warranty#chunk-0']
+q7   [product-headphones-03] Can I return these after 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-headphones-03#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+q7b  [product-headphones-03] Can I get a full refund if I return them within 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-headphones-03#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+q8   [product-headphones-03] Is it possible to return them 30 days after delivery?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-headphones-03#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+q8b  [product-headphones-03] Am I still allowed to send these back after 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-headphones-03#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+q9   [product-headphones-04] Can I return these after 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-headphones-04#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+q9b  [product-headphones-01] Can I return these after 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-headphones-01#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+q10  [product-headphones-03] How long is the warranty on these?
+     POLICY (policy 0.75)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'product-headphones-03#chunk-0']
+q11  [product-furniture-04] Can I return this after 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-furniture-04#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+q12  [product-headphones-03] Who pays for return shipping if I change my mind?
+     POLICY (policy 0.75)  ns=policy-returns-furniture
+     ['product-headphones-03#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-shipping#chunk-0']
+w1   [product-laptops-01] How long is the warranty on this laptop?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['product-laptops-01#chunk-0', 'policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0']
+w2   [product-headphones-03] How long is the warranty on these headphones?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'product-headphones-03#chunk-0']
+w3   [product-headphones-01] How long is the warranty on these headphones?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'product-headphones-01#chunk-0']
+m1   [product-headphones-03] How long is the warranty on these, and what is their battery life?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'product-headphones-03#chunk-0']
+
+sim q1   ~ q1b  = 0.6683
+sim q1   ~ q3   = 0.7504
+sim q1   ~ q3b  = 0.8458
+sim q1   ~ q3c  = 0.9034
+sim q1   ~ q5   = 0.4698
+sim q1   ~ q5b  = 0.4716
+sim q1   ~ q6   = 1.0000
+sim q7   ~ q7b  = 0.8876
+sim q7   ~ q8   = 0.9167
+sim q7   ~ q8b  = 0.9180
+sim q7   ~ q9   = 1.0000
+sim q7   ~ q10  = 0.6318
+sim q7   ~ q11  = 0.9463
+sim q7   ~ q12  = 0.5969
+sim w1   ~ w2   = 0.8182
+sim w1   ~ w3   = 0.8182
+sim w2   ~ w3   = 1.0000
+sim q10  ~ w2   = 0.9075
+
+## demo_preview2.py
+s1   [product-headphones-03] What is the battery life of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+s2   [product-headphones-03] How many hours of battery do I get?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+s3   [product-headphones-03] How long can I listen before I need to charge them?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+s4   [product-headphones-03] What's the battery life?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['product-headphones-03#chunk-0', 'policy-warranty#chunk-0']
+s5   [product-headphones-03] How many hours does the battery give me?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+sP   [product-headphones-04] What is the battery life of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-04
+     ['product-headphones-04#chunk-0']
+s6   [product-headphones-03] How much do they weigh?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+s7   [product-headphones-03] Do they have noise cancelling?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+s8   [product-headphones-03] Do these have active noise cancellation?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+s9   [product-headphones-03] Which Bluetooth version do they use?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+r1   [product-headphones-03] Can I return these headphones after 30 days?
+     POLICY (policy 0.75)  ns=policy-returns-electronics
+     ['policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'product-headphones-03#chunk-0', 'policy-warranty#chunk-0']
+r2   [product-furniture-04] Can I return this sofa after 30 days?
+     POLICY (policy 0.75)  ns=policy-returns-furniture
+     ['policy-returns-furniture#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-shipping#chunk-0', 'product-furniture-04#chunk-0']
+r3   [product-furniture-04] Can I return this after 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-furniture-04#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+r4   [product-furniture-04] How many days do I have to return this sofa?
+     POLICY (policy 0.75)  ns=policy-returns-furniture
+     ['policy-returns-furniture#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-shipping#chunk-0', 'product-furniture-04#chunk-0']
+r5   [product-headphones-03] How many days do I have to return these headphones?
+     POLICY (policy 0.75)  ns=policy-returns-electronics
+     ['policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-warranty#chunk-0', 'product-headphones-03#chunk-0']
+r6   [product-headphones-03] Can I still return these headphones 30 days after delivery?
+     POLICY (policy 0.75)  ns=policy-returns-electronics
+     ['policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'product-headphones-03#chunk-0', 'policy-warranty#chunk-0']
+w4   [product-laptops-01] How long is the warranty on this?
+     POLICY (policy 0.80)  ns=policy-warranty
+     ['product-laptops-01#chunk-0', 'policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0']
+w5   [product-headphones-03] How long is the warranty on these?
+     POLICY (policy 0.75)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'product-headphones-03#chunk-0']
+w6   [product-laptops-01] How long is the warranty on this laptop?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['product-laptops-01#chunk-0', 'policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0']
+w7   [product-headphones-03] How long is the warranty on these headphones?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'product-headphones-03#chunk-0']
+w8   [product-headphones-01] What warranty do these headphones come with?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'product-headphones-01#chunk-0']
+
+sim s1   ~ s2   = 0.6909
+sim s1   ~ s3   = 0.6713
+sim s1   ~ s4   = 0.7841
+sim s1   ~ s5   = 0.6867
+sim s1   ~ s6   = 0.4734
+sim s1   ~ sP   = 1.0000
+sim s7   ~ s8   = 0.8446
+sim s1   ~ s9   = 0.5952
+sim r1   ~ r2   = 0.8254
+sim r1   ~ r3   = 0.8732
+sim r1   ~ r4   = 0.7382
+sim r5   ~ r4   = 0.8065
+sim r1   ~ r5   = 0.9204
+sim r1   ~ r6   = 0.9500
+sim w4   ~ w5   = 0.9397
+sim w6   ~ w7   = 0.8182
+sim w7   ~ w8   = 0.9103
+sim w5   ~ w8   = 0.7986
+sim w5   ~ w7   = 0.9075
+
+## demo_preview3.py
+s1   [product-headphones-03] What is the battery life of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+p1   [product-headphones-03] What's the battery life of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+p2   [product-headphones-03] What is the battery life on these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+p3   [product-headphones-03] Tell me the battery life of these earbuds.
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+p4   [product-headphones-03] What battery life do these earbuds have?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+p5   [product-headphones-03] How good is the battery life of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+p6   [product-headphones-03] What is the battery life of the earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+n1   [product-headphones-03] Do these earbuds have noise cancelling?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+n2   [product-headphones-03] Do these earbuds have noise cancellation?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+n3   [product-headphones-03] Do these earbuds have active noise cancelling?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+r1   [product-headphones-03] Can I return these headphones after 30 days?
+     POLICY (policy 0.75)  ns=policy-returns-electronics
+     ['policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'product-headphones-03#chunk-0', 'policy-warranty#chunk-0']
+r1a  [product-headphones-01] Can I return these headphones after 30 days?
+     POLICY (policy 0.75)  ns=policy-returns-electronics
+     ['product-headphones-01#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-warranty#chunk-0']
+r3   [product-furniture-04] Can I return this after 30 days?
+     POLICY (policy 0.80)  ns=policy-returns-electronics
+     ['product-furniture-04#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0', 'policy-warranty#chunk-0']
+w4   [product-laptops-01] How long is the warranty on this?
+     POLICY (policy 0.80)  ns=policy-warranty
+     ['product-laptops-01#chunk-0', 'policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'policy-shipping#chunk-0']
+w5   [product-headphones-03] How long is the warranty on these?
+     POLICY (policy 0.75)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'policy-returns-furniture#chunk-0', 'product-headphones-03#chunk-0']
+w6   [product-laptops-01] How long is the warranty on this laptop?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['product-laptops-01#chunk-0', 'policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0']
+w7   [product-headphones-03] How long is the warranty on these headphones?
+     POLICY (policy 0.67)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'policy-returns-electronics#chunk-0', 'product-headphones-03#chunk-0']
+b1   [product-headphones-03] How long does the battery last?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'product-headphones-03#chunk-0']
+b2   [product-headphones-04] How long does the battery last?
+     POLICY (policy 0.50)  ns=policy-warranty
+     ['policy-warranty#chunk-0', 'product-headphones-04#chunk-0']
+
+sim s1   ~ p1   = 0.9987
+sim s1   ~ p2   = 0.9954
+sim s1   ~ p3   = 0.9600
+sim s1   ~ p4   = 0.9909
+sim s1   ~ p5   = 0.9646
+sim s1   ~ p6   = 0.9796
+sim n1   ~ n2   = 0.9621
+sim n1   ~ n3   = 0.9305
+sim r1   ~ r1a  = 1.0000
+sim r1   ~ r3   = 0.8732
+sim w4   ~ w5   = 0.9397
+sim w4   ~ w6   = 0.8960
+sim w4   ~ w7   = 0.8541
+sim w5   ~ w6   = 0.8537
+sim w6   ~ w7   = 0.8182
+sim w5   ~ w7   = 0.9075
+sim b1   ~ w5   = 0.7080
+sim b1   ~ w7   = 0.6702
+sim b1   ~ w4   = 0.7262
+sim b1   ~ w6   = 0.6917
+sim b1   ~ b2   = 1.0000
+
+## demo_preview4.py
+a1   [product-headphones-03] Which Bluetooth version do these earbuds use?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+a4   [product-headphones-03] What version of Bluetooth do these earbuds have?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+a4b  [product-headphones-03] What Bluetooth version do these earbuds support?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+s1   [product-headphones-03] What is the battery life of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+p4   [product-headphones-03] What battery life do these earbuds have?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+g1   [product-headphones-03] How much do these earbuds weigh?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+g2   [product-headphones-03] What is the weight of these earbuds?
+     SPEC (policy 0.00)  ns=product-headphones-03
+     ['product-headphones-03#chunk-0']
+aP   [product-headphones-04] Which Bluetooth version do these earbuds use?
+     SPEC (policy 0.00)  ns=product-headphones-04
+     ['product-headphones-04#chunk-0']
+
+sim a1   ~ a4   = 0.9687
+sim a1   ~ a4b  = 0.9433
+sim a1   ~ s1   = 0.7216
+sim s1   ~ p4   = 0.9909
+sim a1   ~ p4   = 0.7354
+sim g1   ~ g2   = 0.9656
+sim a1   ~ g1   = 0.6367
+sim s1   ~ g1   = 0.7351
+sim a1   ~ aP   = 1.0000
