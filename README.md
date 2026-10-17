@@ -115,7 +115,7 @@ the dependency map that does the purging, `gateway/internal/deps/`, is a stub.
 | Layer | Choice | Why |
 | :--- | :--- | :--- |
 | Gateway | **Go** | Goroutines, a channel-based counting semaphore with a bounded wait queue (`admission`), a hand-rolled `singleflight`-style coalescer (`coalesce`) — no `x/sync` dependency; the `atomic.Pointer` copy-on-write dependency map is the Phase 4 design, not yet code; ~20 MB idle in a 16 GB budget where a Python equivalent with an ML runtime would cost ~2 GB — roughly one concurrent generation slot |
-| Cache + vector search | **Redis** (RedisVL) | Sub-ms lookups, exact FLAT vector index, one store for both tiers |
+| Cache + vector search | **Redis** (RedisVL) | Sub-ms lookups, exact FLAT vector index, one store for both tiers. It holds only derived state: the corpus of record is the versioned files, so there is no database server (ADR-007) |
 | RAG service | **Python** (LlamaIndex) | Ingestion, chunking, retrieval — invoked only on a miss |
 | LLM | **Qwen 3.5 2B** via Ollama, `q4_K_M`, `think: false` | **Chosen by measurement, not reputation** — 1.7 GB resident, the smallest of five candidates that passed the RAG-QA screen; runs natively, since Docker on macOS has no Metal passthrough |
 | Seam | **gRPC** | Pooled HTTP/2 channel; a retrieval-only RPC lets the provenance check run without paying for generation |
@@ -125,14 +125,15 @@ the dependency map that does the purging, `gateway/internal/deps/`, is a stub.
 
 ```
 gateway/       Go gateway — the contribution
-  cmd/           wiring only
+  cmd/           wiring and config
   internal/      httpapi · cache · reuse · admission · coalesce · telemetry · ragclient · embed · catalog
                  deps — a stub: source-aware invalidation (C2) is not built
 rag/           Python RAG service (LlamaIndex + gRPC)
 contracts/     .proto — the single definition of the Go↔Python seam
 experiments/   k6 load scenarios, corpus and envelope scripts, results
 ui/            debug UI (built with `make ui`; the gateway serves it)
-data/          dev-v0 (development corpus, not citable) · v1 (experimental corpus, not yet built)
+data/          dev-v0 (development corpus, not citable) · pqa-manifest.json (hashes and counts of the
+                 Amazon-PQA build, no text) · v1 (experimental corpus, not yet built)
 docs/          the plan, the decision log, the contracts, the corpus card, task trails
 Makefile       the command surface — run `make help`
 ```
@@ -147,6 +148,8 @@ Makefile       the command surface — run `make help`
 | `docs/contracts/interfaces.md` | The wire contracts: HTTP, gRPC, chunk IDs, Redis schemas, the evaluation log |
 | `docs/contracts/requirements.md` | FR / NFR / RR — a skeleton, unfilled |
 | `docs/data-card.md` | Corpus provenance, licensing, the G1–G5 gate |
+| `docs/Tier 2.md` | How the Tier-2 semantic cache works, from the idea to the mechanism, with worked examples — written for a reader new to the project |
+| `docs/0. progress 16-10.md` | Progress report of 16 Oct 2026, with the scripted demo (§1.5) and a manual demo on the UI page (§1.6) |
 | `docs/work/` | One trail per task, named `<date>-<slug>` |
 
 ## Status
@@ -154,9 +157,11 @@ Makefile       the command surface — run `make help`
 Build began **W5 (Aug 10, 2026)**. Pre-thesis submitted **Aug 31**; thesis complete **Dec 13**.
 
 The RAG service and the gateway both run end-to-end today: two-tier cache, the reuse rule with its
-three lanes, admission control and request coalescing are built and tested, and `httpapi` is tested
-on every exit path of `Ask`. Three things are **not** true yet, and the claim above should be read
-with them:
+three lanes, the answer–evidence support gate (a lexical and a numeric arm), admission control and
+request coalescing are built and tested, and `httpapi` is tested on every exit path of `Ask`. Phase 3
+has started: the Amazon-PQA builder (item 3.1) checks the six source files by sha256, parses them
+against the real field names, and writes a hash manifest with no PQA text (1,212,029 questions over
+71,794 products). Three things are **not** true yet, and the claim above should be read with them:
 
 - **The served Tier-2 rule is `similarity ∧ namespace ∧ support`** (and `similarity ∧ namespace` with
   the gate off). θ is computed and logged as a counterfactual but gates nothing (open finding F-K in
@@ -172,8 +177,8 @@ The schedule is **eight phases with binary exit criteria** rather than weeks —
 | Phase | | |
 | :--- | :--- | :--- |
 | 1 | Instrument integrity — nothing measured before this is evidence | ✅ exit criterion met 2026-10-07 |
-| 2 | The answer–evidence support gate | **current** |
-| 3 | Corpus and workload (longest lead) | |
+| 2 | The answer–evidence support gate | ✅ closed 2026-10-15 |
+| 3 | Corpus and workload (longest lead) | **current** — item 3.1, the PQA builder, done 2026-10-15 |
 | 4 | Source-aware invalidation | |
 | 5 | Judging, the false-hit budget, the figure pipeline | |
 | 6 | The reuse frontier on held-out test | |
@@ -191,6 +196,26 @@ make ask Q="can I return this laptop after 30 days?"
 make verify                                         # lint + build + test
 make env-check                                      # frozen Ollama envelope vs the live runner (loads both models)
 make seam-check                                     # texts reach Go aligned with chunk_ids; verify never runs it
+make support-check                                  # the support gate on live retrieved text; verify never runs it
+```
+
+To see both cache tiers work, start from a cold cache:
+
+```bash
+make demo-reset     # stop the gateway first: empties both tiers, re-ingests dev-v0
+make ui             # once: build the debug UI (Node at build time only)
+make dev            # terminal 1: the gateway on :8080, which also serves the UI
+make demo           # terminal 2: the four scripted steps, under a minute
+```
+
+Or open `http://localhost:8080` and follow the manual demo in `docs/0. progress 16-10.md` §1.6.
+
+To build the experimental corpus source (Phase 3, item 3.1; the PQA files are never redistributed):
+
+```bash
+make pqa-fetch      # download or resume the six Amazon-PQA files (~1.9 GB, network)
+make pqa-build      # verify, parse and check them; write the interim files and data/pqa-manifest.json
+make pqa-verify     # offline: hash everything on disk against the manifest
 ```
 
 Two environment constraints that are not optional: Redis must be **`redis-stack-server`** (the plain

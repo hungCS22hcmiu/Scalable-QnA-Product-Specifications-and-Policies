@@ -1,7 +1,7 @@
 # System Architecture & Repository Structure
 
 **Status:** authority for folder structure and module boundaries · **Created:** 2026-08-09 ·
-**Revised:** 2026-10-15
+**Revised:** 2026-10-16
 **Companion to:** `Final_Proposal.md` §6 (architecture), `contracts/interfaces.md` (frozen
 contracts), `decisions.md` (the decision log), `super-plan.md` (build order)
 
@@ -28,6 +28,7 @@ thesis/
 │   ├── Final_Proposal.md           scope, claims, RQs, evaluation  (gitignored)
 │   ├── architecture.md             ← this file
 │   ├── data-card.md                corpus provenance, licensing, the G1–G5 gate
+│   ├── 0. progress 16-10.md        progress report for the supervisor, 2026-10-16
 │   ├── contracts/
 │   │   ├── interfaces.md           frozen wire contracts; the version is in its header
 │   │   └── requirements.md         FR / NFR / RR — skeleton, unfilled
@@ -43,10 +44,13 @@ thesis/
 │
 ├── gateway/                      Go — THE CONTRIBUTION
 │   ├── go.mod
-│   ├── cmd/gateway/main.go         wiring + config only, no logic
+│   ├── cmd/gateway/main.go         wiring + config, no request logic. Its env and run-end rules (gateFromEnv,
+│   │                               retiredEnv, incomplete, finishRun) are pure functions with tests beside it
 │   └── internal/
 │       ├── httpapi/                POST /ask, the cascade, 503 shedding → contracts/interfaces.md §A
+│       │                           · /products and /stats for the demo UI (browse.go)
 │       ├── cache/                  tier1, tier2, key norm   → contracts/interfaces.md §D, the key-normalisation function
+│       │                           · the gateway-side LRU count, lru:entries (capacity.go)
 │       ├── reuse/                  lanes + overlap rule + support arms + the refusal cause (cause.go)  → proposal §5 C1   [C1]
 │       ├── deps/                   dependency map, COW, writer goroutine
 │       │                                                    → contracts/interfaces.md §E  [C2]  NOT BUILT: a stub doc.go
@@ -75,8 +79,8 @@ thesis/
 │
 ├── experiments/
 │   ├── README.md
-│   ├── scripts/                    corpus_gate · env_check · build_pqa · loadgen_footprint
-│   │                               · load_burst (not citable) · verify_admission.sh
+│   ├── scripts/                    corpus_gate (G1–G4; G5 NOT BUILT, item 3.5) · env_check · build_pqa
+│   │                               · loadgen_footprint · load_burst (not citable) · verify_admission.sh
 │   │                               NOT BUILT: workload generator, replay, judge, figures
 │   │                               → super-plan items 3.4, 5.1, 5.4
 │   ├── k6/                         ask.js · mu_hit.js — run co-hosted (ADR-001)
@@ -110,6 +114,12 @@ with the model for the memory envelope. `catalog/` exists solely to render its p
 list: read-only, never on the hit path, and it reads the *corpus* index that `rag/` owns — a
 deliberate cross-boundary read, justified only by being demo-only.
 
+**Redis is not in the tree because it holds no file of record.** Everything in it is derived
+(ADR-007): `corpus::{chunk_id}` text and vectors are rebuilt by `make ingest`, and `t1:*`, `t2:*`,
+`dep:*` and `lru:entries` are cache state. The corpus of record is `data/<dataset_version>/*.json`
+plus the frozen chunking config. Losing Redis costs hit rate and a rebuild, never data — but while it
+is down the system is down, because the corpus index lives there too.
+
 ## 2. Layering
 
 **The order a request passes through** — what §3 describes. This is *not* the import graph:
@@ -120,8 +130,8 @@ Tier-2   httpapi → embed ∥ ragclient.Retrieve → reuse (lane) → cache.tie
 Miss     httpapi → coalesce → admission → ragclient.Answer → ⟦gRPC seam⟧ → rag/ → Ollama
 ```
 
-**The import graph, as of 2026-10-07** (`go list` over `gateway/internal/*`, which is where to
-re-derive it):
+**The import graph, as of 2026-10-16** (`go list` over `gateway/internal/*`, which is where to
+re-derive it; unchanged since 2026-10-07):
 
 ```
 cmd/gateway ─► httpapi ─┬─► admission
@@ -147,10 +157,10 @@ unchanged, and any new edge should be checked against it.
 | Package | Owns | Must never |
 | :--- | :--- | :--- |
 | `reuse/` | The C1 decision: lane classification, then two chunk-ID sets + similarity → reuse or not | Touch Redis, gRPC, or HTTP. It stays infrastructure-free so C1 is falsifiable in isolation |
-| `deps/` | *(not built)* The **only** writer to the no-eviction region, serialized through one goroutine | Be written from a request goroutine; hold a lock across a Redis round-trip |
+| `deps/` | *(not built)* The **only** writer to the dependency records (`dep:*`), serialized through one goroutine | Be written from a request goroutine; hold a lock across a Redis round-trip |
 | `admission/` | The **sole** acquire/release point for a generation permit | Be bypassed by any miss path — one chokepoint or the memory guarantee is void |
 | `coalesce/` | Collapsing concurrent duplicate misses onto one execution; it wraps the `admission/` call, so followers share the leader's result | Hold a permit of its own — `admission/` stays the sole chokepoint |
-| `cache/` | Key normalization and both tiers | Make a reuse decision — that is `reuse/` |
+| `cache/` | Key normalization, both tiers, and the entry-count bound (`lru:entries`; Redis evicts nothing) | Make a reuse decision — that is `reuse/` |
 | `ragclient/` | Pooled gRPC channel; stamps `dataset_epoch` at retrieval | Be constructed per request |
 | `telemetry/` | Counters, latency decomposition, the evaluation log and the run's answer store (`raw/answers/`, ADR-005) | Import anything from this repo |
 | `catalog/` | A read-only product list for the demo UI | Be reached from `/ask`, hold state, or make any decision |
@@ -160,8 +170,8 @@ unchanged, and any new edge should be checked against it.
 | Path | Flow | Cost |
 | :--- | :--- | :--- |
 | **Tier-1 hit** | `httpapi → cache.tier1` (hash lookup) | ~ms, no embedding, no search |
-| **Tier-2 hit** | `→ embed ∥ ragclient.Retrieve` (concurrent) `→ reuse` lane + namespace `→ cache.tier2` kNN **scoped to that namespace** (one search) `→ reuse.DecideLane` | ~tens of ms: the slower of embed and retrieve, plus one search. The unfiltered short-circuit phase is retired (ADR-004) |
-| **Miss** | `→ coalesce` (one leader per Tier-1 key) `→ admission.Acquire → ragclient.Answer → LLM →` write back **both** tiers + `t1_key` + epoch | seconds |
+| **Tier-2 hit** | `→ embed ∥ ragclient.Retrieve` (concurrent) `→ reuse` lane + namespace `→ cache.tier2` kNN **scoped to that namespace** (one search) `→ reuse.DecideLane → reuse.Thresholds.Judge`. On a serve, the hit-count bump and a Tier-1 promotion run in the background, off the hit path | ~tens of ms: the slower of embed and retrieve, plus one search. The unfiltered short-circuit phase is retired (ADR-004) |
+| **Miss** | `→ coalesce` (one leader per Tier-1 key) `→ admission.Acquire → ragclient.Answer` (it sends the chunk IDs already retrieved, so Python grounds on them and does not retrieve again) `→ LLM →` write back **both** tiers + `t1_key` + epoch `→ cache.TrimToCapacity` (deletes both tiers of each victim) | seconds |
 | **Shed** | permit unavailable inside budget → `503 busy, retry` | counted as graceful degradation, never as served load |
 | **Invalidation** | *(not built — Phase 4)* edit → channel → single writer → COW swap → Redis purge (both tiers), **off** the critical path | — |
 
@@ -174,6 +184,18 @@ through `reuse.Thresholds.Judge`, which returns the one refusal cause. Its first
 `reuse.Gate`: `SUPPORT_GATE=on|off` is read once in `cmd/gateway` (unset = on), held in one field,
 `Handler.SupportGate`, and written to every evaluation record as `support_gate`. The four-conjunct rule
 is still the design this row is built toward, with θ the missing term.
+
+**Three parts of these paths are written but do nothing yet.** Each waits for a named item:
+
+- **The epoch is a constant.** Python returns `DATASET_EPOCH_STUB = 0` (`rag/src/rag/config.py`), and
+  write-back stores it but never compares it, so `writeback_discarded` is logged and never set
+  (item 4.2). When it is built, the epoch must come from the corpus of record, never from a Redis key
+  (ADR-008).
+- **A promoted Tier-1 key is not tracked.** The Tier-2 record holds one `t1_key`, the one written at
+  miss time. The key a Tier-2 serve promotes is a second pointer at the same entry, and neither the
+  trim nor a future purge can find it (item 4.3).
+- **The trim does nothing by default.** `CACHE_CAPACITY` unset or `0` means unbounded, so hit rates
+  today are an upper bound. It is set to `round(0.25 × K)` once `K` is frozen (item 3.6).
 
 **Where the contributions live:** C1 → `reuse/` · C2 → `deps/` (+ the epoch check in `ragclient/` and
 write-back) · resource governance → `admission/` · the measurement protocol → `experiments/`.
@@ -202,13 +224,13 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 > gave `gateway/internal/deps/` a slot it never occupied — that package is still a six-line
 > `doc.go`. A build order that disagrees with the tree teaches you to stop trusting it.
 
-**What is actually built, 2026-10-15** — the inventory, not a schedule:
+**What is actually built, 2026-10-16** — the inventory, not a schedule:
 
 | State | Packages |
 | :--- | :--- |
 | **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
-| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · `data/v1/` · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
+| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the epoch guard on write-back (item 4.2) · `data/v1/`, with its thick-tail selection and policy documents (items 3.2, 3.3) · G5 in `corpus_gate.py` (item 3.5) · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
 
 ## 6. Invariants that fail silently
 
@@ -219,9 +241,14 @@ removed when the files it read were deleted.
 1. A frozen value changes only deliberately, and the change record states **which prior runs it
    invalidates**. That sentence is now written by hand into the task's `approvals.md` (and, for a
    numbered decision, the `Invalidates:` line in `decisions.md`) or it is written nowhere.
-2. Dependency state lives under `noeviction`; only cache entries are LRU.
-3. `t1_key` is written with every Tier-2 record, or Tier-1 survives invalidation.
-4. `dataset_epoch` is stamped at retrieval and **compared at write-back**.
+2. Redis evicts nothing (`make redis-check` fails the run otherwise). Only the gateway removes
+   entries, by trimming cache entries through `lru:entries`, and it never touches `dep:*`
+   (`interfaces.md` §D, since v0.6).
+3. `t1_key` is written with every Tier-2 record, or Tier-1 survives invalidation. A Tier-1 key
+   added later by promotion is **not** covered yet (item 4.3, §3).
+4. `dataset_epoch` is stamped at retrieval and **compared at write-back**, and it is never a Redis
+   key (ADR-008). Today it is a constant and the comparison is not built (item 4.2), so no run has
+   this guarantee yet.
 5. `experiments/results/*/raw/` is write-once.
 6. The vector index is **FLAT**, frozen study-wide — no mid-study HNSW.
 7. No ML runtime on the hit path; embeddings come from Ollama.
