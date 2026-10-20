@@ -7,7 +7,7 @@ unless every criterion passes, so "frozen" cannot happen by accident.
 
     make gate-corpus VERSION=v1 WORKLOAD=data/workload-v1.json
 
-## The four criteria (data-card.md §7)
+## The five criteria (data-card.md §7)
 
 | | Criterion | On failure |
 | :-- | :--- | :--- |
@@ -15,15 +15,19 @@ unless every criterion passes, so "frozen" cannot happen by accident.
 | **G2** | `B-within` > 0                                       | rebuild — a cross-product-only corpus is defeated by a cache key |
 | **G3** | zero Tier-1 collisions                               | disambiguate the query text |
 | **G4** | every `doc_id` starts with `policy-` or `product-`   | re-slug before ingestion |
+| **G5** | no policy document names a condition it does not declare | author the conditions into separate documents |
+
+G5 here is a **lexical scan over the declared axes** (`CONDITION_AXES`). It is a floor, not a proof
+of §7's G5: the author's read of every policy document is the other half of the criterion.
 
 ## Two stages, because §7's "do not proceed to ingestion" reads as a contradiction otherwise
 
 §7 says a failure means *"do not proceed to ingestion"*, yet G1/G2 are defined over `retrieve(q)`,
 which needs an ingested index. The resolution is that the criteria split cleanly by what they need:
 
-- **Stage 1 — structural.** G4 and G3 read the corpus files and the workload file only. They are
-  genuinely pre-ingestion, and `--structural-only` runs them alone, which is the check to loop on
-  while authoring the corpus.
+- **Stage 1 — structural.** G4, G3 and G5 read the corpus files and the workload file only. They
+  are genuinely pre-ingestion, and `--structural-only` runs them alone. While the policy documents
+  are being written, before any workload exists, `make policy-check` runs G5 on its own.
 - **Stage 2 — retrieval.** G1 and G2 need the frozen retrieval path, so they run against an
   ingested index (`make ingest`). Ingesting to *measure* is not ingesting to *ship*: nothing is
   frozen until this gate passes, and re-ingestion is idempotent (`overwrite=True`).
@@ -46,6 +50,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import sys
 import unicodedata
 from collections import Counter, defaultdict
@@ -64,6 +69,43 @@ G1_MIN_PAIRS = 50  # "high-similarity / low-overlap pairs >= ~50"
 CAPACITY_RATIO = 0.25  # the capacity ratio: capacity = round(ratio * K)
 
 DOC_ID_PREFIXES = ("product-", "policy-")
+
+# G5's word list (docs/work/2026-10-20-policy-documents/design.md §5), committed before the first
+# policy document was written. Lower case. Errs wide: a wrong hit costs a reworded sentence, a miss
+# is silent. A change after the freeze changes which corpora are admissible -- record it.
+CONDITION_AXES: dict[str, dict[str, tuple[str, ...]]] = {
+    "packaging": {
+        "opened": ("opened", "open-box", "open box"),
+        "unopened": ("unopened", "sealed", "factory-sealed"),
+    },
+    "grade": {
+        "new": ("new", "brand-new"),
+        "renewed": ("renewed", "refurbished", "pre-owned", "second-hand"),
+    },
+    "region": {
+        "domestic": ("domestic", "us model", "us version", "u.s. model", "u.s. version"),
+        "international": (
+            "international",
+            "abroad",
+            "overseas",
+            "outside the united states",
+            "outside the us",
+            "outside the u.s.",
+            "imported",
+            "country of purchase",
+        ),
+    },
+    # Return and warranty are opposing conditions of the same kind too (data-card.md §2's B-within
+    # example: "warranty period" against "return period"), so each kind may not name the other.
+    "kind": {
+        "return": ("return window", "return period", "restocking"),
+        "warranty": ("warranty", "warranties"),
+    },
+}
+# Ordinary English outside a family split by grade ("refunded to a new gift card"), so these are
+# scanned only inside one. "used" is deliberately absent: "if the item has been used" is ordinary
+# return wording and would fail every document.
+GRADE_PLAIN_WORDS = ("new", "brand-new")
 
 
 # =================================================================================================
@@ -135,6 +177,22 @@ def load_corpus_doc_ids(corpus_dir: Path) -> list[str]:
     if not doc_ids:
         raise SystemExit(f"FAIL — no *.json records under {corpus_dir}")
     return doc_ids
+
+
+def load_policy_records(corpus_dir: Path) -> list[dict]:
+    """Every `policy-` record in the corpus, whole: G5 reads the title and text, not only the id.
+
+    Re-reads the files for the same reason as `load_corpus_doc_ids`, and keeps every policy record
+    whatever its other fields hold, so G5 reports every offender in one pass. Product records are
+    skipped: G5 is about policy documents (a product's own text may say "new" and "renewed").
+    """
+    records = []
+    for path in sorted(corpus_dir.glob("*.json")):
+        with open(path) as f:
+            record = json.load(f)
+        if str(record.get("doc_id", "")).startswith("policy-"):
+            records.append(record)
+    return records
 
 
 def load_workload(path: Path) -> list[Query]:
@@ -250,6 +308,109 @@ def check_g3(queries: list[Query]) -> tuple[Criterion, int]:
             detail=colliding,
         ),
         benign,
+    )
+
+
+def _word_pattern(word: str) -> re.Pattern[str]:
+    # A match may not touch an ASCII letter or digit on either side: "opened" is not found inside
+    # "unopened", "new" not inside "renewed", but "un-opened" DOES hit "opened" (a loud error).
+    return re.compile(rf"(?<![a-z0-9]){re.escape(word)}(?![a-z0-9])")
+
+
+_CONDITION_PATTERNS = {
+    axis: {value: [(w, _word_pattern(w)) for w in words] for value, words in values.items()}
+    for axis, values in CONDITION_AXES.items()
+}
+
+
+def condition_hits(text: str) -> dict[str, dict[str, list[str]]]:
+    """For each axis, each value whose words appear in `text`, with the words found. Pure."""
+    lowered = text.lower()
+    hits: dict[str, dict[str, list[str]]] = {}
+    for axis, values in _CONDITION_PATTERNS.items():
+        for value, patterns in values.items():
+            found = [w for w, pattern in patterns if pattern.search(lowered)]
+            if found:
+                hits.setdefault(axis, {})[value] = found
+    return hits
+
+
+def check_g5(records: list[dict]) -> tuple[Criterion, dict[str, int]]:
+    """No policy document names a condition value it does not declare (data-card.md §7, G5).
+
+    §7's G5 is "no two opposing conditions of the same kind share a `doc_id`". Failing only a
+    document that names BOTH values would miss the natural violation: a domestic warranty that says
+    "not valid outside the United States" names one value and still holds two answers under one id
+    (design review H1). So a document may name only its declared condition and its own kind
+    (`policy_kind`); one with no condition names no value of any axis. Grade's plain words are
+    scanned only inside a family split by grade.
+
+    ⚠️ Lexical, over the declared axes only: "if the seal is broken" passes. The author's read of
+    every document is the other half of G5, and the summary says so.
+
+    Returns the criterion and the counts data-card.md §7 records: `split_families` (before: the
+    families that would hold an opposing pair under one id if they were not split) and
+    `offending_documents` (after: must be 0).
+    """
+    policies = [r for r in records if str(r.get("doc_id", "")).startswith("policy-")]
+
+    family_values: dict[tuple[object, object], set[tuple[str, str]]] = defaultdict(set)
+    for r in policies:
+        cond = r.get("condition")
+        if isinstance(cond, dict):
+            family_values[(r.get("policy_kind"), r.get("category"))].add(
+                (str(cond.get("axis")), str(cond.get("value")))
+            )
+    split_families = sum(
+        1
+        for values in family_values.values()
+        for axis in {a for a, _ in values}
+        if {v for a, v in values if a == axis} == set(CONDITION_AXES.get(axis, {}))
+    )
+
+    detail, offenders = [], set()
+    for r in sorted(policies, key=lambda r: str(r.get("doc_id"))):
+        doc_id = str(r.get("doc_id"))
+        cond = r.get("condition") if isinstance(r.get("condition"), dict) else {}
+        allowed = {("kind", r.get("policy_kind"))}
+        if cond:
+            allowed.add((cond.get("axis"), cond.get("value")))
+        family = (r.get("policy_kind"), r.get("category"))
+        grade_split = any(a == "grade" for a, _ in family_values.get(family, set()))
+
+        hits = condition_hits(f"{r.get('title', '')}\n{r.get('text', '')}")
+        for axis, values in sorted(hits.items()):
+            if axis == "grade" and not grade_split:
+                values = {
+                    v: kept
+                    for v, ws in values.items()
+                    if (kept := [w for w in ws if w not in GRADE_PLAIN_WORDS])
+                }
+            undeclared = sorted(v for v in values if (axis, v) not in allowed)
+            if not undeclared:
+                continue
+            offenders.add(doc_id)
+            named = " and ".join(
+                f"{v} ({', '.join(repr(w) for w in values[v])})" for v in sorted(values)
+            )
+            if len(values) > 1:
+                detail.append(f"{doc_id}: {axis} = {named}")
+            else:
+                detail.append(f"{doc_id}: names {axis} = {named}, which it does not declare")
+
+    clean = len(policies) - len(offenders)
+    return (
+        Criterion(
+            name="G5  condition-splitting (declared axes, lexical)",
+            passed=not offenders,
+            summary=(
+                f"{split_families} famil{'y' if split_families == 1 else 'ies'} split, "
+                f"{clean}/{len(policies)} policy documents clean; the author's read of every "
+                f"document is the other half of G5"
+            ),
+            detail=detail,
+        ),
+        {"split_families": split_families, "offending_documents": len(offenders)},
     )
 
 
@@ -461,8 +622,8 @@ def main() -> int:
     ap.add_argument(
         "--structural-only",
         action="store_true",
-        help="run G3 and G4 only. No Redis, no Ollama, no ingested index -- the loop to run while "
-        "authoring the corpus.",
+        help="run G3, G4 and G5 only. No Redis, no Ollama, no ingested index -- the loop to run "
+        "while authoring the corpus.",
     )
     ap.add_argument("--report", default=None, help="also write the full result as JSON here")
     args = ap.parse_args()
@@ -482,12 +643,14 @@ def main() -> int:
     print(f"workload {workload_path}")
 
     doc_ids = load_corpus_doc_ids(corpus_dir)
+    policies = load_policy_records(corpus_dir)
     queries = load_workload(workload_path)
 
     # --- stage 1 --------------------------------------------------------------------------------
     g4 = check_g4(doc_ids)
     g3, benign_groups = check_g3(queries)
-    criteria = [g3, g4]
+    g5, g5_counts = check_g5(policies)
+    criteria = [g3, g4, g5]
 
     distinct = len({normalize_t1(q.question) for q in queries})
     print(f"\n{len(doc_ids)} corpus documents · {len(queries)} workload records · K={distinct} distinct")
@@ -496,7 +659,7 @@ def main() -> int:
         print("\n  STOP — a structural criterion failed. Do not ingest; fix the corpus first.")
         return 1
     if args.structural_only:
-        print("\n  Structural criteria pass. Re-run without --structural-only for G1/G2.")
+        print("\n  Structural criteria pass (G3, G4, G5). Re-run without --structural-only for G1/G2.")
         return 0
 
     # --- stage 2 --------------------------------------------------------------------------------
@@ -521,7 +684,7 @@ def main() -> int:
     pairs, overlaps = find_pairs(queries)
     g1, g2 = check_g1(pairs), check_g2(pairs)
     criteria += [g1, g2]
-    passed = emit([g1, g2]) and g3.passed and g4.passed
+    passed = emit([g1, g2]) and g3.passed and g4.passed and g5.passed
 
     # --- the statistics data-card.md §7 records at freeze -----------------------------------------
     capacity = derive_capacity(distinct)
@@ -554,8 +717,10 @@ def main() -> int:
         print(f"  dataset version : {args.version}")
         print(f"  snapshot digest : {digest}")
         print(f"  over            : {len(per_file)} files")
-        print("\n  All four criteria pass. Record the version, the digest, K and the capacity in")
+        print("\n  All five criteria pass. Record the version, the digest, K and the capacity in")
         print("  data-card.md §7 and in every run manifest (the evaluation).")
+        print("  G5 here is lexical: the author's read of every policy document is the other half")
+        print("  of G5 (data-card.md §7), and it must be recorded before this digest is frozen.")
     else:
         print("\n  NOT FROZEN — a criterion failed, so no snapshot digest is printed.")
         print(f"  (it would have been {digest[:12]}…; fix the corpus and re-run)")
@@ -587,6 +752,8 @@ def main() -> int:
                         "trap_fraction": trap_fraction,
                         "k_distinct_queries": distinct,
                         "cache_capacity": capacity,
+                        "g5_split_families": g5_counts["split_families"],
+                        "g5_offending_documents": g5_counts["offending_documents"],
                     },
                 },
                 indent=2,

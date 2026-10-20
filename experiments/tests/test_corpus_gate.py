@@ -20,11 +20,14 @@ from corpus_gate import (
     check_g2,
     check_g3,
     check_g4,
+    check_g5,
+    condition_hits,
     cosine,
     derive_capacity,
     find_pairs,
     jaccard,
     label_pair,
+    load_policy_records,
     normalize_t1,
     snapshot_digest,
 )
@@ -311,3 +314,108 @@ def test_snapshot_digest_is_order_independent_but_rename_sensitive(tmp_path):
         assert snapshot_digest([a, renamed])[0] != before
     finally:
         corpus_gate.REPO_ROOT = original_root
+
+
+# =================================================================================================
+# G5 -- condition-splitting (design review H1: a document may name only what it declares)
+# =================================================================================================
+def _policy(doc_id, kind, category, text, axis=None, value=None):
+    cond = {"axis": axis, "value": value} if axis else None
+    return {"doc_id": doc_id, "title": doc_id, "category": category, "policy_kind": kind,
+            "condition": cond, "text": text}
+
+
+def _phones_returns(unopened_text="Unopened phones go back within 14 days."):
+    return [
+        _policy("policy-return-phones-unopened", "return", "phones", unopened_text,
+                "packaging", "unopened"),
+        _policy("policy-return-phones-opened", "return", "phones",
+                "Opened phones carry a restocking fee of $45.", "packaging", "opened"),
+    ]
+
+
+def test_g5_passes_a_clean_split_and_counts_it():
+    g5, counts = check_g5(_phones_returns())
+    assert g5.passed, g5.detail
+    assert counts == {"split_families": 1, "offending_documents": 0}
+    assert "lexical" in g5.name and "author's read" in g5.summary
+
+
+def test_g5_fails_a_document_that_names_only_its_siblings_value():
+    """The natural violation: one value named, the other implied. A both-values rule misses it."""
+    docs = [
+        _policy("policy-warranty-phones-domestic", "warranty", "phones",
+                "The warranty is not valid outside the United States.", "region", "domestic"),
+        _policy("policy-warranty-phones-international", "warranty", "phones",
+                "International service is not covered.", "region", "international"),
+    ]
+    g5, counts = check_g5(docs)
+    assert not g5.passed
+    assert counts["offending_documents"] == 1
+    assert any("policy-warranty-phones-domestic" in d and "international" in d for d in g5.detail)
+
+
+def test_g5_names_both_values_when_a_document_holds_both():
+    """super-plan item 3.5's Done-when: the gate fails such a corpus and names both."""
+    docs = _phones_returns("Unopened phones go back freely; opened ones carry a fee.")
+    g5, _ = check_g5(docs)
+    line = next(d for d in g5.detail if d.startswith("policy-return-phones-unopened"))
+    assert "opened ('opened')" in line and "unopened ('unopened')" in line
+
+
+def test_g5_fails_an_unsplit_document_that_names_a_condition():
+    doc = _policy("policy-return-electronics", "return", "electronics",
+                  "Opened TVs carry a fee.")
+    assert not check_g5([doc])[0].passed
+
+
+def test_g5_fails_a_return_document_that_states_the_warranty():
+    doc = _policy("policy-return-electronics", "return", "electronics",
+                  "Defective items are covered by the warranty.")
+    g5, _ = check_g5([doc])
+    assert not g5.passed and "kind" in g5.detail[0]
+
+
+def test_g5_skips_plain_new_outside_the_grade_family_only():
+    unsplit = _policy("policy-return-electronics", "return", "electronics",
+                      "We refund the amount to a new gift card.")
+    assert check_g5([unsplit])[0].passed
+
+    grade = [
+        _policy("policy-return-laptops-new", "return", "laptops", "New laptops: 30 days.",
+                "grade", "new"),
+        _policy("policy-return-laptops-renewed", "return", "laptops",
+                "Renewed laptops: 90 days, or a new replacement.", "grade", "renewed"),
+    ]
+    g5, _ = check_g5(grade)
+    assert not g5.passed
+    assert any(d.startswith("policy-return-laptops-renewed") for d in g5.detail)
+
+
+def test_condition_words_respect_word_boundaries():
+    assert "new" not in condition_hits("renewed laptops").get("grade", {})
+    assert "opened" not in condition_hits("unopened boxes").get("packaging", {})
+    assert "opened" in condition_hits("un-opened boxes")["packaging"]  # loud, not silent
+    assert "international" in condition_hits("service outside the U.S. only")["region"]
+
+
+def test_g5_ignores_products_and_reports_every_offender():
+    product = {"doc_id": "product-laptops-b0000000001", "title": "Renewed laptop, new battery",
+               "category": "laptops", "specs": {}}
+    bad = [
+        _policy("policy-return-electronics", "return", "electronics", "Opened items: a fee."),
+        _policy("policy-warranty-electronics", "warranty", "electronics", "Sealed boxes only."),
+    ]
+    g5, counts = check_g5([product, *bad])
+    assert counts["offending_documents"] == 2 and len(g5.detail) == 2
+    assert "0/2 policy documents clean" in g5.summary  # the product is not counted as a policy
+
+
+def test_load_policy_records_reads_whole_policy_records_only(tmp_path):
+    (tmp_path / "policy-warranty-furniture.json").write_text(
+        json.dumps({"doc_id": "policy-warranty-furniture", "text": "Ten years."})
+    )
+    (tmp_path / "product-furniture-x.json").write_text(json.dumps({"doc_id": "product-furniture-x"}))
+    records = load_policy_records(tmp_path)
+    assert [r["doc_id"] for r in records] == ["policy-warranty-furniture"]
+    assert records[0]["text"] == "Ten years."

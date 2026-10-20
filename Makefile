@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -396,11 +396,13 @@ load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@echo "  └─────────────────────────────────────────────────────────────┘"
 	k6 run -e RATE_RPS=2 -e VUS=4 -e DURATION=20s experiments/k6/ask.js
 
-# The corpus sensitivity gate (data-card.md 7). Nothing is frozen until all four criteria pass,
-# and the script refuses to print a snapshot digest until they do.
+# The corpus sensitivity gate (data-card.md 7). Nothing is frozen until all five criteria pass,
+# and the script refuses to print a snapshot digest until they do. G5 is lexical: the author's read
+# of every policy document is its other half.
 #
-#   make gate-corpus                       # G1..G4 against data/v1 -- needs redis + ollama + ingest
-#   make gate-corpus STRUCTURAL=1          # G3/G4 only -- the loop to run while authoring
+#   make gate-corpus                       # G1..G5 against data/v1 -- needs redis + ollama + ingest
+#   make gate-corpus STRUCTURAL=1          # G3/G4/G5 only -- needs a workload; before one exists,
+#                                          # make policy-check runs G5 on the policy documents
 #   make gate-corpus VERSION=dev-v0 ...    # shakedown; dev-v0 is NOT gated
 VERSION ?= v1
 WORKLOAD ?= data/workload-$(VERSION).json
@@ -485,6 +487,13 @@ epqa-fetch: ## Item 3.2: download the three ePQA CSVs into data/raw/epqa/ (netwo
 
 pqa-answerability: ## Item 3.2: agreement of the answerability rule with ePQA's labels (counts only)
 	$(PY) experiments/scripts/answerability_check.py
+
+# Item 3.3: the authored policy documents (docs/work/2026-10-20-policy-documents/design.md 6).
+# Offline: no Redis, no Ollama. POLICY_DIR is the tracked SOURCE of v1's policies, not a dataset
+# version -- never pass it as VERSION=. G5 is corpus_gate.check_g5, the one implementation.
+POLICY_DIR ?= data/policies-v1
+policy-check: ## Item 3.3: check the policy documents (schema, terms, >= 3 chunks, G5)
+	$(PY) experiments/scripts/check_policies.py --dir $(POLICY_DIR)
 
 mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
