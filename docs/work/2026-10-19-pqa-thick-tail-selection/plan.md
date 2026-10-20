@@ -83,7 +83,7 @@ numbers (T1 …) are `design.md` §4.
       unanswerable questions, and the decisions on the 78 and on warranty terms. The Schemas block:
       the real product record and the pool line (replacing `product-B08XYZ`). Mark the pools at
       `:52,63` as the probe's rule. Fill only the `TODO(W8)`s this item owns.
-- [ ] 19. `architecture.md`: the tree and §5 list `select_pqa.py`, `answerability_check.py`,
+- [x] 19. `architecture.md`: the tree and §5 list `select_pqa.py`, `answerability_check.py`,
       `data/v1-draft/products/`, `question-pool.jsonl`, `audit/`, `data/pqa-selection.json`,
       `data/raw/epqa/`.
 - [ ] 20. **ADR-011 (data)**, if the author agrees: the frozen rule, the seed, R2, the two new

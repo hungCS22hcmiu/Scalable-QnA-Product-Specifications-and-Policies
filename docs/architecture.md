@@ -80,6 +80,7 @@ thesis/
 ├── experiments/
 │   ├── README.md
 │   ├── scripts/                    corpus_gate (G1–G4; G5 NOT BUILT, item 3.5) · env_check · build_pqa
+│   │                               · select_pqa · answerability_check (item 3.2)
 │   │                               · loadgen_footprint · load_burst (not citable) · verify_admission.sh
 │   │                               NOT BUILT: workload generator, replay, judge, figures
 │   │                               → super-plan items 3.4, 5.1, 5.4
@@ -102,10 +103,17 @@ thesis/
     ├── v1/                         frozen experimental corpus (Phase 3) → data-card.md §7
     │                               gitignored; empty until built
     ├── v1-draft/                   gitignored, never frozen. Must hold no top-level product-*.json: the retired fetch
-    │                               script wrote wrong-dataset ones here, and build_pqa.py warns if any exist
-    │   └── pqa/                      build_pqa.py's interim files, one per leaf (item 3.1); read only through iter_interim
+    │                               script wrote wrong-dataset ones here; build_pqa.py warns and select_pqa.py refuses
+    │   ├── pqa/                      build_pqa.py's interim files, one per leaf (item 3.1); read only through iter_interim
+    │   ├── products/                 select_pqa.py's 152 draft records, product-{department}-{asin}.json (item 3.2)
+    │   ├── question-pool.jsonl       every kept question of those products, tagged; read only through iter_selection
+    │   ├── generic-tokens.json       each leaf's common title words (R2's generic set)
+    │   └── audit/                    the blind audit sheet the author marks (item 3.2)
     ├── pqa-manifest.json           TRACKED: hashes and counts of the 3.1 interim files, no PQA text. NOT the v1 snapshot digest (item 3.6)
-    └── raw/pqa/                    Amazon-PQA source files — gitignored permanently, never redistributed (ADR-002)
+    ├── pqa-selection.json          TRACKED: counts and digests of the 3.2 drafts, no PQA text, no asin. NOT the v1 snapshot digest
+    └── raw/                        gitignored permanently, never redistributed
+        ├── pqa/                      Amazon-PQA source files (ADR-002)
+        └── epqa/                     ePQA CSVs at a pinned commit, for the answerability check only (CDLA-Sharing-1.0)
 ```
 
 **`ui/` is build-time Node only.** The bundle is served by the Go gateway (`spaHandler` in
@@ -211,7 +219,7 @@ Use `make`; do not invent ad-hoc invocations. `make help` is the authority; the 
 | **Check the code** | `verify` (= `lint` + build + `test`) · `lint` · `test` · `seam-check` (item 1.4) and `support-check` (item 2.1) — the two live checks; `verify` never runs either |
 | **Check the envelope** | `env-check` (ADR-003, loads both models) · `redis-check` · `measure` (gates a *measured* run on green pressure) |
 | **Exploratory, not citable** | `load-smoke` · `mu-hit` · `footprint` (**deletes** `t1:` / `t2:` / `lru:` cache keys; needs `make dev`) |
-| **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash · `pqa-fetch` (curl, resume) · `pqa-build` (Stops 0–3, then the interim files and `data/pqa-manifest.json`) · `pqa-verify` (offline hash check) — item 3.1 |
+| **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash · `pqa-fetch` (curl, resume) · `pqa-build` (Stops 0–3, then the interim files and `data/pqa-manifest.json`) · `pqa-verify` (offline hash check) — item 3.1 · `pqa-select`, `pqa-select-verify`, `pqa-audit-sheet`, `pqa-audit-score`, `epqa-fetch`, `pqa-answerability` — item 3.2 |
 | **Housekeeping** | `setup` · `proto` · `spike` (spent: the envelope is frozen) · `check` (documentation consistency sweep) |
 | **Not yet runnable** | `figures` — it invokes `experiments/scripts/make_figures.py`, which does not exist (super-plan item 5.4) |
 
@@ -228,9 +236,9 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 
 | State | Packages |
 | :--- | :--- |
-| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) |
+| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) · `experiments/scripts/select_pqa.py` and `answerability_check.py` (item 3.2; the selection ran 2026-10-20: 152 draft products) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
-| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the epoch guard on write-back (item 4.2) · `data/v1/`, with its thick-tail selection and policy documents (items 3.2, 3.3) · G5 in `corpus_gate.py` (item 3.5) · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
+| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the epoch guard on write-back (item 4.2) · `data/v1/` (the 3.2 drafts are in `data/v1-draft/`; the policy documents are item 3.3) · G5 in `corpus_gate.py` (item 3.5) · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
 
 ## 6. Invariants that fail silently
 
