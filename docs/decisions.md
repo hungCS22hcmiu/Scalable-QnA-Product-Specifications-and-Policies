@@ -50,6 +50,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-008 | The dataset epoch is sourced from outside the Redis keyspace it guards | in force (binds forward — the epoch is a constant stub until Phase 4) | none — no runs yet; `dataset_epoch_at_retrieval` carries no information while `DATASET_EPOCH_STUB = 0` |
 | ADR-009 | The support gate is served, and every judged Tier-2 candidate carries one refusal cause | in force (the real-answer sample, `plan.md` steps 1c–1e, **ran 2026-10-14**: `docs/work/2026-10-14-real-answer-sample/`, no stop rule fired, nothing tuned) | none citable — no runs yet; logs written before the 2.3 commit carry `cache = TIER2_HIT`, `entered_band`, `source_overlap` and `t_search_ms` under an older meaning and lack the five new keys; the 2026-10 item-1.6 Tier-2 hits were served with no gate |
 | ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 has run, `docs/work/2026-10-14-real-answer-sample/`) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
+| ADR-011 | `v1`'s 152 products are drawn by one pre-registered rule; R2 is a pre-filter, not a label | in force (3.4 re-labels every R2-answerable workload query) | none — no runs yet; replaces the 3.1 manifest `bf0feb48…` with `741d52e3…` |
 
 ---
 
@@ -1018,3 +1019,64 @@ and P1's manifest must record it.
   `support_gate`: it is **gate-on**. A log from before `94ed44b` has neither key: it had no gate and is
   **neither arm**; never pool it with an off-arm log. No frozen value changes: `τ_s`, the stopword list, the
   tokenizer, the numeric rules and the unit list are untouched.
+
+### ADR-011 — `v1`'s 152 products are drawn by one pre-registered rule, and R2 is a pre-filter, not a label
+**Decided (data)** · 2026-10-20 · *`data-card.md` §1, §3 and Schemas; `experiments/scripts/select_pqa.py`, `build_pqa.py` (`MANIFEST_VERSION` 2), `answerability_check.py`; `data/pqa-selection.json`; trail `docs/work/2026-10-19-pqa-thick-tail-selection/`*
+
+`v1`'s products are the output of `make pqa-select`, which reads the 3.1 interim only through
+`iter_interim` and applies one rule, committed (`ea63e5d`) before any live run and before ePQA was
+fetched. **Questions:** price and stock, then carrier, questions are dropped; warranty and return
+questions are tagged `policy`; every other question is `spec`, tagged answerable by **R2**: at least
+half of its content tokens (the 2026-10-03 probe's tokenizer) are in the product record, after the
+tokens found in ≥ 10 % of the leaf's titles are removed. **Products** are eligible with a title, ≥ 3
+bullets, no warranty term in the title or the prose, consistent records (the 78 flagged by
+`fields_conflict` are out), 5 – 50 kept questions, ≥ 5 R2-answerable spec questions, and a
+near-duplicate pair (Jaccard 0.45 – 0.99) among them. **The draw:** per leaf, rank by
+`sha256("v1-item-3.2:" + asin)` and take the quota: 38 per department, split evenly over its leaves,
+except that **fallback step 1** was applied after the first live run (TVs had 13 eligible of 19): TVs
+13, headphones 25. Result: **152 products and 4,706 pool questions**, selection sha256 `036dcae8…`,
+consuming the 3.1 manifest `741d52e3…`. **R2's per-question tag is a pre-filter:** its precision is
+35 % (21 of 60, Wilson [24, 48]; a model audit) and its negative predictive value 97.5 % (39 / 40).
+Every R2-answerable question that item 3.4 turns into a workload query is labelled again; spec questions
+the record cannot answer form a separate stratum, reported apart and never in the headline.
+
+- **Rationale:**
+  - **The thick tail is required, not chosen:** a uniform draw returns single-question products, from
+    which no stratum A or C pair can be built (`data-card.md` §1).
+  - **Answerability is required (F17):** a question the record cannot answer gets "not available" as
+    its reference, so reuse between two such questions is safe by construction and inflates the safe-hit
+    rate of every configuration.
+  - **R2 over R1, decided before any data:** R1 passes "How tall is the chair?" on "chair" alone, a
+    silent failure that fills every quota. R2's failure (too strict) is loud: a short leaf stops the run.
+  - **The copied filters are shown to act like the probe:** the probe's own two pool rules are counted
+    on the same pass and pinned, and all twelve numbers reproduce, after `example_product.py` was re-run
+    unchanged on the raw leaves (`evidence/probe-pins.md`).
+  - **R2 stays for the draw, not for the label:** with a 97.5 % NPV it rarely discards an answerable
+    question, so it finds thick, answerable-rich products; with 35 % precision it cannot label one.
+- **Alternatives:**
+  - *Thickest products first:* pushes products to the 50-question cap and raises `K` (≈ 1.5 h of
+    reference generation per 1,000 distinct queries); unrepresentative of the eligible pool.
+  - *An LLM label, or hand curation of every question:* hours locally, or PQA text sent to an outside
+    API, or a filter coupled to the generator; hand curation cannot be re-run.
+  - *Tightening R2 after the audit:* post hoc, in-sample, and it needs a fresh audit; rejected in favour
+    of re-labelling at 3.4, where only workload queries need a label.
+  - *Keep the first record of the 78:* then not even the number of affected selected products is known.
+  - *Fallback step 2 (the pair among all kept questions):* not needed; step 1 filled every quota.
+- **Consequences:**
+  - ADR-002's filters were "proposed, not frozen; fixed at item 3.2": this fixes them and adds two. Its
+    pool sizes describe **the probe's rule only**; the eligible pool is 452.
+  - **The audit departs from its pre-registration:** the author had no time and asked Claude to mark the
+    100 questions, so it is a model audit, not human-verified, by a marker who wrote R2. ePQA's labels
+    (precision 4 / 19 = 21 %, κ 0.17, almost all phones) agree in direction.
+  - **The selection favours long product text:** 2 – 5 chunks per selected product against 1 – 2 for the
+    probe's pool. More chunks give containment more gradient, in the headline's direction. It is a
+    limitation of C1 and goes into the threats to validity.
+  - **One record in the TV probe pool cannot be chunked** (a 1,353-character title makes the metadata
+    longer than the 256-token chunk); `make ingest` would fail on it. None is selected, and the selector
+    now stops if one ever is.
+  - **For 3.4:** read the drafts only through `iter_selection`; re-label every R2-answerable question it
+    uses; keep the unanswerable stratum; do not label strata with the probe's tokenizer ("Windows 7" and
+    "Windows 8" share a token set); only 127 policy questions exist in the pool (92 warranty, 35 return),
+    "return key" is mis-tagged as policy, and there is no shipping tag.
+- **Invalidates:** none — no runs yet. As an artefact, the 3.1 manifest `bf0feb48…` is replaced by
+  `741d52e3…` (`MANIFEST_VERSION` 2: every interim line gains `fields_conflict`).

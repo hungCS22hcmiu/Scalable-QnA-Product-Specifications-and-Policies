@@ -10,7 +10,7 @@ numbers (T1 …) are `design.md` §4.
 
 - [x] 1. Memory check (`sysctl kern.memorystatus_vm_pressure_level`). No model is loaded, so this is a
       note, not a gate; but step 3 holds a whole leaf in memory. *2026-10-20: level 2, 42 % free.*
-- [ ] 2. Confirm whether an ePQA copy exists under `data/` (this session cannot list `data/`; the
+- [x] 2. Confirm whether an ePQA copy exists under `data/` (this session cannot list `data/`; the
       author can, or `make` can). *Deferred to step 13: `ls data/raw` was denied; the fetch target
       reports a file it finds.*
 - [x] 3. **Re-derive the `adr002` pins:** run `example_product.py` unchanged on each of the six raw
@@ -77,7 +77,7 @@ numbers (T1 …) are `design.md` §4.
 
 ## F. The record
 
-- [ ] 18. `data-card.md` §1 and §3: the selection rule (R2, with R1 reported), the product count
+- [x] 18. `data-card.md` §1 and §3: the selection rule (R2, with R1 reported), the product count
       (152), the realised distribution, the answerable shares, the re-ask counts (both definitions
       and populations), the ePQA agreement and the audit, the limitation on C1, the stratum for
       unanswerable questions, and the decisions on the 78 and on warranty terms. The Schemas block:
@@ -86,9 +86,9 @@ numbers (T1 …) are `design.md` §4.
 - [x] 19. `architecture.md`: the tree and §5 list `select_pqa.py`, `answerability_check.py`,
       `data/v1-draft/products/`, `question-pool.jsonl`, `audit/`, `data/pqa-selection.json`,
       `data/raw/epqa/`.
-- [ ] 20. **ADR-011 (data)**, if the author agrees: the frozen rule, the seed, R2, the two new
+- [x] 20. **ADR-011 (data)**, written 2026-10-20 (the author agreed to close 3.2 with it): the frozen rule, the seed, R2, the two new
       filters, the fallback steps applied (if any), the live funnel; `Invalidates: none — no runs yet`.
-- [ ] 21. `super-plan.md` at `/done`: the 3.2 row, the Phase 3 progress line, the stale "manifest
+- [x] 21. `super-plan.md` at `/done`: the 3.2 row, the Phase 3 progress line, the stale "manifest
       not committed yet" in the 3.1 row (`:393`), and 3.4's inherited constraints (the stratum for
       unanswerable questions; read through `iter_selection`; do not label strata with this
       tokenizer; "return key"; no shipping tag).

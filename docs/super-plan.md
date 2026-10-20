@@ -361,20 +361,37 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 
 *Four jobs, not a download. Longest lead, and it can fail its own gate and need rework.* ~45 h.
 
+**Progress, 2026-10-20:** items 3.1 and 3.2 are done. 3.2 drew **152 products** (38 per department; TVs 13 +
+headphones 25 after the pre-registered fallback step 1) and a **4,706-question pool** by one rule committed
+before any run (**ADR-011**, trail `docs/work/2026-10-19-pqa-thick-tail-selection/`). The probe's own pools
+reproduce exactly, and the selection is byte-identical across runs. **R2, the answerability rule, is a
+pre-filter, not a label:** precision 35 % in a blind audit (a **model** audit, at the author's request) and 21 %
+against ePQA, with a 97.5 % negative predictive value. **Phase 3 exit is not met:** no policy documents (3.3), no
+workload (3.4), no G5 (3.5), no freeze (3.6); 19 `TODO(W8)` markers are open in `data-card.md`. 3.3 is next.
+
+**Carried into 3.4 from 3.2 (ADR-011):** read the drafts only through `select_pqa.iter_selection`; **label again
+every R2-answerable question that becomes a workload query** (a recorded model label, never Qwen or the Phase 5
+judge; R2-unanswerable ones need no re-label at a 97.5 % NPV); spec questions the record cannot answer are a
+**separate stratum**, never in the headline; never label strata with the probe's tokenizer ("Windows 7" and
+"Windows 8" share a token set); only 127 policy questions are in the pool, "return key" is mis-tagged as policy,
+and there is no shipping tag; `data/workload-v1.json`, the gate's default path, is **not gitignored** and will hold
+PQA question text. The selected products split into 2 – 5 chunks each against 1 – 2 for the probe's pool: a C1
+limitation, recorded in `data-card.md` §1.
+
 **Progress, 2026-10-15:** item 3.1 is done. The builder checks the six source files by sha256, parses them against
 the real field names, and stops on a bad parse; it writes `data/v1-draft/pqa/*.jsonl` and the manifest
 `data/pqa-manifest.json` (hashes and counts only). Real run: 1,212,029 questions over 71,794 products, 4 skipped.
 **Phase 3 exit is not met** (run on 2026-10-15: `make gate-corpus` fails, no corpus and no workload; 22 `TODO(W8)`
-markers are still open in `data-card.md`). Items 3.2 – 3.6 are open.
+markers are still open in `data-card.md`). Items 3.2 – 3.6 were open (3.2 closed 2026-10-20, above).
 
 **Found while closing 3.1, not yet items — each waits on the author's decision** (trail
 `docs/work/2026-10-15-pqa-build-script/`, `review.md`, `evidence/live-run.md`):
 
-- **For 3.2:** read the interim only through `iter_interim`, and record the sha256 of `data/pqa-manifest.json` it
+- ✅ *Done by 3.2 (ADR-011).* **For 3.2:** read the interim only through `iter_interim`, and record the sha256 of `data/pqa-manifest.json` it
   consumed (`make pqa-verify` prints it). Write drafts to a fresh `data/v1-draft/products/` and refuse to run while
   `data/v1-draft/product-*.json` exist (open question 4, option A). The interim's `leaf` is metadata: it must not become
   `category` or reach embedded text. 3.2 owns the interim schema and rebuilds the manifest when it changes it.
-- **What the real data showed 3.2 has to decide on:** 78 asins (0.11 %) have product fields that differ between records
+- ✅ *Decided by 3.2: excluded, through 3.1's new `fields_conflict` flag.* **What the real data showed 3.2 has to decide on:** 78 asins (0.11 %) have product fields that differ between records
   (the builder keeps the first parsed record). No asin is in two leaves and no `question_id` repeats.
 - **The 175 wrong-dataset files are not on this disk.** The builder looks for `data/v1-draft/product-*.json` on every build
   and found none. The guard stays; the danger it covers is not present today.
@@ -390,10 +407,10 @@ markers are still open in `data-card.md`). Items 3.2 – 3.6 are open.
 
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 3.1 | **PQA build script**, replacing `fetch_corpus_v1.py`. ⚠️ **Write it against the bytes, not the readme** — the dataset's own documentation names fields the data does not use, and a builder written from it returns empty records **silently** | C1, C3 | Amazon-PQA | ✅ **Done 2026-10-15** — no ADR (no contract or frozen value changed; ADR-002 is used as written), trail `docs/work/2026-10-15-pqa-build-script/`. `experiments/scripts/build_pqa.py`, `make pqa-fetch` / `pqa-build` / `pqa-verify`. The Done-when's wording is **not amended**. The Done-when tests are `test_build_stops_on_readme_field_names_and_writes_nothing` (zero parse: exit 2, nothing written) and the manifest allow-list test (hashes and counts, no PQA text). On the six real files all four stops pass and two builds give one manifest hash. 103 tests, 75 hand mutants all caught. The manifest `data/pqa-manifest.json` is **not committed yet** | The script asserts a non-zero parse rate and refuses to write on zero; it emits a **hash manifest**, never the raw corpus |
-| 3.2 | **Select into the thick tail.** Questions-per-product is skewed within a category and varies ~4× between categories; a uniform draw returns mostly single-question products, from which no stratum A or C pair can be built | C1 | Amazon-PQA | 3.1 ✅ | The selection rule is recorded in `data-card.md`, and the realised questions-per-product distribution is reported with it |
+| 3.1 | **PQA build script**, replacing `fetch_corpus_v1.py`. ⚠️ **Write it against the bytes, not the readme** — the dataset's own documentation names fields the data does not use, and a builder written from it returns empty records **silently** | C1, C3 | Amazon-PQA | ✅ **Done 2026-10-15** — no ADR (no contract or frozen value changed; ADR-002 is used as written), trail `docs/work/2026-10-15-pqa-build-script/`. `experiments/scripts/build_pqa.py`, `make pqa-fetch` / `pqa-build` / `pqa-verify`. The Done-when's wording is **not amended**. The Done-when tests are `test_build_stops_on_readme_field_names_and_writes_nothing` (zero parse: exit 2, nothing written) and the manifest allow-list test (hashes and counts, no PQA text). On the six real files all four stops pass and two builds give one manifest hash. 103 tests, 75 hand mutants all caught. The manifest `data/pqa-manifest.json` was committed in `33a1a9d`; 3.2 replaced it with `741d52e3…` (`MANIFEST_VERSION` 2, the `fields_conflict` flag) | The script asserts a non-zero parse rate and refuses to write on zero; it emits a **hash manifest**, never the raw corpus |
+| 3.2 | **Select into the thick tail.** Questions-per-product is skewed within a category and varies ~4× between categories; a uniform draw returns mostly single-question products, from which no stratum A or C pair can be built | C1 | Amazon-PQA | ✅ **Done 2026-10-20** — **ADR-011**, trail `docs/work/2026-10-19-pqa-thick-tail-selection/`. `experiments/scripts/select_pqa.py` and `answerability_check.py`; `make pqa-select`, `pqa-select-verify`, `pqa-audit-sheet`, `pqa-audit-score`, `epqa-fetch`, `pqa-answerability`. **The Done-when passes:** the rule, the 152-product funnel and the realised questions-per-product distribution are in `data-card.md` §1 and §3. The rule was committed (`ea63e5d`) before any live run and before ePQA was fetched; the probe pins (12 numbers) reproduce; two runs give selection sha256 `036dcae8…`. Fallback step 1 applied by the author (TVs 13 + headphones 25). R2's precision 35 % (a model audit, not human, by the author's choice) makes it a pre-filter; 3.4 re-labels. 58 new tests (50 + 8), 6 builder tests | The selection rule is recorded in `data-card.md`, and the realised questions-per-product distribution is reported with it |
 | 3.3 | **Author the policy documents.** Per-category return *and* warranty windows that genuinely differ, ≥3 chunks each, and ⚠️ **opposing conditions in separate documents, not separate chunks** — a chunk-level split is invisible to the namespace, which is document-granular by design, and leaves all four conjuncts blind at once | C1, C2 | `v1` corpus model, condition-splitting, opposing conditions in distinct documents | now | Every policy document yields ≥3 chunks and **no two opposing conditions share a `doc_id`**. Note this raises the count above 8: one category's return policy split into *opened* / *unopened* is two documents |
-| 3.4 | **Workload generator** — does not exist. Strata A / B-within / B-cross / C / D, Zipf popularity, and the validation/test split partitioned **by seed-question cluster**, never by pair, which would leak paraphrases | C1, C3 | `v1` corpus model, B-within / B-cross split | 3.2, 3.3 | Every query carries exactly one stratum and one split assignment; no seed cluster spans both splits |
+| 3.4 | **Workload generator** — does not exist. Strata A / B-within / B-cross / C / D, Zipf popularity, and the validation/test split partitioned **by seed-question cluster**, never by pair, which would leak paraphrases | C1, C3 | `v1` corpus model, B-within / B-cross split | 3.2 ✅, 3.3 | Every query carries exactly one stratum and one split assignment; no seed cluster spans both splits |
 | 3.5 | **G5 in `corpus_gate.py`.** `data-card.md` §7 requires five criteria; the code implements four. Structural, stage 1, beside G3 and G4 | C1 | condition-splitting, opposing conditions in distinct documents | 3.3 | The gate fails a corpus where two opposing conditions share a `doc_id`, and names both |
 | 3.6 | **Gate, freeze, hash.** Record `K`; derive `cache_capacity = round(0.25 × K)` | C1, C3, S1 | capacity ratio, `data-card.md` §7 | 3.4, 3.5 | The digest prints, every `TODO(W8)` in `data-card.md` §7 is filled, and no experiment runs against an unfrozen corpus |
 
