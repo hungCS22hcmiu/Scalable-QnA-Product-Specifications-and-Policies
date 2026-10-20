@@ -588,6 +588,7 @@ def test_every_string_in_the_selection_manifest_is_on_the_allow_list(world):
         select_pqa.STAGE,
         select_pqa.NOTE,
         select_pqa.SEED,
+        "injected",  # the manifest's chunker block when a test injects one (review finding 7)
         "furniture",
         "1/2",
         "1/10",
@@ -615,7 +616,7 @@ def test_no_dropped_question_reaches_the_pool(world):
     texts = {q["question_text"] for q in pool}
     assert DYNAMIC not in texts and CARRIER not in texts
     policy = [q for q in pool if q["tag"] == "policy"]
-    assert all(q["answerable"] is None and q["policy_kinds"] == ["return"] for q in policy)
+    assert all(q["r2_answerable"] is None and q["policy_kinds"] == ["return"] for q in policy)
     assert pool == sorted(pool, key=lambda q: (q["doc_id"], q["line_no"]))
 
 
@@ -751,10 +752,10 @@ def synthetic_pool():
         for n in range(30):
             pool.append(
                 {"doc_id": f"product-{dept}-x", "line_no": n, "department": dept, "tag": "spec",
-                 "answerable": n < 18}
+                 "r2_answerable": n < 18}
             )
         pool.append({"doc_id": f"product-{dept}-x", "line_no": 99, "department": dept,
-                     "tag": "policy", "answerable": None})
+                     "tag": "policy", "r2_answerable": None})
     return pool
 
 
@@ -763,15 +764,15 @@ def test_the_audit_sample_is_fifteen_and_ten_per_department_in_a_fixed_order():
     assert len(sample) == 50
     for dept in ("alpha", "bravo"):
         mine = [q for q in sample if q["department"] == dept]
-        assert sum(q["answerable"] for q in mine) == 15
-        assert sum(not q["answerable"] for q in mine) == 10
+        assert sum(q["r2_answerable"] for q in mine) == 15
+        assert sum(not q["r2_answerable"] for q in mine) == 10
     assert sample == select_pqa.audit_sample(list(reversed(synthetic_pool())))
     ranks = [select_pqa.audit_rank(q["doc_id"], q["line_no"]) for q in sample]
     assert ranks == sorted(ranks)
 
 
 def test_an_audit_group_too_small_stops():
-    pool = [q for q in synthetic_pool() if q["answerable"] is not False][:20]
+    pool = [q for q in synthetic_pool() if q["r2_answerable"] is not False][:20]
     with pytest.raises(select_pqa.SelectionStop):
         select_pqa.audit_sample(pool)
 
@@ -834,3 +835,153 @@ def test_an_unchunkable_selected_record_stops_the_run(world, capsys):
     assert run(world, chunker=chunker) == 2
     assert "make ingest" in capsys.readouterr().err
     assert_nothing_published(world)
+
+
+# =================================================================================================
+# /ai-review 2026-10-20: the new constants, R2's pass 1 and the edges, pinned (review.md, finding 1, 10)
+# =================================================================================================
+TRACKED_SELECTION = REPO_ROOT / "data" / "pqa-selection.json"
+
+
+def test_the_tracked_selection_manifest_records_the_module_constants():
+    """A seed, a share or a quota changed in the code without a new selection run (and an
+    approvals.md line) makes the tracked manifest disagree with the code."""
+    rule = json.loads(TRACKED_SELECTION.read_text(encoding="utf-8"))["rule"]
+    assert rule["seed"] == select_pqa.SEED == "v1-item-3.2"
+    assert rule["coverage"] == "1/2" and select_pqa.COVERAGE == select_pqa.Fraction(1, 2)
+    assert rule["generic_df"] == "1/10" and select_pqa.GENERIC_DF == select_pqa.Fraction(1, 10)
+    assert rule["min_answerable"] == select_pqa.MIN_ANSWERABLE == 5
+    assert rule["min_bullets"] == select_pqa.MIN_BULLETS == 3
+    assert rule["cap"] == [select_pqa.CAP_LO, select_pqa.CAP_HI]
+    assert rule["near_duplicate_band"] == ["0.45", "0.99"]
+    assert rule["pair_cap"] == select_pqa.PAIR_CAP
+    assert rule["quota"] == select_pqa.QUOTA
+    assert rule["quota_preregistered"] == select_pqa.QUOTA_PREREGISTERED
+    assert rule["fallback_applied"] == list(select_pqa.FALLBACK_APPLIED)
+    assert rule["steps"] == list(select_pqa.STEPS)
+    assert rule["probe_pins"] == select_pqa.PROBE_PINS
+    assert rule["regex"] == {
+        "dynamic": select_pqa.DYNAMIC_Q.pattern,
+        "carrier": select_pqa.CARRIER_Q.pattern,
+        "policy_return": select_pqa.POLICY_Q["return"].pattern,
+        "policy_warranty": select_pqa.POLICY_Q["warranty"].pattern,
+        "warranty_term": select_pqa.WARRANTY_TERM.pattern,
+    }
+    stop = select_pqa.hashlib.sha256(" ".join(sorted(select_pqa.STOP)).encode()).hexdigest()
+    assert rule["stop_words_sha256"] == stop
+
+
+def test_the_hash_rank_is_pinned_to_a_golden_value():
+    """Not circular: a changed seed or a reordered hash input changes this value."""
+    assert select_pqa.rank(asin(1)) == (
+        "2a09c4d28b3be1ba063d3564fa63546609a9df72e661eee614315124bebb4bb8"
+    )
+
+
+def test_generic_tokens_at_the_ten_percent_edge(tmp_path):
+    """'edge' is in 1 of 10 titles (10 %: generic) and 1 of 11 (9.1 %: not). A word repeated in one
+    title counts once."""
+    ten = [rec(asin(n), f"t{n}", "Is it alpha?", title="Acme Thing") for n in range(1, 10)]
+    ten.append(rec(asin(10), "t10", "Is it alpha?", title="Acme Edge Edge Thing"))
+    eleven = [rec(asin(n), f"e{n}", "Is it alpha?", title="Acme Thing") for n in range(11, 21)]
+    eleven.append(rec(asin(21), "e21", "Is it alpha?", title="Acme Edge Edge Thing"))
+    manifest, interim = write_interim(
+        tmp_path, {"chairs": ("furniture", ten), "desks": ("furniture", eleven)}
+    )
+    generic = select_pqa.generic_tokens(manifest, interim)
+    assert "edge" in generic["chairs"] and "edge" not in generic["desks"]
+    assert {"acme", "thing"} <= generic["chairs"] & generic["desks"]
+
+
+def test_a_default_select_records_the_applied_fallback(world, monkeypatch):
+    monkeypatch.setattr(select_pqa, "QUOTA", QUOTA)
+    monkeypatch.setattr(select_pqa, "PROBE_PINS", PINS)
+    assert select_pqa.select(**world, chunker=fake_chunker) == 0
+    assert selection(world)["rule"]["fallback_applied"] == list(select_pqa.FALLBACK_APPLIED)
+    assert run(world) == 0  # an explicit quota is a test's own: no fallback is claimed for it
+    assert selection(world)["rule"]["fallback_applied"] == []
+
+
+def _sets(common, only_a, only_b):
+    shared = {f"c{i}" for i in range(common)}
+    a = frozenset(shared | {f"a{i}" for i in range(only_a)})
+    b = frozenset(shared | {f"b{i}" for i in range(only_b)})
+    return a, b
+
+
+def test_the_near_duplicate_band_is_closed_at_both_edges_and_excludes_identical_sets():
+    low = _sets(9, 5, 6)  # 9 / 20 = 0.45
+    high = _sets(99, 1, 0)  # 99 / 100 = 0.99
+    below = _sets(8, 6, 6)  # 8 / 20 = 0.40
+    assert select_pqa.jaccard(*low) == 0.45 and select_pqa.jaccard(*high) == 0.99
+    assert select_pqa.has_near_duplicate_pair(list(low))
+    assert select_pqa.has_near_duplicate_pair(list(high))
+    assert not select_pqa.has_near_duplicate_pair(list(below))
+    same = frozenset({"alpha", "bravo"})
+    assert not select_pqa.has_near_duplicate_pair([same, same])  # an exact repeat is not a pair
+
+
+def test_iter_selection_refuses_a_changed_generic_token_file(world):
+    assert run(world) == 0
+    path = world["draft_dir"] / select_pqa.GENERIC
+    path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(select_pqa.SelectionMismatch):
+        next(select_pqa.iter_selection(world["selection_path"], world["draft_dir"]))
+
+
+def test_the_audit_sheet_is_never_overwritten_once_marked(world, monkeypatch, capsys):
+    monkeypatch.setattr(select_pqa, "AUDIT_ANSWERABLE", 3)
+    monkeypatch.setattr(select_pqa, "AUDIT_UNANSWERABLE", 2)
+    assert run(world) == 0
+    sheet = world["draft_dir"] / select_pqa.AUDIT_SHEET
+    args = (world["selection_path"], world["draft_dir"], sheet)
+    assert select_pqa.write_audit_sheet(*args) == 0
+    assert select_pqa.write_audit_sheet(*args) == 0  # unmarked: regenerating loses nothing
+    with sheet.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    rows[0]["answerable"] = "yes"  # one marked row is enough to protect the sheet
+    with sheet.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=select_pqa.SHEET_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+    before = sheet.read_bytes()
+    assert select_pqa.write_audit_sheet(*args) == 2
+    assert "marked" in capsys.readouterr().err and sheet.read_bytes() == before
+    assert select_pqa.write_audit_sheet(*args, force=True) == 0
+
+
+def test_the_audit_score_reweights_recall_to_the_pool(world, monkeypatch, tmp_path):
+    monkeypatch.setattr(select_pqa, "AUDIT_ANSWERABLE", 3)
+    monkeypatch.setattr(select_pqa, "AUDIT_UNANSWERABLE", 2)
+    assert run(world) == 0
+    sheet = world["draft_dir"] / select_pqa.AUDIT_SHEET
+    assert select_pqa.write_audit_sheet(world["selection_path"], world["draft_dir"], sheet) == 0
+    with sheet.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    tags = {
+        (q["doc_id"], q["line_no"]): q["r2_answerable"]
+        for kind, q in select_pqa.iter_selection(world["selection_path"], world["draft_dir"])
+        if kind == "question"
+    }
+    # Mark one tagged-answerable row no (fp) and one tagged-unanswerable row yes (fn).
+    fp_done = fn_done = False
+    for r in rows:
+        tagged = tags[(r["doc_id"], int(r["line_no"]))]
+        if tagged and not fp_done:
+            r["answerable"], fp_done = "no", True
+        elif not tagged and not fn_done:
+            r["answerable"], fn_done = "yes", True
+        else:
+            r["answerable"] = "yes" if tagged else "no"
+    with sheet.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=select_pqa.SHEET_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+    out = tmp_path / "audit.json"
+    assert select_pqa.score_audit(world["selection_path"], world["draft_dir"], sheet, out) == 0
+    r = json.loads(out.read_text(encoding="utf-8"))
+    assert r["pooled"] == {"tp": 2, "fp": 1, "fn": 1, "tn": 1}
+    a, u = r["pool_spec_tags"]["answerable"], r["pool_spec_tags"]["unanswerable"]
+    precision, false_omission = 2 / 3, 1 / 2
+    expected = round(precision * a / (precision * a + false_omission * u), 4)
+    assert r["recall_reweighted"] == expected

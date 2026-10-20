@@ -30,7 +30,23 @@ ADR-011.
 the 100 questions and asked Claude to mark them by the stated rule. This departs from design §3.2
 ("the auditor is the author, not a model"). Recorded as a **model audit**: not human-verified, and the
 marker wrote R2, so it is not independent of the rule (`evidence/audit.md`). Result: R2 precision 21 / 60
-= 35 % [24.2, 47.6], NPV 39 / 40. **Whether R2 stands: waiting for the author.**
+= 35 % [24.2, 47.6], NPV 39 / 40. ~~Whether R2 stands: waiting for the author.~~ Decided below.
+
+**2026-10-20 — R2 stands as a pre-filter, by the author.** After the audit Claude recommended: keep the
+152 products and re-label answerability at 3.4. The author answered with a plan for 3.4 ("classify the
+questions and select only the answerable ones … write the paraphrases from the real answerable questions"),
+and, when asked "shall I go ahead?", with "the sheet is audited, can we close phase 3.2 and proceed to phase
+3.3". Recorded as: **R2 stands for the draw; its per-question tag is a pre-filter, re-labelled at 3.4**
+(ADR-011). Claude's corrections to that 3.4 plan (the workload lives outside `data/v1/`; keep the
+unanswerable stratum; a paraphrase must keep its answer) were stated in the same turn and are in the
+super-plan's 3.4 constraints.
+
+**2026-10-20 — test changes after `/ai-review`, none weakening an assertion** (`review.md`, second part).
+(a) The pool fields `answerable` / `answerable_r1` were renamed `r2_answerable` / `r1_answerable` (review
+finding 2): six lines of `test_select_pqa.py` that read the pool field were renamed mechanically, with the
+same assertions. (b) The allow-list test admits one new fixed label, `"injected"`, because the manifest gained a
+`chunker` block (finding 7). (c) Eleven tests were added (findings 1, 6, 10). The rule and the draw are
+unchanged: the re-run gives the same products digest `d373c4b0…` and the same generic-token digest.
 
 **Pins and constants:** a change to any **new** constant in `design.md` §2 (`COVERAGE`,
 `GENERIC_DF`, `MIN_ANSWERABLE`, `QUOTA`, `SEED`, `AUDIT`), to the probe-pool pins (§2.6), to the ePQA

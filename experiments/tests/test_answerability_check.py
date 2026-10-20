@@ -163,3 +163,35 @@ def test_kappa_on_hand_computed_tables(cells, kappa):
     from collections import Counter
 
     assert ac.agreement(Counter(cells))["kappa"] == kappa
+
+
+# /ai-review 2026-10-20, finding 10: the per-leaf pin, the containment share and the hash branch.
+def test_the_matched_line_pins_are_the_probes_per_leaf_counts():
+    assert ac.MATCHED_LINES == {
+        "unlocked_cell_phones": 143,
+        "traditional_laptops": 5,
+        "led_&_lcd_tvs": 21,
+        "over-ear_headphones": 19,
+        "chairs": 2,
+        "home_office_desks": 4,
+    }
+
+
+def test_the_tertiary_containment_share_is_four_fifths():
+    from fractions import Fraction
+
+    assert Fraction(4, 5) == ac.CONTAINMENT
+    record = frozenset({"alpha", "bravo", "charlie", "delta"})
+    four_of_five = [("bullet", "2", "alpha bravo charlie delta zulu")]
+    three_of_five = [("bullet", "2", "alpha bravo charlie zulu yankee")]
+    assert ac.epqa_labels(four_of_five, record)["tertiary"]
+    assert not ac.epqa_labels(three_of_five, record)["tertiary"]
+
+
+def test_a_file_of_the_pinned_size_with_another_hash_stops(tmp_path):
+    epqa_dir, files = write_epqa(tmp_path, EPQA)
+    name = "dev.csv"
+    data = (epqa_dir / name).read_bytes()
+    (epqa_dir / name).write_bytes(data[:-1] + (b"X" if data[-1:] != b"X" else b"Y"))
+    with pytest.raises(ac.CheckStop, match="sha256"):
+        ac.verify_sources(epqa_dir, files)

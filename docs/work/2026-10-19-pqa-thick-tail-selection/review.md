@@ -45,3 +45,41 @@ question 1).
 Carried into `spec.md` (open questions 1, 9, 10, 11): the answerability rule (R2 selecting) and the
 one-hour blind audit; unanswerable questions as a separate stratum; the short-leaf fallback order;
 the warranty-term filter on the title.
+
+---
+
+# Post-implementation review (`/ai-review`, 2026-10-20)
+
+**Reviewer:** the `contract-reviewer` subagent, general pass over `docs/architecture.md` and `CLAUDE.md` (the
+diff touches no contract, `.proto`, Redis schema or wire field). Scope: `git diff c9d65e1` plus the
+uncommitted record edits. It ran the 322 tests and about 52 hand mutants in a copy of the tree (19 survived),
+and could not read `data/v1-draft/`. **No frozen value, licence rule or provenance rule is broken; the rule
+was not changed after a number was seen** (it diffed `ea63e5d` against `ee03e5e`: only the quota split, the
+fallback record and the reporting fix). The report is data; each row says what I checked and did.
+
+| # | Finding | Rating | Resolution |
+| :-: | :--- | :--- | :--- |
+| 1 | The new constants and R2's pass 1 were pinned by no test: a changed seed, `GENERIC_DF`, the generic test's `>=` or denominator, or a dropped fallback record passed all 322 tests; the draw test was circular | CONFIRMED (mutants) | **Fixed.** A test pins the tracked manifest's whole `rule` block to the module constants; a golden `rank("B000000001")`; a direct `generic_tokens` test at the 10 % edge (1 of 10 generic, 1 of 11 not; a repeated word counts once); a default `select()` records `FALLBACK_APPLIED` |
+| 2 | ADR-011's case for R2 rested on the model audit alone: it left out ePQA's recall 4 / 12 and NPV 116 / 124; "answerable-rich" is circular; the super-plan said R2-unanswerable "need no re-label"; the yield (≈ 410 of 1,180) was only in `audit.md` | CONFIRMED (text against evidence) | **Fixed.** ADR-011, the data card and the super-plan quote both checks, drop "answerable-rich", state the yield as an input to `K`, and ask 3.4 to re-label a sample of the R2-unanswerable ones too. The pool field is renamed `r2_answerable`, so it cannot be read as a label |
+| 3 | The records disagreed on whether R2 stands; the test amendment was promised to ADR-011 and not there | CONFIRMED | **Fixed.** `approvals.md` records the author's decision with their words; ADR-011's Consequences record the amended test and why it is not a weakening |
+| 4 | ePQA had no provenance entry in the data card | CONFIRMED | **Fixed.** A table row and a §1 entry: commit, sizes, hashes, CDLA-Sharing-1.0, use, and the citation the repository's README names for ePQA (xPQA, arXiv:2305.09249), read from the README at the pinned commit |
+| 5 | An example in `audit.md` quoted a phrase that reads like a sheet item | PLAUSIBLE | **Fixed** with a made-up example |
+| 6 | `make pqa-audit-sheet` overwrote a marked sheet | CONFIRMED (code) | **Fixed.** It refuses while any row is marked, unless `--force`; a test |
+| 7 | The selection manifest's hash moves with the selector file and the unpinned llama-index-core, so it is not a reproducibility anchor | PLAUSIBLE | **Fixed in the record and the manifest.** The manifest records the chunker (256 / 40, llama-index-core 0.14.23); ADR-011, the super-plan and the evidence name **the products digest** `d373c4b0…` as the anchor |
+| 8 | The question-count buckets were applied to characters: every `chars.hist` was zeros | CONFIRMED | **Fixed:** no histogram for characters |
+| 9 | "Almost all phones" overstated it: 93 of 143, with 39 TVs or headphones | CONFIRMED | **Fixed** in ADR-011 and `answerability.md` |
+| 10 | Gaps against A6 / A13: no fixture for the band edges or the exact-repeat exclusion; only the sum of `MATCHED_LINES` pinned; `CONTAINMENT` unpinned; the wrong-hash branch and `recall_reweighted` untested; the generic file's hash check untested | CONFIRMED (mutants) | **Fixed:** tests at Jaccard exactly 0.45 and 0.99 and an identical pair; the per-leaf pins; 4 / 5 against 3 / 5 containment; a same-size changed file; the re-weighted recall against a hand computation; a changed generic file refused |
+
+**After the fixes:** 333 tests in `experiments/` (11 new), lint clean. The selection was re-run twice: the 152
+records and the generic tokens are **byte-identical** to before (products digest `d373c4b0…`), the pool
+digest changed only by the rename (`50cdcb03…`), and the audit re-scores to the same `audit.json`
+(`evidence/live-run.md`, last section). No finding is open.
+
+## What the reviewer checked and found sound, in short
+
+The licence (110 distinct strings in the tracked manifest, none an asin or text; only synthetic asins in the
+diff); provenance (the consumed manifest hash, `builder_sha256` and `selector_sha256` all match the files);
+every number in the records against the manifest; `iter_selection`; 33 killed mutants, among them every product
+filter, the tag order, R2, the flag read without default, the pins, the re-check, `sort_keys` and the leaf; the
+output shape against `load_records`, `lane.go` and `corpus_gate.py`; and that the fallback, the reporting fix
+and the model audit are each recorded honestly.

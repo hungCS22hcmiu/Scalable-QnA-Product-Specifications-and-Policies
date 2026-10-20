@@ -12,7 +12,8 @@ and every use of these numbers must carry them:
   and R2, applied by a stricter reader.
 
 **The marking rule** (stated to the author before marking): *yes* only when `product_text` alone fully
-answers the question, an explicit negative included ("Non-Backlit Keyboard" answers "is it backlit?");
+answers the question, an explicit negative included (a made-up example: a spec line saying the screen has no
+touch support answers "does it have a touchscreen?");
 *no* for anything that needs outside knowledge (carriers or countries not named, whether a program runs),
 for a partial or merely implied answer, and for opinion questions. Marks by item: `audit-marks.json`
 (item numbers only, no text). Counts: `audit.json`.

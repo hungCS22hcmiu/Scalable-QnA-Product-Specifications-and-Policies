@@ -425,9 +425,11 @@ def pool_lines(doc_id: str, ev: Evaluated) -> list[dict]:
                 "answers": q["answers"],
                 "tag": t.kind,
                 "policy_kinds": list(t.policy_kinds),
-                # null on policy questions: answerability against the product does not apply
-                "answerable": t.answerable if spec else None,
-                "answerable_r1": t.answerable_r1 if spec else None,
+                # null on policy questions: answerability against the product does not apply.
+                # Named r2_/r1_ because they are the rules' tags, not labels (ADR-011: R2's
+                # precision is 35 %); item 3.4 labels again.
+                "r2_answerable": t.answerable if spec else None,
+                "r1_answerable": t.answerable_r1 if spec else None,
                 "q_tokens": t.q_tokens if spec else None,
                 "covered": t.covered if spec else None,
             }
@@ -457,21 +459,21 @@ def draw(eligible: dict[str, list[str]], quota: dict[str, int]) -> dict[str, lis
 # =================================================================================================
 # Statistics for the report (integers and digests only: no floats in the manifest)
 # =================================================================================================
-def distribution(values: list[int]) -> dict:
+def distribution(values: list[int], hist: bool = True) -> dict:
     s = sorted(values)
     n = len(s)
     if not n:
         return {"n": 0}
-    return {
+    out = {
         "n": n,
         "min": s[0],
         "median": s[n // 2],  # upper median, as 3.1's prose_median_chars
         "p90": s[(9 * (n - 1)) // 10],  # the probe's int(0.9 * (n - 1)), in exact arithmetic
         "max": s[-1],
-        "hist": {
-            f"{lo}-{hi}": sum(1 for v in s if lo <= v <= hi) for lo, hi in BUCKETS
-        },
     }
+    if hist:  # BUCKETS are question counts: meaningless for characters (review finding 8)
+        out["hist"] = {f"{lo}-{hi}": sum(1 for v in s if lo <= v <= hi) for lo, hi in BUCKETS}
+    return out
 
 
 def counts_of(evs: Iterable[Evaluated]) -> dict[str, list[int]]:
@@ -521,6 +523,21 @@ def products_digest(products_dir: Path) -> tuple[int, str]:
         for p in products_dir.iterdir()
     )
     return len(pairs), _sha256_bytes(_canonical(pairs))
+
+
+def describe_default_chunker() -> dict:
+    """What the chunk counts depend on, for the manifest (review finding 7): the frozen chunk size and
+    overlap, and the llama-index-core version, which rag's pyproject does not pin."""
+    from importlib.metadata import version
+
+    from rag import config
+
+    return {
+        "kind": "rag.ingest.record_to_document + SentenceSplitter",
+        "chunk_size": config.CHUNK_SIZE,
+        "chunk_overlap": config.CHUNK_OVERLAP,
+        "llama_index_core": version("llama-index-core"),
+    }
 
 
 def default_chunker() -> Callable[[dict], tuple[int, int]]:
@@ -676,6 +693,7 @@ def build_selection(
     prose_stats: dict[str, dict],
     outputs: dict,
     fallback: tuple[str, ...] = (),
+    chunker_info: dict | None = None,
 ) -> dict:
     """Counts and digests only. Every string is a name, a digest, a regex source, the seed or a
     fixed label (the tests check it against an allow-list)."""
@@ -766,6 +784,7 @@ def build_selection(
         "distribution": dist,
         "answerable_share": share,
         "prose": prose_stats,
+        "chunker": chunker_info or {"kind": "injected"},
         "reask": reask,
         "outputs": outputs,
     }
@@ -801,7 +820,7 @@ def _prose_stats(
                     f"splitter, so `make ingest` would fail on them"
                 )
             out[leaf][name] = {
-                "chars": distribution([m[0] for m in measured]),
+                "chars": distribution([m[0] for m in measured], hist=False),
                 "chunks": distribution([m[1] for m in measured]),
                 "unchunkable": unchunkable,
             }
@@ -885,9 +904,19 @@ def select(
         chosen = draw({leaf: sorted(t.eligible) for leaf, t in tallies.items()}, quota)
         work.mkdir(parents=True)
         records, outputs = write_outputs(work, tallies, chosen, generic)
+        chunker_info = None if chunker else describe_default_chunker()
         prose_stats = _prose_stats(tallies, chosen, records, chunker or default_chunker())
         selection = build_selection(
-            consumed_sha256, tallies, chosen, generic, quota, pins, prose_stats, outputs, fallback
+            consumed_sha256,
+            tallies,
+            chosen,
+            generic,
+            quota,
+            pins,
+            prose_stats,
+            outputs,
+            fallback,
+            chunker_info,
         )
         data = _canonical(selection) + b"\n"
         (work / "selection.json").write_bytes(data)
@@ -1021,7 +1050,7 @@ def audit_sample(pool: list[dict]) -> list[dict]:
     by_dept: dict[str, dict[bool, list[dict]]] = defaultdict(lambda: {True: [], False: []})
     for q in pool:
         if q["tag"] == "spec":
-            by_dept[q["department"]][q["answerable"]].append(q)
+            by_dept[q["department"]][q["r2_answerable"]].append(q)
     sample = []
     for dept in sorted(by_dept):
         for answerable, n in ((True, AUDIT_ANSWERABLE), (False, AUDIT_UNANSWERABLE)):
@@ -1046,7 +1075,9 @@ def _read_selection(selection_path: Path, draft_dir: Path) -> tuple[dict[str, di
 SHEET_COLUMNS = ("item", "doc_id", "line_no", "question", "product_text", "answerable")
 
 
-def write_audit_sheet(selection_path: Path, draft_dir: Path, sheet_path: Path) -> int:
+def write_audit_sheet(
+    selection_path: Path, draft_dir: Path, sheet_path: Path, force: bool = False
+) -> int:
     """The sheet carries no tag: the auditor marks `answerable` yes or no from the text alone."""
     from rag.ingest import product_to_text
 
@@ -1056,6 +1087,16 @@ def write_audit_sheet(selection_path: Path, draft_dir: Path, sheet_path: Path) -
     except (SelectionMismatch, SelectionStop) as error:
         print(f"stop: {error}", file=sys.stderr)
         return 2
+    if sheet_path.is_file() and not force:
+        with sheet_path.open(encoding="utf-8", newline="") as f:
+            marked = [r["item"] for r in csv.DictReader(f) if (r.get("answerable") or "").strip()]
+        if marked:
+            print(
+                f"stop: {sheet_path} already has {len(marked)} marked row(s). Score it, or move it "
+                f"away, or pass --force to overwrite it (the marks would be lost).",
+                file=sys.stderr,
+            )
+            return 2
     sheet_path.parent.mkdir(parents=True, exist_ok=True)
     with sheet_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
@@ -1102,12 +1143,12 @@ def score_audit(selection_path: Path, draft_dir: Path, sheet_path: Path, out_pat
     cells: dict[str, Counter] = defaultdict(Counter)
     for key, q in expected.items():
         human = got[key]["answerable"].strip().lower() == "yes"
-        cells[q["department"]][("tp" if human else "fp") if q["answerable"] else ("fn" if human else "tn")] += 1
+        cells[q["department"]][("tp" if human else "fp") if q["r2_answerable"] else ("fn" if human else "tn")] += 1
     pooled: Counter = Counter()
     for c in cells.values():
         pooled.update(c)
-    tagged = sum(1 for q in pool if q["tag"] == "spec" and q["answerable"])
-    untagged = sum(1 for q in pool if q["tag"] == "spec" and not q["answerable"])
+    tagged = sum(1 for q in pool if q["tag"] == "spec" and q["r2_answerable"])
+    untagged = sum(1 for q in pool if q["tag"] == "spec" and not q["r2_answerable"])
     precision_n = pooled["tp"] + pooled["fp"]
     npv_n = pooled["tn"] + pooled["fn"]
     precision = pooled["tp"] / precision_n if precision_n else 0.0
@@ -1143,6 +1184,7 @@ def main(argv: list[str] | None = None) -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--verify", action="store_true", help="hash the outputs against the manifest")
     mode.add_argument("--audit-sheet", action="store_true", help="write the blind audit sheet")
+    parser.add_argument("--force", action="store_true", help="--audit-sheet: overwrite marks")
     mode.add_argument("--audit-score", type=Path, metavar="OUT", help="score the marked sheet into OUT")
     args = parser.parse_args(argv)
     sheet = args.draft_dir / AUDIT_SHEET
@@ -1155,7 +1197,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"verified: the outputs in {args.draft_dir} match {args.selection.name}")
         return 0
     if args.audit_sheet:
-        return write_audit_sheet(args.selection, args.draft_dir, sheet)
+        return write_audit_sheet(args.selection, args.draft_dir, sheet, force=args.force)
     if args.audit_score:
         return score_audit(args.selection, args.draft_dir, sheet, args.audit_score)
     return select(args.manifest, args.interim_dir, args.draft_dir, args.selection)

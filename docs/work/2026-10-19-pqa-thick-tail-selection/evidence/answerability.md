@@ -22,8 +22,9 @@ only, as pre-registered: nothing here decides anything.**
 
   Against the tertiary label, R2's precision is 3 / 19 (16 %) and its recall 3 / 7. Intervals are 95 %
   Wilson, pooled over the six leaves.
-- **Almost all of it is phones:** 93 of the 143 spec units. Chairs 2, desks 4, laptops 5: the check
-  says nothing about furniture or laptops, as design §8.2 said it would.
+- **Most of it is phones:** 93 of the 143 spec units (65 %), and 39 are TVs or headphones. Laptops and
+  furniture have 11 between them: the check says nothing about those two departments, as design §8.2
+  said it would.
 
 ## Reading
 

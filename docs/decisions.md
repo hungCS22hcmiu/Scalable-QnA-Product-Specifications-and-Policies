@@ -1034,11 +1034,17 @@ bullets, no warranty term in the title or the prose, consistent records (the 78 
 near-duplicate pair (Jaccard 0.45 – 0.99) among them. **The draw:** per leaf, rank by
 `sha256("v1-item-3.2:" + asin)` and take the quota: 38 per department, split evenly over its leaves,
 except that **fallback step 1** was applied after the first live run (TVs had 13 eligible of 19): TVs
-13, headphones 25. Result: **152 products and 4,706 pool questions**, selection sha256 `036dcae8…`,
-consuming the 3.1 manifest `741d52e3…`. **R2's per-question tag is a pre-filter:** its precision is
-35 % (21 of 60, Wilson [24, 48]; a model audit) and its negative predictive value 97.5 % (39 / 40).
-Every R2-answerable question that item 3.4 turns into a workload query is labelled again; spec questions
-the record cannot answer form a separate stratum, reported apart and never in the headline.
+13, headphones 25. Result: **152 products and 4,706 pool questions**, consuming the 3.1 manifest
+`741d52e3…`. **The reproducibility anchor is the products digest `d373c4b0…`** (the sorted file names and
+hashes of the 152 records) with the pool digest `50cdcb03…`; the selection manifest's own sha256 also covers
+the selector file and the llama-index-core version, so it moves with them and is not the anchor.
+**R2's per-question tag is a pre-filter:** in a model audit of 100 selected questions its precision is 35 %
+(21 of 60, Wilson [24, 48]) and its negative predictive value 97.5 % (39 / 40, a single false negative);
+against ePQA's human labels its precision is 21 % (4 / 19), its recall 33 % (4 / 12, [14, 61]) and its NPV
+93.5 % (116 / 124). Every R2-answerable question that item 3.4 turns into a workload query is labelled again,
+and a sample of the R2-unanswerable ones too; spec questions the record cannot answer form a separate
+stratum, reported apart and never in the headline. The pool field is named `r2_answerable`, not
+`answerable`, for that reason.
 
 - **Rationale:**
   - **The thick tail is required, not chosen:** a uniform draw returns single-question products, from
@@ -1051,8 +1057,10 @@ the record cannot answer form a separate stratum, reported apart and never in th
   - **The copied filters are shown to act like the probe:** the probe's own two pool rules are counted
     on the same pass and pinned, and all twelve numbers reproduce, after `example_product.py` was re-run
     unchanged on the raw leaves (`evidence/probe-pins.md`).
-  - **R2 stays for the draw, not for the label:** with a 97.5 % NPV it rarely discards an answerable
-    question, so it finds thick, answerable-rich products; with 35 % precision it cannot label one.
+  - **R2 stays for the draw, not for the label:** its "unanswerable" tag is usually right (NPV 97.5 % in
+    the model audit, 93.5 % against ePQA), so the draw seldom loses a product to it; with 35 % precision its
+    "answerable" tag cannot label a question. The selected products are rich in R2-tagged questions **by
+    construction**; how many of those are truly answerable is estimated below, not measured.
 - **Alternatives:**
   - *Thickest products first:* pushes products to the 50-question cap and raises `K` (≈ 1.5 h of
     reference generation per 1,000 distinct queries); unrepresentative of the eligible pool.
@@ -1066,8 +1074,17 @@ the record cannot answer form a separate stratum, reported apart and never in th
   - ADR-002's filters were "proposed, not frozen; fixed at item 3.2": this fixes them and adds two. Its
     pool sizes describe **the probe's rule only**; the eligible pool is 452.
   - **The audit departs from its pre-registration:** the author had no time and asked Claude to mark the
-    100 questions, so it is a model audit, not human-verified, by a marker who wrote R2. ePQA's labels
-    (precision 4 / 19 = 21 %, κ 0.17, almost all phones) agree in direction.
+    100 questions, so it is a model audit, not human-verified, by a marker who wrote R2 and read by a strict
+    rule, which flatters the NPV. ePQA's labels (precision 4 / 19 = 21 %, recall 4 / 12, κ 0.17; of the 143
+    spec units 93 are phones, 39 TVs or headphones, and only 11 laptops or furniture) agree in direction and
+    give the weaker recall.
+  - **Expected yield:** at 35 % precision, about **410** (roughly 285 – 560) of the 1,180 R2-answerable pool
+    questions are truly answerable, and many selected products will have fewer than 5. It is an input to
+    3.4's workload and to `K` at 3.6, where it must be measured, not assumed.
+  - **A test was amended** with the fallback: `test_the_quota_is_38_per_department_split_evenly_over_its_leaves`
+    now pins `QUOTA_PREREGISTERED`, and a new test pins the applied change. The spec changed (the author
+    applied a pre-registered step), not the code under test, and no assertion was weakened; the author
+    approved the step, and the amendment was stated in the same turn (task `approvals.md`).
   - **The selection favours long product text:** 2 – 5 chunks per selected product against 1 – 2 for the
     probe's pool. More chunks give containment more gradient, in the headline's direction. It is a
     limitation of C1 and goes into the threats to validity.
@@ -1075,7 +1092,7 @@ the record cannot answer form a separate stratum, reported apart and never in th
     longer than the 256-token chunk); `make ingest` would fail on it. None is selected, and the selector
     now stops if one ever is.
   - **For 3.4:** read the drafts only through `iter_selection`; re-label every R2-answerable question it
-    uses; keep the unanswerable stratum; do not label strata with the probe's tokenizer ("Windows 7" and
+    uses, and a sample of the R2-unanswerable ones; keep the unanswerable stratum; do not label strata with the probe's tokenizer ("Windows 7" and
     "Windows 8" share a token set); only 127 policy questions exist in the pool (92 warranty, 35 return),
     "return key" is mis-tagged as policy, and there is no shipping tag.
 - **Invalidates:** none — no runs yet. As an artefact, the 3.1 manifest `bf0feb48…` is replaced by

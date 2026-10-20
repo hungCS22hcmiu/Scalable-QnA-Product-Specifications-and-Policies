@@ -107,3 +107,22 @@ filtered 3.1 % / 11.6 %; the per-leaf counts are in the manifest. Digit flips: 0
 3 – 68 unfiltered. Carrier drops: phones 163,844 questions; laptops 1,095; TVs 283; headphones 136;
 chairs 41; desks 20. The non-phone ones are probably mis-drops (review L3 showed "bass boost" matches
 `CARRIER_Q`); they were not read one by one.
+
+## After `/ai-review` — the re-run (2026-10-20)
+
+The review's code fixes (the pool fields renamed `r2_answerable` / `r1_answerable`; no character histogram;
+the chunker and the llama-index-core version recorded in the manifest; the audit sheet protected once marked)
+change `select_pqa.py`, so the selection was run again, twice, at memory pressure level 1:
+
+| | Before | After |
+| :--- | :--- | :--- |
+| products digest (`outputs.products_sha256`) | `d373c4b0…` | `d373c4b0…` **unchanged** |
+| generic-token digest | `42cd6b65…` | `42cd6b65…` **unchanged** |
+| question pool digest | `803c8388…` | `50cdcb03…` (the field rename only; 4,706 lines both) |
+| selection manifest sha256 | `036dcae8…` | `5033ad96…`, the same on both runs |
+| `make pqa-select-verify` | passes | passes |
+| `make pqa-audit-score` | 21 / 39 / 1 / 39 | 21 / 39 / 1 / 39, `audit.json` byte-identical |
+
+The 152 records are byte-identical, so the rule and the draw did not move. The manifest now records
+`chunker: {chunk_size 256, chunk_overlap 40, llama_index_core 0.14.23}`. **The anchor for reproducibility is
+the products digest**, not the selection manifest's hash, which also covers the selector file.
