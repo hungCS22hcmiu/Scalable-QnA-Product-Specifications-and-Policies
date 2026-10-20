@@ -20,7 +20,7 @@ them ends the run with exit code 2 and writes nothing under a final name:
 | 1 | at least one record parsed | the readme's field names |
 | 2 | every real field non-empty at least once; no key outside the real set | misnamed bullets; a field the builder forgot to list |
 | 3a | on the input: records parsed, products, records skipped equal the pinned numbers | a parser that reads more or fewer records than the probe |
-| 3b | on the interim file as written: product and question counts, `question_type` counts, `answer_aggregated` counts and `prose_median_chars` equal the pinned numbers | a writer that drops a bullet or swaps two aggregates |
+| 3b | on the interim file as written: product and question counts, `question_type` counts, `answer_aggregated` counts and `prose_median_chars` equal the pinned numbers; the products flagged `fields_conflict` are as many as `prose_conflicts` | a writer that drops a bullet or swaps two aggregates; a parse that flags the wrong products |
 | 3c | every line of the interim file equals the product the parser built (a digest taken before the writer ran) | a writer that swaps, blanks or shortens any other field |
 
 The pins (3a, 3b) are facts about pinned bytes, not settings. They come from the 2026-10-03 probe,
@@ -57,7 +57,7 @@ MANIFEST_PATH = (
     REPO_ROOT / "data" / "pqa-manifest.json"
 )  # TRACKED: hashes and counts only
 BASE_URL = "https://amazon-pqa.s3.amazonaws.com"
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2  # 2: every interim product carries `fields_conflict` (item 3.2)
 MANIFEST_NOTE = (
     "Covers the 3.1 interim files only. It is not the v1 snapshot digest (item 3.6)."
 )
@@ -302,7 +302,9 @@ def parse_leaf(lines: Iterable[bytes]) -> LeafResult:
     silent bad_json skips.
 
     Product fields come from the FIRST PARSED record of an asin, not the first line. A later record
-    of the same asin with different product fields is counted in `prose_conflicts`, not hidden.
+    of the same asin with different product fields is counted in `prose_conflicts`, not hidden, and
+    the product is marked `fields_conflict` so item 3.2 can exclude it. The flag is set on the
+    product dict itself, so Stop 3c's digest covers it.
     """
     stats = LeafStats()
     products: dict[str, dict] = {}
@@ -376,6 +378,8 @@ def parse_leaf(lines: Iterable[bytes]) -> LeafResult:
             }
         )
 
+    for asin, product in products.items():
+        product["fields_conflict"] = asin in conflicted
     stats.products = len(products)
     stats.prose_conflicts = len(conflicted)
     if stats.lines_read != stats.parsed + stats.skipped_total:
@@ -529,6 +533,7 @@ def product_line(product: dict, spec: LeafSpec) -> dict:
         "brand_name": product["brand_name"],
         "bullets": product["bullets"],
         "product_description": product["product_description"],
+        "fields_conflict": product["fields_conflict"],
         "questions": product["questions"],
     }
 
@@ -571,6 +576,7 @@ class InterimSummary:
     question_type: dict[str, int]
     answer_aggregated: dict[str, int]
     prose_median_chars: int
+    fields_conflicts: int  # lines with fields_conflict true, as written
 
 
 def summarise_interim(path: Path) -> InterimSummary:
@@ -586,9 +592,11 @@ def summarise_interim(path: Path) -> InterimSummary:
     answer_aggregated: Counter = Counter()
     lengths: list[int] = []
     questions = 0
+    fields_conflicts = 0
     with path.open("rb") as f:
         for raw in f:
             line = json.loads(raw)
+            fields_conflicts += line["fields_conflict"] is True  # no default: a missing key raises
             prose = " ".join(
                 s.strip() for s in (*line["bullets"], line["product_description"])
             )
@@ -604,7 +612,22 @@ def summarise_interim(path: Path) -> InterimSummary:
         question_type=dict(question_type),
         answer_aggregated=dict(answer_aggregated),
         prose_median_chars=lengths[len(lengths) // 2] if lengths else 0,
+        fields_conflicts=fields_conflicts,
     )
+
+
+def check_flags(summary: InterimSummary, stats: LeafStats, spec: LeafSpec) -> list[str]:
+    """Stop 3, output side: the products flagged `fields_conflict` in the file as written must be as
+    many as the parser counted. Stop 3c compares the writer with the parse, so it cannot see a parse
+    that flags the wrong products; this can."""
+    if summary.fields_conflicts == stats.prose_conflicts:
+        return []
+    message = (
+        f"Stop 3: {spec.leaf}: the interim file as written flags {summary.fields_conflicts} "
+        f"product(s) fields_conflict, but the parser counted {stats.prose_conflicts} whose "
+        f"records disagree."
+    )
+    return [message]
 
 
 def check_output(summary: InterimSummary, spec: LeafSpec) -> list[str]:
@@ -873,6 +896,7 @@ def build(
             summary = summarise_interim(info.path)
             # Stop 3 on what was WRITTEN: the aggregate pins, then every field against the parse.
             failures = check_output(summary, spec)
+            failures += check_flags(summary, result.stats, spec)
             failures += check_round_trip(info, spec)
             if failures:
                 raise StopError(failures)

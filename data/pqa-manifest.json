@@ -1,5 +1,5 @@
 {
-  "builder_sha256": "b2000c53090d78856f1b8e0000bb66e06ed33824aa527b70b80a546c7ba71543",
+  "builder_sha256": "6ea2d53ec28824ca8dd18ba5b8c0aa77f7006fc8b4271ed58234ffce6286b68b",
   "cross_leaf": {
     "chairs|home_office_desks": 0,
     "led_&_lcd_tvs|chairs": 0,
@@ -44,9 +44,9 @@
         "question_text": 88268,
         "question_type": 88268
       },
-      "interim_bytes": 55821541,
+      "interim_bytes": 56282142,
       "interim_file": "chairs.jsonl",
-      "interim_sha256": "c3585b0976e308d84039653a0547914b8859203d4ce3db6df574e05e62fc4fd1",
+      "interim_sha256": "7097c1763129839d93875f133a724b7f91cd194646b4f29f9ffc8ebc78fe632e",
       "lines_read": 88268,
       "products": 19193,
       "prose_conflicts": 31,
@@ -93,9 +93,9 @@
         "question_text": 55303,
         "question_type": 55303
       },
-      "interim_bytes": 33613029,
+      "interim_bytes": 33780686,
       "interim_file": "home_office_desks.jsonl",
-      "interim_sha256": "283c04c2f7157d0061bd3f09d411834f7f3710e025b96677e583c1671ae559fa",
+      "interim_sha256": "0bf62815f7c801206e866e361634961ca0fc326bc7c6ab2125a6dbfcd2d49bfe",
       "lines_read": 55303,
       "products": 6986,
       "prose_conflicts": 7,
@@ -142,9 +142,9 @@
         "question_text": 137881,
         "question_type": 137881
       },
-      "interim_bytes": 65684128,
+      "interim_bytes": 65779395,
       "interim_file": "led_&_lcd_tvs.jsonl",
-      "interim_sha256": "59f441f3c49ee37aa689cb355f04ff77d04a717c8de5a25e5179a7e40928edcb",
+      "interim_sha256": "30a02968b51f004d1676ec9c88dc5bc02247c9f7e1af48f44d680bd4327ccf8f",
       "lines_read": 137881,
       "products": 3970,
       "prose_conflicts": 13,
@@ -191,9 +191,9 @@
         "question_text": 139146,
         "question_type": 139146
       },
-      "interim_bytes": 80446207,
+      "interim_bytes": 80604726,
       "interim_file": "over-ear_headphones.jsonl",
-      "interim_sha256": "97681dc4a947f5f1ff6f168b8d19b8eb889e654cc4d9cda833aaf8be61fb3766",
+      "interim_sha256": "705c5015a2d7fa4a51037cd6d09a959fe50962aaddcb331ea9f04d18451a7ec6",
       "lines_read": 139146,
       "products": 6605,
       "prose_conflicts": 1,
@@ -240,9 +240,9 @@
         "question_text": 291896,
         "question_type": 291896
       },
-      "interim_bytes": 135636768,
+      "interim_bytes": 136110555,
       "interim_file": "traditional_laptops.jsonl",
-      "interim_sha256": "18bfc278ee18918cb0c846e57b0368aaec6f91476cf2bed19a6d3a8dc77f4b4d",
+      "interim_sha256": "a59724fe5ed486f807c62934d8539ac88117bf62a8bb6d08e00e775ab4d61643",
       "lines_read": 291896,
       "products": 19742,
       "prose_conflicts": 21,
@@ -289,9 +289,9 @@
         "question_text": 499535,
         "question_type": 499535
       },
-      "interim_bytes": 201434679,
+      "interim_bytes": 201801826,
       "interim_file": "unlocked_cell_phones.jsonl",
-      "interim_sha256": "caa6fd3c9dcfe7005ad58623758d6b8aacebb00aef75a65ee4778029e3428305",
+      "interim_sha256": "3f8a9092a27817de2c1b7e4ad8ed0322bcc7eb1fec8272b93f2b4c581f588df1",
       "lines_read": 499539,
       "products": 15298,
       "prose_conflicts": 5,
@@ -313,7 +313,7 @@
       "unknown_keys": {}
     }
   },
-  "manifest_version": 1,
+  "manifest_version": 2,
   "note": "Covers the 3.1 interim files only. It is not the v1 snapshot digest (item 3.6).",
   "sources": [
     {

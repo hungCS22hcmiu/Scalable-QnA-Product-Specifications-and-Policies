@@ -1560,3 +1560,97 @@ def test_the_round_trip_messages_name_a_line_and_never_a_value(tmp_path):
     )
     (message,) = build_pqa.check_round_trip(info, spec)
     assert "line 1" in message and "SECRET PQA TEXT" not in message
+
+
+# =================================================================================================
+# Item 3.2: which products had records that disagree (docs/work/2026-10-19-pqa-thick-tail-selection/
+# design.md §5). The count was always kept; 3.2 needs to know WHICH, to exclude them.
+# =================================================================================================
+def conflict_records():
+    """A1 has two records whose first bullet differs; A2 has one record; A3 has two that agree."""
+    return [
+        rec("A1", "q1"),
+        rec("A1", "q2", bullet_point1="different"),
+        rec("A2", "q3"),
+        rec("A3", "q4"),
+        rec("A3", "q5", "Is it red?"),
+    ]
+
+
+def test_a_product_whose_records_disagree_is_flagged_and_no_other_is():
+    result = build_pqa.parse_leaf(lines_of(*conflict_records()))
+    flags = {asin: p["fields_conflict"] for asin, p in result.products.items()}
+    assert flags == {"A1": True, "A2": False, "A3": False}
+    assert result.stats.prose_conflicts == 1
+
+
+def test_the_flag_reaches_the_interim_line_as_a_bool(tmp_path):
+    result = build_pqa.parse_leaf(lines_of(*conflict_records()))
+    spec = spec_for(parsed=5, products=3)
+    info = build_pqa.write_interim(result.products, spec, tmp_path)
+    rows = {
+        r["asin"]: r
+        for r in map(json.loads, info.path.read_text(encoding="utf-8").splitlines())
+    }
+    assert rows["A1"]["fields_conflict"] is True
+    assert rows["A2"]["fields_conflict"] is False
+    assert rows["A3"]["fields_conflict"] is False
+
+
+def test_the_summary_counts_the_flags_as_written(tmp_path):
+    result = build_pqa.parse_leaf(lines_of(*conflict_records()))
+    info = build_pqa.write_interim(result.products, spec_for(parsed=5, products=3), tmp_path)
+    assert build_pqa.summarise_interim(info.path).fields_conflicts == 1
+
+
+def test_build_stops_when_the_flags_disagree_with_the_conflict_count(
+    tmp_path, monkeypatch, capsys
+):
+    """A parser that sets the flag on the wrong product keeps prose_conflicts right, and Stop 3c
+    compares the writer with that same wrong parse, so only the flag count can see it."""
+    good = build_pqa.parse_leaf
+
+    def wrong_flags(lines):
+        result = good(lines)
+        for product in result.products.values():
+            product["fields_conflict"] = not product["fields_conflict"]
+        return result
+
+    monkeypatch.setattr(build_pqa, "parse_leaf", wrong_flags)
+    leaves, raw = one_leaf(
+        tmp_path, conflict_records(), products=3, prose_median_chars=23
+    )
+    assert build_pqa.build(leaves, raw, **paths(tmp_path)) == 2
+    err = capsys.readouterr().err
+    assert "Stop 3" in err and "fields_conflict" in err
+    assert_nothing_written(tmp_path)
+
+
+def test_build_stops_when_the_writer_flips_the_conflict_flag(tmp_path, monkeypatch, capsys):
+    good = build_pqa.product_line
+
+    def flip(product, spec):
+        line = good(product, spec)
+        line["fields_conflict"] = not line["fields_conflict"]
+        return line
+
+    monkeypatch.setattr(build_pqa, "product_line", flip)
+    leaves, raw = one_leaf(
+        tmp_path, conflict_records(), products=3, prose_median_chars=23
+    )
+    assert build_pqa.build(leaves, raw, **paths(tmp_path)) == 2
+    assert "Stop 3" in capsys.readouterr().err
+    assert_nothing_written(tmp_path)
+
+
+def test_a_version_1_manifest_is_refused_so_an_interim_without_the_flag_cannot_be_read(
+    tmp_path,
+):
+    assert build_pqa.MANIFEST_VERSION == 2
+    leaves, raw = two_leaf_fixture(tmp_path)
+    p = paths(tmp_path)
+    assert build_pqa.build(leaves, raw, **p) == 0
+    old = {**json.loads(p["manifest_path"].read_text(encoding="utf-8")), "manifest_version": 1}
+    p["manifest_path"].write_text(json.dumps(old), encoding="utf-8")
+    with pytest.raises(build_pqa.ManifestError, match="manifest_version"):
+        next(build_pqa.iter_interim(**_reader(p)))
