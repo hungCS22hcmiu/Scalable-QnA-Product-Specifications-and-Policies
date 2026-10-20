@@ -50,3 +50,45 @@ rows marked y / y, its estimated count of stable store-policy questions (hits ×
 reported to the author, who decides whether 3.3 adds documents for it (which reopens the design
 and the experiment approval). Otherwise the two-kind corpus stands, and these numbers are recorded
 as the evidence.
+
+## 3. Result (marked 2026-10-21 by Claude at the author's request, by §2's rule)
+
+The sample holds **72 rows, not 100**: four topics have fewer than 10 hits (exchange 1, ships abroad
+5, gift 6, payment 0). Labels: `data/v1-draft/audit/policy-scope-sample.csv` (gitignored).
+
+| Topic | Rows | Store policy | Stable store policy | Est. stable in the pool (hits × share) |
+| :--- | ---: | ---: | ---: | ---: |
+| shipping / delivery | 10 | 6 | 2 | ≈ 10 of 49 |
+| ships abroad / customs | 5 | 5 | **4** | ≈ 4 of 5 |
+| exchange | 1 | 0 | 0 | 0 |
+| installation / assembly service | 10 | 0 | 0 | 0 |
+| cancel an order | 10 | 0 | 0 | 0 |
+| protection plan / insurance | 10 | 4 | **4** | ≈ 5 of 12 |
+| condition: new / used / genuine | 10 | 1 | 1 | ≈ 12 of 121 |
+| seller / sold by | 10 | 2 | 1 | ≈ 2 of 15 |
+| gift / gift receipt | 6 | 3 | 2 | ≈ 2 of 6 |
+
+**What the stable store-policy rows are** (described, not quoted):
+- **"Do you ship to <country>?"** — the only new stable topic: 4 of the 5 abroad rows and 1 of the
+  shipping rows, all phones.
+- **Buying or using a protection plan** — 2 rows; the other 2 stable protection rows are warranty
+  questions already tagged policy.
+- **Return or warranty questions in other words** — a damaged item that arrived broken ("can you
+  send a replacement?"), return shipping cost, "what is the warranty?" inside a gift or condition
+  question. These are the two kinds the corpus already has; several of them were **not tagged
+  policy** by 3.2's tagger (it has no "replacement" or "send back" word).
+- **Dynamic, not stable:** delivery time and dates, shipping fees and customs duties (4 of the 6
+  shipping policy rows, 1 abroad row, 1 seller row, 1 gift row). Under `CLAUDE.md` these bypass the
+  cache, so they could never be grounded in a cached policy document anyway.
+- **Not policy at all:** every installation / assembly row (product questions: tools, "does it need
+  assembly?"), every "cancel" row (noise-cancelling headphones), and nearly all condition and seller
+  rows (one listing, not the store).
+
+**Against the decision rule (§2):** two topics reach ≥ 3 stable rows: **ships abroad** (4 of 5;
+≈ 4 questions in the pool, all phones) and **protection plan** (4 of 10; ≈ 5 in the pool, of which
+about half are warranty questions already covered). Together, stable store-policy questions outside
+returns and warranty are **about 6 – 10 of 4,706 (≈ 0.1 – 0.2 %)**, against 127 return and warranty
+questions. Reported to the author, who decides.
+
+**For 3.4, whatever the decision:** 3.2's policy tagger misses return-kind questions worded as
+"replacement" or "send back", so its 127 is a low count of real return and warranty questions.

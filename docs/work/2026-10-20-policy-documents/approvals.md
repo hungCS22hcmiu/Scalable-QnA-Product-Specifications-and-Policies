@@ -4,7 +4,7 @@
 | :---           | :---     | :---     | :--- | :--- |
 | impact         | L, M     | yes (`/approve impact`; no frozen value changed, no run invalidated, `impact.md` §2) | 2026-10-20 | — |
 | contract       | if §B/§D | n/a — no `interfaces.md` surface changes (`impact.md` §5) | | |
-| experiment     | if measured | yes (`/approve experiment`), on `design.md` draft 2 as written, i.e. **with the proposed answers** to `spec.md` 1–10. Required because this item writes half of the measured corpus and fixes the inputs of G1, G2, G5, RQ2a's condition pairs, the lane split and the policy namespace (`impact.md` §6). No run happens here. Invalidates: none — no runs yet | 2026-10-20 | ADR-012 (proposed) |
+| experiment     | if measured | yes (`/approve experiment`), on `design.md` draft 2 as written, i.e. **with the proposed answers** to `spec.md` 1–10. Required because this item writes half of the measured corpus and fixes the inputs of G1, G2, G5, RQ2a's condition pairs, the lane split and the policy namespace (`impact.md` §6). No run happens here. Invalidates: none — no runs yet. **Approved again** (`/approve experiment`, 2026-10-21) after `/ai-review`: W5 waived for the phones warranty pair (F3), the G5 word list widened after the text (F2), the laptops region split dropped by the fallback, 12 documents. Invalidates: none — no runs yet | 2026-10-20, 2026-10-21 | ADR-012 |
 | implementation | always   | yes (`/approve implementation`), on `plan.md` draft 2 and the proposed answers; impact and experiment approved first, contract n/a | 2026-10-20 | ADR-012 (proposed) |
 
 **Open questions** (`spec.md`, 1 to 10): not answered explicitly yet. `design.md` draft 2 and
@@ -73,7 +73,7 @@ phones region pair only; phones (12 months), laptops and electronics (1 year) sh
 **2026-10-21 — `/ai-review` (`review.md`, second part).** Nine findings, all resolved.
 - **The author decided F3 and F4.** F3: **W5 is waived for the phones warranty pair**, and the
   international document is rewritten to be true on its own. This changes an approved rule, so
-  **the experiment row needs `/approve experiment` again** (pending). F4: the gift / receipt
+  **the experiment row was approved again** by the author on 2026-10-21. F4: the gift / receipt
   sentences are removed and "damaged by use" becomes "damaged"; the conditional SIM step, the
   applied-screen-protector exception and the headphone hygiene rule are accepted.
 - **A rule changed after the text existed (F2):** G5's word list is widened and white space is
@@ -87,3 +87,10 @@ phones region pair only; phones (12 months), laptops and electronics (1 year) sh
   `policy-return-furniture-opened`, `policy-return-furniture-unopened`, `policy-warranty-laptops`,
   `policy-warranty-electronics` (F4: deletions and one word). **They wait on the author's re-read.**
   The other 4 are byte-unchanged since the author read them.
+
+**2026-10-21 — policy scope, decided by the author: keep returns and warranty only.** Asked
+whether policy questions go beyond the two kinds. A keyword probe (counts only) and a 72-row sample,
+marked by Claude at the author's request by the rule in `evidence/policy-scope.md` §2 (committed
+`d833126` before any row was read), found about 6 – 10 stable store-policy questions outside the two
+kinds in 4,706 (ships to <country> ≈ 4; protection plan ≈ 2 – 3). The author keeps the two-kind
+corpus, so the design and the experiment approval stand. The author will review the audit files.

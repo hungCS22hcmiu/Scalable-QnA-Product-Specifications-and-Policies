@@ -1162,6 +1162,11 @@ author, and each document is written to be true on its own.
   - **Reading the support gate per pair:** laptops and furniture differ by a number both ways;
     phones returns and phones warranty only one way ("no fee" and "not covered" carry no number,
     and `no` / `not` are stopwords), so in that direction both arms are expected to be blind.
+  - **Two kinds only, on evidence:** a keyword probe and a 72-row sample marked by a model at the
+    author's request (rule committed first) found about 6 – 10 stable store-policy questions outside
+    returns and warranty in the 4,706-question pool ("do you ship to <country>?", buying a
+    protection plan); delivery dates, fees and duties are dynamic and bypass the cache. The author
+    kept two kinds (`evidence/policy-scope.md`).
   - **The condition fields never reach the hit path.** A condition tag on chunks is the rule term
     `Final_Proposal.md:435` rejected; `test_the_new_fields_never_reach_chunk_metadata` pins that
     `record_to_document` copies only `doc_id`, `kind`, `category`, `title`.

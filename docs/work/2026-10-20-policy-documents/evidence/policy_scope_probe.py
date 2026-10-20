@@ -67,15 +67,18 @@ def main() -> int:
     print(f"\n  questions NOT tagged policy that hit any topic: "
           + ", ".join(f"{d} {any_topic[d]}" for d in departments) + f"; total {sum(any_topic.values())}")
 
-    SAMPLE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with SAMPLE_PATH.open("w", newline="") as f:
+    # argv[1], when given, writes the sample there instead (the author's 2026-10-21 decision: the
+    # session scratchpad, so a model can mark it without reading data/v1-draft/).
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else SAMPLE_PATH
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["topic", "department", "tag", "question_text", "is_store_policy (y/n)", "stable (y/n)"])
         for t in TOPICS:
             ranked = sorted(hits[t], key=lambda q: hashlib.sha256(f"{SEED}:{t}:{q['question_id']}".encode()).hexdigest())
             for q in ranked[:SAMPLE_PER_TOPIC]:
                 w.writerow([t, q["department"], q["tag"], q["question_text"], "", ""])
-    print(f"\n  sample for the author ({SAMPLE_PER_TOPIC} per topic, seeded): data/v1-draft/audit/{SAMPLE_PATH.name} (gitignored)")
+    print(f"\n  sample ({SAMPLE_PER_TOPIC} per topic, seeded) written, {out.name}")
     return 0
 
 
