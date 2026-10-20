@@ -6,7 +6,7 @@ author read. After that, edit the files, not this script.
 
 W2's outline, one per kind, six sections in order. Sibling pairs are built from ONE shared text with
 the condition word placed once in every section (W5, minimal pairs); only the term sentences
-differ. Writes {doc_id}.json into argv[1].
+differ. Exception: the phones warranty pair (/ai-review F3). Writes {doc_id}.json into argv[1].
 """
 
 import json
@@ -91,9 +91,8 @@ def phones_return(v):
             PHONES_REFUND[v],
             "Refunds usually reach your account within a few business days, depending on your bank.",
             "Payments made with a gift card are refunded to a gift card, and a payment that was split",
-            "across several methods is refunded in the same split. If the phone was a gift, the person",
-            "who received it can ask for store credit instead. We email you as soon as the refund has",
-            "been sent.",
+            "across several methods is refunded in the same split. We email you as soon as the refund",
+            "has been sent.",
         ),
         "Phones we cannot accept",
         para(
@@ -313,7 +312,7 @@ def furniture_return(v):
             "back as a complete set, so a desk with a matching drawer unit, or a pair of chairs sold",
             "together, goes back together. Protect corners and legs with the original packing",
             "material or with blankets, so that nothing is scratched or dented on the way. Chairs and",
-            "desks that have been damaged by use, stained, cut or painted cannot be accepted. Take a",
+            "desks that have been damaged, stained, cut or painted cannot be accepted. Take a",
             "photo of each piece before it leaves your home, so that any damage on the way can be traced.",
         ),
         "How to start a return",
@@ -437,28 +436,19 @@ write(
 # =================================================================================================
 # Phones, warranty: region = domestic / international, framed as WHERE service is asked for, for a
 # phone bought from the store (Samsung: 12 months; service limited to the country of first sale).
+# NOT a minimal pair (/ai-review F3, the author's decision 2026-10-21): "covered" against "not
+# covered" cannot share one text, so W5 is waived for this family and each document is written to
+# be true on its own. The domestic text is the approved one with the two broken sentences fixed
+# (F1: a `.replace` bound to one string left "{v}" in the files).
 # =================================================================================================
-PHONES_W_TERM = {
-    "domestic": para(
-        "When service is requested in the United States, where the phone was sold, phones are",
-        "covered for 12 months from the date of purchase against defects in materials and",
-        "workmanship.",
-    ),
-    "international": para(
-        "When service is requested outside the United States, phones are not covered: the maker",
-        "limits warranty service to the place where the phone was first sold. A fault that appears",
-        "while you travel, or after you move, can be claimed only once the phone is back where it",
-        "was bought.",
-    ),
-}
-
-
-def phones_warranty(v):
+def phones_warranty_domestic():
+    v = "domestic"
     return [
         para(
             f"This warranty explains {v} service for phones bought from our store, whether you",
-            "ordered online or bought in person.",
-            PHONES_W_TERM[v],
+            "ordered online or bought in person. When service is requested in the United States,",
+            "where the phone was sold, phones are covered for 12 months from the date of purchase",
+            "against defects in materials and workmanship.",
         ),
         "What the warranty covers",
         para(
@@ -468,8 +458,8 @@ def phones_warranty(v):
             "or ports that stop working, a battery that will no longer hold a charge, and a phone that",
             "will not turn on although it has not been dropped or wet. The charger and cable are covered",
             "only when they are the ones that came in the box, and faults that appear in the first",
-            "days after purchase are handled in the same way as later ones. For {v} service, the opening",
-            "section says whether and for how long such faults are covered.".replace("{v}", v),
+            f"days after purchase are handled in the same way as later ones. For {v} service, these",
+            "faults are covered for the whole period stated above.",
         ),
         "What the warranty does not cover",
         para(
@@ -486,9 +476,9 @@ def phones_warranty(v):
             "To make a claim, contact our customer service team online or visit the service desk in",
             "any of our stores with your proof of purchase. Describe the fault and, if you can, send a",
             "short video or photo that shows it. A team member may ask you to restart the phone or run",
-            "a simple check before the claim is logged in our system. For {v} service, the team then",
+            f"a simple check before the claim is logged in our system. For {v} service, the team then",
             "tells you where the phone must be sent and what happens next. Keep a note of the claim",
-            "number we give you, and quote it whenever you contact us about the repair.".replace("{v}", v),
+            "number we give you, and quote it whenever you contact us about the repair.",
         ),
         "Repair, replacement or refund",
         para(
@@ -510,7 +500,74 @@ def phones_warranty(v):
     ]
 
 
-for v, terms in (("domestic", ["12 months"]), ("international", ["not covered"])):
+def phones_warranty_international():
+    """Written to be true on its own: every section says what "not covered" means abroad, and no
+    sentence describes service anywhere else (W4)."""
+    return [
+        para(
+            "This warranty explains international service for phones bought from our store, whether",
+            "you ordered online or bought in person. When service is requested outside the United",
+            "States, phones are not covered: the maker does not offer warranty service for these",
+            "phones abroad, so no repair, replacement or refund is given under this warranty for a",
+            "fault reported while the phone is outside the United States. This holds whatever the",
+            "fault is and however long ago the phone was bought.",
+        ),
+        "What international service covers",
+        para(
+            "International service covers no faults. A screen that stops responding to touch, buttons",
+            "or ports that stop working, a battery that will no longer hold a charge, and a phone that",
+            "will not turn on are all outside this warranty when the service is requested abroad, even",
+            "when the fault comes from materials or workmanship rather than from an accident. The",
+            "charger and cable that came in the box are treated in the same way as the phone itself,",
+            "and so are faults that appear in the first days after purchase. If a fault starts while",
+            "you are travelling, stop using a phone that overheats or swells, and stop using a charger",
+            "that sparks or smells of burning.",
+        ),
+        "What is not covered",
+        para(
+            "Because international service is not covered, this warranty pays for no parts, labor,",
+            "shipping or customs charges for a repair arranged outside the United States. Fees that a",
+            "local shop or network charges just to check the phone are not covered either. Cracked",
+            "screens, liquid damage, damage from drops or other accidents, normal wear, faults caused",
+            "by software or apps you installed, and lost or stolen phones are not covered in any case.",
+            "Accessories bought separately, such as cases and screen protectors, carry their own",
+            "terms, and a phone whose identification number has been removed or changed is never",
+            "covered.",
+        ),
+        "Asking for help abroad",
+        para(
+            "You cannot make a warranty claim for international service. You can still contact our",
+            "customer service team online for advice while you are abroad: describe the fault and, if",
+            "you can, send a short video or photo that shows it. A team member may suggest a restart, a",
+            "software update or a change of settings, because many faults clear without any repair at",
+            "all. The team answers by email or chat, usually within a few business days. Keep a note",
+            "of the case number we give you, and quote it whenever you contact us about the same fault.",
+        ),
+        "Repairs arranged abroad",
+        para(
+            "If you decide to have the phone repaired by a local shop outside the United States, you",
+            "choose the shop and you pay for the repair yourself, and the cost is never refunded under",
+            "this warranty. A local repair may use parts that are not the maker's own, so ask the shop",
+            "which parts it uses before it starts work, and keep its invoice. A repair by anyone other",
+            "than an approved service center is not covered either. Back up the phone and remove your",
+            "SIM card before you hand it over, and check that no account or payment card is still",
+            "linked to it.",
+        ),
+        "Proof of purchase and transfer",
+        para(
+            "Keep your proof of purchase, because it shows where and when the phone was bought, and it",
+            "is the first thing our team asks for when you contact us for advice from abroad. The terms",
+            "on this page stay with the phone if you give it away or sell it, and they apply to the next",
+            "owner in the same way. If you bought online with your account, our team can find the sale",
+            "there if the proof is lost.",
+        ),
+    ]
+
+
+for v, terms, sections in (
+    ("domestic", ["12 months"], phones_warranty_domestic),
+    ("international", ["not covered"], phones_warranty_international),
+):
     write(
         f"policy-warranty-phones-{v}",
         f"Warranty - Phones, {v.capitalize()} Service",
@@ -518,7 +575,7 @@ for v, terms in (("domestic", ["12 months"]), ("international", ["not covered"])
         "warranty",
         {"axis": "region", "value": v},
         terms,
-        phones_warranty(v),
+        sections(),
     )
 
 # =================================================================================================
@@ -583,8 +640,7 @@ write(
             "Keep your proof of purchase for as long as the laptop is covered, because it shows when",
             "the cover started. If you bought online with your account, our team can find the sale",
             "there if the proof is lost. The warranty stays with the laptop if you give it away or sell",
-            "it, and the next owner can make a claim with the original proof of purchase. If the laptop",
-            "was a gift, the person who received it can claim with a gift receipt.",
+            "it, and the next owner can make a claim with the original proof of purchase.",
         ),
     ],
 )
@@ -651,8 +707,7 @@ write(
             "Keep your proof of purchase for as long as the item is covered, because it shows when the",
             "cover started. If you bought online with your account, our team can find the sale there",
             "if the proof is lost. The warranty stays with the item if you give it away or sell it, and",
-            "the next owner can make a claim with the original proof of purchase. If the item was a gift,",
-            "the person who received it can claim with a gift receipt.",
+            "the next owner can make a claim with the original proof of purchase.",
         ),
     ],
 )

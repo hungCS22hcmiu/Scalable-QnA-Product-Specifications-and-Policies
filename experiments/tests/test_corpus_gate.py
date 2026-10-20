@@ -419,3 +419,56 @@ def test_load_policy_records_reads_whole_policy_records_only(tmp_path):
     records = load_policy_records(tmp_path)
     assert [r["doc_id"] for r in records] == ["policy-warranty-furniture"]
     assert records[0]["text"] == "Ten years."
+
+
+
+# =================================================================================================
+# G5 -- /ai-review fixes (2026-10-21)
+# =================================================================================================
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The warranty is not valid outside the\nUnited States.",  # a line break inside the phrase
+        "The warranty is not valid outside  the United States.",  # a double space
+        "Not valid outside of the United States.",
+        "Not valid outside the USA.",
+        "Foreign service is not offered.",
+        "Not valid in other countries.",
+    ],
+)
+def test_g5_catches_the_reworded_sibling_value(text):
+    """F2: the design review's own H1 example, one rewording away from passing."""
+    doc = _policy("policy-warranty-phones-domestic", "warranty", "phones", text, "region", "domestic")
+    assert not check_g5([doc])[0].passed
+
+
+def test_g5_catches_reworded_packaging_words():
+    for text in ("Unsealed phones carry a fee.", "Reopened phones carry a fee.",
+                 "Before you open the box, read this."):
+        doc = _policy("policy-return-phones-unopened", "return", "phones", text,
+                      "packaging", "unopened")
+        assert not check_g5([doc])[0].passed, text
+
+
+def test_g5_fails_a_corpus_with_no_policy_documents():
+    """F7: a v1 corpus that lost its policy copy must not pass G5 as "0/0 clean"."""
+    product = {"doc_id": "product-phones-b0000000001", "title": "Phone", "category": "phones"}
+    g5, counts = check_g5([product])
+    assert not g5.passed and counts["offending_documents"] == 0
+
+
+def test_the_gate_runs_g5_in_stage_1_and_stops_on_it(tmp_path, monkeypatch, capsys):
+    """F8: G5 is wired into the gate itself, not only into make policy-check."""
+    import corpus_gate
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "policy-return-electronics.json").write_text(json.dumps(
+        _policy("policy-return-electronics", "return", "electronics", "Opened TVs carry a fee.")))
+    workload = tmp_path / "workload.json"
+    workload.write_text(json.dumps([{"question": "How long is the return window for TVs?"}]))
+    monkeypatch.setattr("sys.argv", ["corpus_gate.py", "--corpus-dir", str(corpus),
+                                     "--workload", str(workload), "--structural-only"])
+    assert corpus_gate.main() == 1
+    out = capsys.readouterr().out
+    assert "[FAIL] G5" in out and "STOP" in out

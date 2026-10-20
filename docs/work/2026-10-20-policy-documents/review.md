@@ -58,3 +58,35 @@ saved, and the two reports agree except on one point, settled from the code (see
 
 *The reviewer's splitter and word-list tests used its own made-up text, from the scratchpad. Nothing
 under `data/` was read and no repo file was changed.*
+
+---
+
+# `/ai-review` — the implementation (2026-10-21)
+
+**Reviewer:** `contract-reviewer` subagent, over `git diff a88c3b1..HEAD` (`c9a93f6`, `a3cca5a`,
+`3c88dfe`; the working tree was clean). It read `interfaces.md`, `architecture.md`, `CLAUDE.md`'s
+constraints, the frozen-values table and this trail. *The skill's "rules #1, #5, #6, #10" point at a
+rules file deleted on 2026-09-22; the reviewer was pointed at those living documents instead.*
+
+**Seam: clean.** No `gateway/`, `rag/`, `contracts/` or `interfaces.md` change. All 12 ids conform to
+§C and pass `rag.ingest.load_records`; `policy_kind`, `condition` and `terms` cannot reach chunk
+metadata, Redis or the gateway. Counts in the docs (12, 48 chunks, G5 4 / 0) are true; `c9a93f6`
+precedes the first `data/policies-v1/` commit; no frozen value is weakened.
+
+| ID | Sev | Finding | Verdict | Resolution |
+| :-- | :-- | :--- | :--- | :--- |
+| F1 | High | Both phones warranty records held the literal `For {v} service` twice: in the generator a `.replace("{v}", v)` bound to one string of `para(...)`. Every check, every test and the author's read passed it | CONFIRMED | **Fixed.** The generator uses f-strings; `check_schema` fails any `{ } < >` in title or text (`test_a_placeholder_left_in_the_text_fails`; mutant caught). The two documents changed, so they are re-read |
+| F2 | Medium | G5 passed "outside **of** the United States", "outside the USA", "non-US", "foreign", "other countries", "worldwide", "unsealed", "reopened", "open the box", and any phrase broken by a line break or a double space | CONFIRMED | **Fixed:** white space is collapsed before matching, and the words are added. **A rule change after the text existed**, recorded in `approvals.md`; it only widens the list, and none of the 12 documents hits an added word. Tests `test_g5_catches_the_reworded_sibling_value`, `test_g5_catches_reworded_packaging_words`; mutants caught |
+| F3 | Medium | The international phones warranty said "not covered" but its shared sections listed "typical covered faults", and it pointed to its sibling ("back where it was bought") | CONFIRMED | **Fixed, the author's decision:** W5 is waived for the phones warranty pair, and the international document is rewritten to be true on its own (no section describes service anywhere else). Sibling Jaccard 0.55. Recorded in ADR-012 and `data-card.md` §2; **the experiment row is approved again** (`approvals.md`) |
+| F4 | Low | Shared text carried small rule breaches: "claim with a gift receipt" (W7), a gift store-credit path, "damaged by use" in the unopened furniture text; also a conditional SIM step, an applied-screen-protector exception and a headphone hygiene rule | CONFIRMED | **Fixed, the author's decision:** the gift / receipt sentences are removed and "damaged by use" becomes "damaged" (a word diff against the approved text shows only these). The SIM step, the screen-protector and the hygiene rules are **accepted and recorded** in `data-card.md` §2 (none is a condition axis) |
+| F5 | Low | W7's worded-number check saw only `day / week / month / year`; "three business days", "forty-five dollars", "forty-eight hours", "fifty percent" passed | CONFIRMED | **Fixed:** number words before any unit the numeric arm reads, one optional word between. Tests added; ordinary "one of our team" still passes; mutant caught |
+| F6 | Low | `main` crashed with a traceback on a malformed file instead of reporting it (exit 1 either way) | CONFIRMED | **Fixed:** `load_records` errors are reported; only splittable records are split. Tests on bad JSON, a missing `doc_id`, a top-level list and a non-string `text`; mutant caught |
+| F7 | Low | G5 passed a corpus with no policy documents ("0/0 clean") | CONFIRMED | **Fixed:** G5 fails when it gets no policy records (`test_g5_fails_a_corpus_with_no_policy_documents`; mutant caught). Department coverage stays `check_policies`' job |
+| F8 | Low | Nothing tested that G5 is wired into the gate's stage 1 | CONFIRMED | **Fixed:** `test_the_gate_runs_g5_in_stage_1_and_stops_on_it` calls `corpus_gate.main --structural-only`; dropping `g5` from `criteria` is caught |
+| F9 | Low | (a) ADR-012 said "terms come from primary pages", against its own weak sources; (b) ADR-002's row did not say it is amended; (c) `data/README.md` said all contents are gitignored; (d) the data-card header was stale; (e) spec P5's git-log evidence is missing for the Samsung, HP and Sony rows, committed with the documents | CONFIRMED | **(a)–(d) fixed.** **(e) accepted and recorded** in `approvals.md`: the three pages were fetched and the terms recorded before those documents were drafted in the session, but they were committed together, so git cannot show the order |
+
+**Not verified by the reviewer:** the brand and title counts, which come from `data/v1-draft/`
+(denied). They are `make policy-sources` output, reproducible by anyone with the drafts.
+
+**After the fixes:** `make policy-check` passes on all 12; `pytest experiments/tests` 392 passed;
+`ruff` clean; 7 new hand mutants (F1, F2 ×2, F5, F6, F7, F8), all caught.

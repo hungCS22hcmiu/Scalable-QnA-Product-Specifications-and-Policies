@@ -326,3 +326,51 @@ TRACKED_DOC_IDS = [
 def test_the_tracked_policy_corpus_is_the_adr_012_set_and_passes_every_check():
     assert sorted(p.stem for p in DEFAULT_DIR.glob("*.json")) == TRACKED_DOC_IDS
     assert main(["--dir", str(DEFAULT_DIR)]) == 0
+
+
+# =================================================================================================
+# /ai-review fixes (2026-10-21)
+# =================================================================================================
+def test_a_placeholder_left_in_the_text_fails():
+    """F1: "For {v} service" passed every other check and the author's read."""
+    records = full_corpus()
+    records[4] = _with_text(records[4], "For {v} service, ask the team.")
+    assert any("placeholder" in p for p in check_schema(records))
+
+
+@pytest.mark.parametrize(
+    "extra",
+    ["Refunds take three business days.", "A fee of forty-five dollars applies.",
+     "Allow forty-eight hours.", "We keep fifty percent."],
+)
+def test_a_number_in_words_before_any_arm_unit_fails(extra):
+    """F5: the numeric arm reads number words before hours, percent and other units too."""
+    records = full_corpus()
+    records[4] = _with_text(records[4], extra)
+    assert any("in words" in p for p in check_terms(records))
+
+
+def test_ordinary_number_words_still_pass():
+    records = full_corpus()
+    records[4] = _with_text(records[4], "Ask one of our team. Refunds arrive within a few business days.")
+    assert check_terms(records) == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["not json", '{"title": "no doc_id"}', '["a", "list"]'],
+)
+def test_a_malformed_file_is_reported_not_raised(tmp_path, content, capsys):
+    """F6: main prints the failure and exits 1; it never ends in a traceback."""
+    folder = tmp_path / "bad"
+    _write(folder, full_corpus())
+    (folder / "policy-return-zz.json").write_text(content)
+    assert main(["--dir", str(folder)]) == 1
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_a_record_with_a_broken_text_field_is_reported_not_raised(tmp_path):
+    records = full_corpus()
+    records[4]["text"] = ["not", "a", "string"]
+    _write(tmp_path / "bad", records)
+    assert main(["--dir", str(tmp_path / "bad")]) == 1

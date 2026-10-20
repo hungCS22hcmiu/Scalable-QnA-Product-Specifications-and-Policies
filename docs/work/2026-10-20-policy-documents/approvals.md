@@ -69,3 +69,21 @@ picked 1 year** (W6). **HP's term (1 year) accepted on a weak source, flagged in
 HP's warranty "is applicable in all countries", so both sides get one term (review M3). The set is
 **12 documents**. `data-card.md` §2 requirement 2 then holds through furniture (10 years) and the
 phones region pair only; phones (12 months), laptops and electronics (1 year) share one duration.
+
+**2026-10-21 — `/ai-review` (`review.md`, second part).** Nine findings, all resolved.
+- **The author decided F3 and F4.** F3: **W5 is waived for the phones warranty pair**, and the
+  international document is rewritten to be true on its own. This changes an approved rule, so
+  **the experiment row needs `/approve experiment` again** (pending). F4: the gift / receipt
+  sentences are removed and "damaged by use" becomes "damaged"; the conditional SIM step, the
+  applied-screen-protector exception and the headphone hygiene rule are accepted.
+- **A rule changed after the text existed (F2):** G5's word list is widened and white space is
+  collapsed before matching. It only widens; none of the 12 documents hits an added word.
+- **P5, accepted (F9 e):** the Samsung, HP and Sony terms were fetched and recorded before those
+  documents were drafted in the session, but they were committed together (`3c88dfe`), so git
+  cannot show the order for those three rows.
+- **P8 — the author's first approval no longer covers 8 documents**, changed after it:
+  `policy-warranty-phones-domestic` and `policy-warranty-phones-international` (F1, F3; the
+  international one is new text), and `policy-return-phones-opened`, `policy-return-phones-unopened`,
+  `policy-return-furniture-opened`, `policy-return-furniture-unopened`, `policy-warranty-laptops`,
+  `policy-warranty-electronics` (F4: deletions and one word). **They wait on the author's re-read.**
+  The other 4 are byte-unchanged since the author read them.

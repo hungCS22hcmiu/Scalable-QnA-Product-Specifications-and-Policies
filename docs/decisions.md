@@ -41,7 +41,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR | Title | Status | Invalidates |
 | :--- | :--- | :--- | :--- |
 | ADR-001 | Load generation is co-hosted; a co-hosted figure is a bound, an indicative reading or nothing, never a ceiling | in force (one open item: how 7.5 measures μ_gen) | none — no runs yet; relabels the 2026-09-06 μ_hit probes; supersedes the off-box wording in the k6 files, two Makefile banners and `experiments/README.md`, and the "lower bound on h*" wording in CLAUDE.md, super-plan.md and Final_Proposal.md (stale until the author edits it) |
-| ADR-002 | `v1` draws from six Amazon-PQA leaves mapped onto four departments | in force | none — no runs yet |
+| ADR-002 | `v1` draws from six Amazon-PQA leaves mapped onto four departments | in force (its return windows and "~13 documents" are partly amended by ADR-012) | none — no runs yet |
 | ADR-003 | The generation envelope serves one slot; the admission pool bounds queueing, not memory | in force | no `run_id`; relabels μ_gen as a one-slot planning figure; voids the spike grid's `NUM_PARALLEL` axis |
 | ADR-004 | The unfiltered Tier-2 phase is retired in code | in force | none — no runs yet; logs written before the 1.3 commit carry the old meanings under the same keys |
 | ADR-005 | Served answer text is stored content-addressed in `raw/answers/` | in force | none — no runs yet; a log written before the 1.5 commit has no answer store and cannot be judged |
@@ -1110,13 +1110,17 @@ warranty** (domestic / international service) each split into two documents. The
 document and no global policy. Each record carries, beside `doc_id`, `title`, `category` and `text`,
 three fields read **offline only**: `policy_kind`, `condition` and `terms`. The `doc_id` is derived
 from them. The writing rules W1–W9, the condition word list and the checker were committed
-(`c9a93f6`) **before the first document existed**. The terms come from primary pages, one retailer
-or maker per department, chosen by a rule fixed before any warranty page was fetched: Best Buy,
+(`c9a93f6`) **before the first document existed**. The terms come from the best page reached for
+each, one retailer or maker per department (three are weak: Consequences), chosen by a rule fixed
+before any warranty page was fetched: Best Buy,
 Amazon, Target and IKEA for returns; Samsung, HP, Sony and IKEA for warranty. **G5 is
 `corpus_gate.check_g5`**: a document may name only the condition it declares, over the word list
 `CONDITION_AXES` (`packaging`, `grade`, `region`, `kind`). It is lexical, so **the author's read of
 every document is the other half of G5**. The texts were drafted by a model (Claude) from the term
-table only; the author read and approved all 12 on 2026-10-21 (P8).
+table only; the author read and approved all 12 on 2026-10-21 (P8); **the 8 that `/ai-review`
+then changed wait on the author's re-read** (task `approvals.md`). **The phones warranty pair is not a minimal pair** (`/ai-review` F3):
+"covered" against "not covered" cannot share one text, so W5 is waived for that family by the
+author, and each document is written to be true on its own.
 
 - **Rationale:**
   - **Document granularity is required for the namespace to see a condition** (`data-card.md` §7):
@@ -1169,5 +1173,11 @@ table only; the author read and approved all 12 on 2026-10-21 (P8).
     how often the fresh top-k holds a sibling's term chunk; sweep the lane band on v1 (48 policy
     chunks against dev-v0's 4); freeze the numeric unit list (v1's terms use days, months, years
     and `$`); re-run `make policy-check` at the freeze.
+  - **`/ai-review` (2026-10-21) found three text defects after the author's first read:** a
+    template placeholder (`For {v} service`) left in both phones warranty documents (F1; the
+    checker now fails any `{ } < >`), the international document contradicting its own term
+    (F3), and gift / receipt sentences against W7 (F4). The word list was widened after the text
+    existed (F2: none of the 12 hit an added word), G5 now fails a corpus with no policy
+    documents (F7), and its wiring into the gate is tested (F8).
 - **Invalidates:** none — no runs yet. `v1` is not frozen, and `data/dev-v0/` is untouched. As a
   record, ADR-002's return windows are replaced.

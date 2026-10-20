@@ -27,6 +27,7 @@ Exit 0 on pass; 1 on any failure (every failure printed); 2 when the folder is m
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from collections import Counter, defaultdict
@@ -50,12 +51,17 @@ MIN_WORDS, MAX_WORDS = 550, 800  # W2; the floor is the margin against splitter 
 
 DURATION_UNITS = ("day", "days", "month", "months", "year", "years")
 TERM_RE = re.compile(rf"^(?:(\d+) (?:{'|'.join(DURATION_UNITS)})|\$(\d+)|not covered|not accepted)$")
+# A number in words before a unit, one optional word between ("three business days", "forty-five
+# dollars"): the support gate's numeric arm reads number words before its listed units
+# (reuse/support_numeric.go), so W7 forbids them (/ai-review F5).
 WORDED_DURATION_RE = re.compile(
     r"(?<![a-z0-9])(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
     r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|"
-    r"sixty|seventy|eighty|ninety|hundred)[ -](?:day|days|week|weeks|month|months|year|years)"
-    r"(?![a-z0-9])"
+    r"sixty|seventy|eighty|ninety|hundred)[ -](?:[a-z]+[ -])?"
+    r"(?:second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years|"
+    r"percent|dollar|dollars|cent|cents)(?![a-z0-9])"
 )
+PLACEHOLDER_RE = re.compile(r"[{}<>]")
 DIGITS_RE = re.compile(r"\d+")
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -115,6 +121,10 @@ def check_schema(records: list[dict]) -> list[str]:
             elif not value.isascii():
                 bad = sorted({ch for ch in value if not ch.isascii()})
                 problems.append(f"{doc_id}: {name} is not ASCII (W9): {bad}")
+            elif PLACEHOLDER_RE.search(value):
+                # A template placeholder left in the text ("For {v} service") passed every other
+                # check and the author's read (/ai-review F1).
+                problems.append(f"{doc_id}: {name} holds a placeholder: {PLACEHOLDER_RE.findall(value)}")
         if isinstance(r.get("text"), str):
             words = len(r["text"].split())
             if not MIN_WORDS <= words <= MAX_WORDS:
@@ -351,18 +361,35 @@ def main(argv: list[str] | None = None) -> int:
 
     from rag.ingest import load_records
 
-    records = load_records(folder)  # doc_id == file name, unique
+    try:
+        records = load_records(folder)  # doc_id == file name, unique
+    except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+        print(f"FAIL — the folder cannot be read the way rag.ingest reads it: {e!r}")
+        return 1
+    if not all(isinstance(r, dict) for r in records):
+        print("FAIL — every file must hold one JSON object")
+        return 1
     problems = check_schema(records) + check_terms(records)
-    chunks = split_chunks([r for r in records if str(r.get("doc_id", "")).startswith("policy-")])
+    # Split only records ingest could split, so one malformed record is reported, not a traceback
+    # (/ai-review F6); the schema problems above already name it.
+    splittable = [
+        r
+        for r in records
+        if str(r.get("doc_id", "")).startswith("policy-")
+        and isinstance(r.get("title"), str)
+        and isinstance(r.get("text"), str)
+    ]
+    chunks = split_chunks(splittable)
     problems += check_chunks([r for r in records if r["doc_id"] in chunks], chunks)
-    g5, g5_counts = check_g5(records)
+    g5, g5_counts = check_g5(splittable)
 
     print(f"policies {folder}")
     print(f"chunker  {describe_chunker()}\n")
     print(f"  {'doc_id':<42} {'words':>5} {'chunks':>6} {'value':>7} {'term@0':>6}")
     for r in sorted(records, key=lambda r: r["doc_id"]):
         texts = chunks.get(r["doc_id"], [])
-        cond = r.get("condition") if isinstance(r.get("condition"), dict) else None
+        raw = r.get("condition")
+        cond = raw if isinstance(raw, dict) and {"axis", "value"} <= set(raw) else None
         naming = (
             f"{sum(1 for t in texts if cond['value'] in condition_hits(t).get(cond['axis'], {}))}/{len(texts)}"
             if cond
@@ -375,8 +402,8 @@ def main(argv: list[str] | None = None) -> int:
     print("\n  sibling token Jaccard (a statistic, not a gate):")
     for (kind, department), members in sorted(_families(records).items(), key=str):
         if len(members) == 2:
-            a, b = sorted(members, key=lambda m: m["doc_id"])
-            print(f"    {a['doc_id']} ~ {b['doc_id']}: {_jaccard(a.get('text', ''), b.get('text', '')):.3f}")
+            a, b = sorted(members, key=lambda m: str(m.get("doc_id")))
+            print(f"    {a['doc_id']} ~ {b['doc_id']}: {_jaccard(str(a.get('text', '')), str(b.get('text', ''))):.3f}")
 
     print(f"\n  G5 before (families split): {g5_counts['split_families']}")
     print(f"  G5 after (documents naming an undeclared value): {g5_counts['offending_documents']}")

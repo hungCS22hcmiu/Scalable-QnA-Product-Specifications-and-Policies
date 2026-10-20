@@ -71,11 +71,12 @@ CAPACITY_RATIO = 0.25  # the capacity ratio: capacity = round(ratio * K)
 DOC_ID_PREFIXES = ("product-", "policy-")
 
 # G5's word list (docs/work/2026-10-20-policy-documents/design.md §5), committed before the first
-# policy document was written. Lower case. Errs wide: a wrong hit costs a reworded sentence, a miss
-# is silent. A change after the freeze changes which corpora are admissible -- record it.
+# policy document was written, and WIDENED by /ai-review F2 (2026-10-21) after the text existed;
+# none of the 12 documents hit an added word. Lower case. Errs wide: a wrong hit costs a reworded
+# sentence, a miss is silent. A change after the freeze changes which corpora are admissible.
 CONDITION_AXES: dict[str, dict[str, tuple[str, ...]]] = {
     "packaging": {
-        "opened": ("opened", "open-box", "open box"),
+        "opened": ("opened", "open-box", "open box", "open the box", "unsealed", "reopened"),
         "unopened": ("unopened", "sealed", "factory-sealed"),
     },
     "grade": {
@@ -89,8 +90,17 @@ CONDITION_AXES: dict[str, dict[str, tuple[str, ...]]] = {
             "abroad",
             "overseas",
             "outside the united states",
+            "outside of the united states",
             "outside the us",
+            "outside of the us",
             "outside the u.s.",
+            "outside the usa",
+            "outside the u.s.a.",
+            "non-us",
+            "non-u.s.",
+            "foreign",
+            "other countries",
+            "worldwide",
             "imported",
             "country of purchase",
         ),
@@ -324,8 +334,11 @@ _CONDITION_PATTERNS = {
 
 
 def condition_hits(text: str) -> dict[str, dict[str, list[str]]]:
-    """For each axis, each value whose words appear in `text`, with the words found. Pure."""
-    lowered = text.lower()
+    """For each axis, each value whose words appear in `text`, with the words found. Pure.
+
+    White space is collapsed first, so a phrase still matches across a line break or a double
+    space ("outside the\nUnited States"), which would otherwise pass silently (/ai-review F2)."""
+    lowered = " ".join(text.lower().split())
     hits: dict[str, dict[str, list[str]]] = {}
     for axis, values in _CONDITION_PATTERNS.items():
         for value, patterns in values.items():
@@ -398,11 +411,15 @@ def check_g5(records: list[dict]) -> tuple[Criterion, dict[str, int]]:
             else:
                 detail.append(f"{doc_id}: names {axis} = {named}, which it does not declare")
 
+    if not policies:
+        # A v1 corpus that lost its policy copy would otherwise print "0/0 clean" and pass
+        # (/ai-review F7).
+        detail.append("no policy- documents in the corpus: G5 has nothing to check")
     clean = len(policies) - len(offenders)
     return (
         Criterion(
             name="G5  condition-splitting (declared axes, lexical)",
-            passed=not offenders,
+            passed=bool(policies) and not offenders,
             summary=(
                 f"{split_families} famil{'y' if split_families == 1 else 'ies'} split, "
                 f"{clean}/{len(policies)} policy documents clean; the author's read of every "
