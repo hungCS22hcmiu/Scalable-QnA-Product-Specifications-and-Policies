@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -442,6 +442,27 @@ pqa-build: ## Item 3.1: verify, parse and check the six PQA files; write data/v1
 
 pqa-verify: ## Item 3.1: offline -- hash the PQA files and the interim files on disk against data/pqa-manifest.json
 	$(PY) experiments/scripts/build_pqa.py --verify
+
+# Item 3.2: select into the thick tail (docs/work/2026-10-19-pqa-thick-tail-selection/design.md).
+# Reads the interim only through iter_interim; writes gitignored drafts under data/v1-draft/ and the
+# tracked data/pqa-selection.json (counts and digests only). No model is loaded.
+#
+#   make pqa-select          # select 152 products, print the funnel and the report
+#   make pqa-select-verify   # offline: hash the drafts against data/pqa-selection.json
+#   make pqa-audit-sheet     # data/v1-draft/audit/sheet.csv: 100 questions, no tag, for the author to mark
+#   make pqa-audit-score     # score the marked sheet into the task trail (counts only)
+AUDIT_OUT ?= docs/work/2026-10-19-pqa-thick-tail-selection/evidence/audit.json
+pqa-select: ## Item 3.2: select 152 products into data/v1-draft/products/ and data/pqa-selection.json
+	$(PY) experiments/scripts/select_pqa.py
+
+pqa-select-verify: ## Item 3.2: offline -- hash the selection drafts against data/pqa-selection.json
+	$(PY) experiments/scripts/select_pqa.py --verify
+
+pqa-audit-sheet: ## Item 3.2: write the blind audit sheet (gitignored) for the author to mark
+	$(PY) experiments/scripts/select_pqa.py --audit-sheet
+
+pqa-audit-score: ## Item 3.2: score the marked audit sheet into AUDIT_OUT (counts only)
+	$(PY) experiments/scripts/select_pqa.py --audit-score $(AUDIT_OUT)
 
 mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }

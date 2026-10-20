@@ -32,20 +32,27 @@ numbers (T1 …) are `design.md` §4.
 
 ## C. The selector, offline
 
-- [ ] 6. `select_pqa.py` skeleton: the constants of design §2 (probe ones copied, departments from
+- [x] 6. `select_pqa.py` skeleton: the constants of design §2 (probe ones copied, departments from
       `build_pqa.LEAVES`), the guard, the manifest read once and hashed, two passes through
       `iter_interim`, the re-check after the pass. T1, T2, T12, T17, T20.
-- [ ] 7. `tag()` with R1 and R2 and the generic set; the funnel; the two probe-pool counts and pins.
+- [x] 7. `tag()` with R1 and R2 and the generic set; the funnel; the two probe-pool counts and pins.
       T7, T8, T9, T13, T16.
-- [ ] 8. The draw and the quota stop. T10, T11.
-- [ ] 9. The writers, the `.pqa-select-*` temp dir, the swap with restore, the manifest last,
+- [x] 8. The draw and the quota stop. T10, T11.
+- [x] 9. The writers, the `.pqa-select-*` temp dir, the swap with restore, the manifest last,
       cleanup on every exit, and `iter_selection`. T3, T4, T5, T6, T18, T19.
-- [ ] 10. The report (design §2.4): funnel, distribution, answerable shares, prose and chunks,
+- [x] 10. The report (design §2.4): funnel, distribution, answerable shares, prose and chunks,
       re-asks in two parts and the digit-flip count. T14.
-- [ ] 11. The audit sheet and its scorer (design §3.2). T21.
-- [ ] 12. `make pqa-select`, `make pqa-audit-sheet`, `make pqa-audit-score`. **Commit here.** The
+- [x] 11. The audit sheet and its scorer (design §3.2). T21.
+- [x] 12. `make pqa-select`, `make pqa-audit-sheet`, `make pqa-audit-score`. **Commit here.** The
       whole rule, both answerability rules, the seed, the audit design and the fallback are now in
       git before any live run and before ePQA is fetched (A9).
+      *Done 2026-10-20: 47 tests (`test_select_pqa.py`), 311 in `experiments/` in all, lint clean.
+      Also `make pqa-select-verify`. Three things changed while writing it, each before any run:
+      `first_failure` reads `fields_conflict` before any step, so a line without it raises whatever
+      it would fail; the probe-pool records get a `doc_id` of the real form, because the chunker
+      counts the metadata; and the audit reports precision, the negative predictive value and a
+      re-weighted recall (design §3.2, corrected), because the 15 : 10 sample is not the pool's ratio.
+      `re.I` became `re.IGNORECASE` (lint); the value is the same, and T12 compares the flags.*
 
 ## D. The answerability check against ePQA
 

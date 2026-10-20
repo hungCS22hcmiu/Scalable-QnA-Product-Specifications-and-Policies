@@ -299,9 +299,12 @@ The only check on the population the study uses, and the only one that sees furn
 - **The sheet:** `make pqa-audit-sheet` writes the 100, shuffled by that hash, each with its product
   record's text, and **without** the tag, to `data/v1-draft/audit/sheet.csv` (gitignored). The
   author marks each *answerable from this text: yes / no*. About one hour.
-- **Scored by** `make pqa-audit-score`: R2's precision (over the 60 tagged answerable) and recall
-  (over the 100), with Wilson intervals, per department as counts and pooled with intervals. Counts
-  only into `evidence/audit.json`.
+- **Scored by** `make pqa-audit-score`: R2's **precision** (over the 60 tagged answerable) and its
+  **negative predictive value** (over the 40 tagged unanswerable), each with a Wilson interval, per
+  department as counts and pooled with intervals; and **recall re-weighted** to the selected pool's
+  tag counts, as a point estimate. *(Corrected 2026-10-20, before any run: the sample is stratified
+  15 : 10, not in the pool's ratio, so recall cannot be read off the 100 directly.)* Counts only
+  into `evidence/audit.json`.
 - The auditor is the author, not a model: a model label would be a third rule, not a check.
 
 ## 4. Tests
