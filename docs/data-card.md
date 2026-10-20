@@ -70,10 +70,11 @@
 
   **The answerability criterion and its agreement.** R2 is a **pre-filter, not a label**. Against the 194 PQA questions that carry ePQA's labels (188 distinct, 143 spec, 93 of them phones): R2 precision **4 / 19 = 21 %** [8.5, 43.3], recall 4 / 12, κ 0.17 (ePQA's label 2 from a bullet or description). A blind audit of 100 selected questions (25 per department) — ⚠️ **marked by a model (Claude) at the author's request, not human-verified, by the marker who wrote R2** — gave precision **21 / 60 = 35 %** [24.2, 47.6] and negative predictive value **39 / 40 = 97.5 %** [87.1, 99.6]. R2's "unanswerable" is reliable (against ePQA its NPV is 93.5 %, 116 / 124, and its recall 4 / 12); its "answerable" is right about one time in three, mostly where the record mentions the word without settling the question. **Expected yield:** about 410 (≈ 285 – 560) of the 1,180 R2-answerable pool questions are truly answerable, an input to 3.4 and to `K`, to be measured there. **Consequence (ADR-011):** item 3.4 labels again every R2-answerable question that becomes a workload query, and a sample of the R2-unanswerable ones; spec questions the record cannot answer are a separate stratum, reported apart, never in the headline. ⚠️ **A lexical rule biases what C1 measures:** it keeps questions whose words are in the record, which retrieval finds more easily and `S_lex` scores higher.
 - **ePQA, the answerability check's labels (provenance).** `github.com/amazon-science/contextual-product-qa`, folder `ePQA/`, at commit `cec976cc2f2218aa76e562ecc9c7d79f1f3271bc`, fetched 2026-10-20T09:15:09Z by `make epqa-fetch` into `data/raw/epqa/` (gitignored). `train.csv` 37,486,800 bytes `b63de968…`, `dev.csv` 2,986,475 bytes `ec5c4865…`, `test.csv` 5,871,044 bytes `a01387cf…` (full sha256 in `answerability_check.py` and the trail's `evidence/epqa-fetch.log`). Licence **CDLA-Sharing-1.0** (the repository's own `LICENSE`). Used only by `make pqa-answerability`, which writes counts; no ePQA text is tracked. **Citation** (the README names this paper for ePQA): Shen, Asai, Byrne and de Gispert, *xPQA: Cross-Lingual Product Question Answering across 12 Languages*, arXiv:2305.09249, 2023.
+- **Titles that can contradict a policy document (item 3.3, counted 2026-10-21 by `make policy-sources`, counts only).** 10 of the 152 titles carry a condition the policy corpus does not model for them: phones 7 (Renewed 2, "International Version" 4, "No warranty" 4; one title can hold several), electronics 2 Renewed, laptops 1 Renewed. **Decided by the author: they stay** (ADR-011 unchanged). **For 3.4:** no policy-lane or stratum-D query names one of them. A C1 limitation.
 - **Empty and thin products exist.** 2.7–9.1 % of products per leaf have no bullets and no description, and the document is then the title alone. The ≥ 3-bullets filter removes them. 3.4–16.8 % state a warranty term in their own prose, which can contradict the authored warranty documents of §2. **Decided (ADR-011): excluded,** and the title is tested too, since it is embedded.
 
 ## 2. Policy corpus (self-authored)
-- **Provenance:** **~13** policy documents (returns, warranty, shipping) authored in-house, modelled on real store policy pages. Author-owned → freely releasable. The count rose from 8 because opposing conditions live in separate documents (G5); it is fixed at `super-plan.md` item 3.3.
+- **Provenance:** **12** policy documents (returns and warranty; **no shipping**: the question pool has no shipping tag, and shipping has no condition to split) authored in-house, modelled on real store and maker pages. Author-owned → freely releasable. **Fixed at item 3.3 (ADR-012)**: 8 per-department documents, 4 of them split in two by a condition. The tracked source is `data/policies-v1/`; 3.6 copies it into `data/v1/`. **Drafted by a model (Claude) from the term table only**, by rules committed before the first document (`c9a93f6`), and **read and approved by the author** on 2026-10-21, all 12, none sent back (P8; task `approvals.md`).
 - **Per-department windows, modelled on published policy** (primary sources, fetched 2026-10-03):
 
   | `category` | Return window — modelled on | Opposing conditions available |
@@ -83,7 +84,7 @@
   | `electronics` | 30 days — Target electronics | none found in a primary source |
   | `furniture` | 90 days — Target general merchandise | opened (180) vs unopened (365) — IKEA |
 
-  Warranty terms (~1 year for phones, laptops and electronics; multi-year for furniture) come from **secondary** sources so far. A primary citation is required before any of them is authored. `laptops` and `electronics` share 30-day terms by design: identical answers under different `doc_id`s measure what namespace partitioning costs in refused safe reuse.
+  *(The table above is the 2026-10-03 survey. The terms v1 uses are in the document list below; laptops now take both sides from Amazon and furniture from IKEA, which replaces ADR-002's "14 / 30 / 30 / 90".)* `laptops` and `electronics` share 30-day returns by design: identical answers under different `doc_id`s measure what namespace partitioning costs in refused safe reuse.
 - **⚠️ Per-category, not global.** Return/warranty windows must **genuinely differ across the product categories** of §1. A single global return policy makes every policy question retrieve the same chunk, drives source overlap to ≈ 1 everywhere, and nulls C1 by construction of the corpus rather than by finding (§7).
 - **Why in-house:** the invalidation experiment (RQ3) needs *controlled* edits; only a corpus under the author's control permits that (proposal §9.3). Policy documents are also where the lookalike traps live — two categories with genuinely different return windows is what makes the provenance signal testable.
 - **⚠️ Four structural requirements for `v1`, each measured against what `dev-v0` actually produced:**
@@ -91,7 +92,30 @@
   2. **Per-category *warranty* windows, not only return windows.** `dev-v0` shipped one global `policy-warranty` and one global `policy-shipping`, leaving **exactly one differentiated axis (returns) covering two of four categories** — `kitchen` has no return policy at all.
   3. **Policy documents long enough to chunk into ≥ 3 chunks.** `dev-v0` ingested 44 documents into **44 chunks — one per document**, because the authored text falls under `chunk_size = 256`. A singleton `sources(e)` makes `overlap = |A ∩ B| / |B|` take only **0 or 1**: θ has nothing to sweep and the C1 frontier degenerates to a step function. the frozen chunking anticipated this from the `chunk_size` direction; `dev-v0` reached it from the *document-length* direction instead.
   4. **A stratum taxonomy that separates provenance from wording** (below).
-- `TODO(W8): list of policy doc_ids and titles.`
+- **The documents (item 3.3, ADR-012).** Sources and the stating line of each term: `docs/work/2026-10-20-policy-documents/evidence/sources.md`.
+
+  | `doc_id` | `condition` | `terms` | Source | Feeds |
+  | :--- | :--- | :--- | :--- | :--- |
+  | `policy-return-phones-unopened` | packaging = unopened | 14 days | Best Buy | B-within |
+  | `policy-return-phones-opened` | packaging = opened | 14 days, $45 | Best Buy | B-within |
+  | `policy-return-laptops-new` | grade = new | 30 days | Amazon | category-level pairs, or B-cross |
+  | `policy-return-laptops-renewed` | grade = renewed | 90 days | Amazon Renewed Guarantee ⚠️ | category-level pairs, or B-cross |
+  | `policy-return-electronics` | — | 30 days | Target | — |
+  | `policy-return-furniture-unopened` | packaging = unopened | 365 days | IKEA | B-within |
+  | `policy-return-furniture-opened` | packaging = opened | 180 days | IKEA | B-within |
+  | `policy-warranty-phones-domestic` | region = domestic | 12 months | Samsung | B-within |
+  | `policy-warranty-phones-international` | region = international | not covered | Samsung | B-within |
+  | `policy-warranty-laptops` | — | 1 year | HP ⚠️ | — |
+  | `policy-warranty-electronics` | — | 1 year | Sony ⚠️ | — |
+  | `policy-warranty-furniture` | — | 10 years | IKEA | — |
+
+  Titles are `{Return Policy | Warranty} - {Department}[, {Value}]` (region: `{Value} Service`). Every pair of a return and a warranty document in one department is also a `kind` pair, which feeds B-within ("warranty period?" against "return period?").
+  - **Choosing a source** (fixed before any warranty page was fetched): the department's return retailer; for warranty, that retailer if it publishes its own (IKEA), otherwise the maker most common among the department's selected products, by the Brand field or else the title's first word (amended by the author when the Brand field proved mostly empty), skipping words that are not a maker name (the author, for electronics). Phones → Samsung (11), laptops → HP (9), electronics → Sony (3, tied with TCL).
+  - ⚠️ **Weak sources, accepted by the author and flagged:** Amazon's pages returned HTTP 503 (laptops rest on the 2026-10-03 reading, and some Renewed items get 30 days plus an 11-month warranty instead); HP's pages timed out (1 year from a search summary and a 2004 HP PDF); sony.com blocks the fetch tool (1 year from Sony's old TV manuals; an old headphone manual says 90 days, and the author picked 1 year under W6). Samsung's page also says some listed models get limited international support.
+  - **The laptops region split was dropped** by the pre-registered fallback: HP's warranty "is applicable in all countries", so both sides would carry one term. **Requirement 2 holds only in part:** warranty differs through furniture (10 years) and the phones region pair; phones (12 months), laptops and electronics (1 year) share one duration. Return windows take five values (14 / 30 / 90 / 180 / 365 days).
+  - **Writing rules** (`design.md` §4, W1–W9): original text from the term table only; one six-section outline per kind, 550–800 words; the main term concrete, in the opening section, written exactly as in `terms`; a document names only its declared condition, never its sibling's, and a return document never names warranty words (or the reverse); **siblings are minimal pairs** (the same text, the condition word once in every section, only the term sentences differ: token Jaccard 0.94–0.97); department, not product; the only numbers are the terms; no member, holiday, receipt or state rules; ASCII; no text changed to move a retrieval result.
+  - **How each pair differs, for reading the support gate** (review M1). By a number both ways: laptops (30 / 90 days), furniture (365 / 180 days). **By a number one way only:** phones returns (an opened answer carries "$45"; an unopened answer, "no fee", has no number and `no` is a stopword) and phones warranty (a domestic answer carries "12 months"; an international answer, "not covered", has no number and `not` is a stopword). In the number-less direction both arms of the gate are expected to be blind; and since the numeric arm accepts a number found in any fresh chunk, a sibling's chunk 0 in the fresh top-k can let a number through (measured at 3.6).
+  - **Statistics** (`make policy-check`, llama-index-core 0.14.23, chunk size 256, overlap 40): 562–590 words and 4 chunks per document, 48 policy chunks in all; the main term in chunk 0 of every document.
 
 ### Query strata for `v1`
 
@@ -274,10 +298,10 @@ The check is structural — it reads the corpus files, needs no ingested index, 
 - `TODO(W8): count of high-similarity / low-overlap pairs (G1).`
 - `TODO(W8): B-within and B-cross counts and their ratio (G2).`
 - `TODO(W8): Tier-1 collision groups found, and benign duplicate groups (G3).`
-- `TODO(W8): opposing-condition pairs sharing a doc_id, before and after splitting (G5).`
+- **G5, item 3.3 (2026-10-21, `make policy-check` on the 12 documents; re-run at the freeze):** before splitting, **4** families would hold an opposing pair under one `doc_id` (phones returns, laptops returns, furniture returns, phones warranty; the laptops region pair was dropped, not split); after, **0** documents name an undeclared condition. The author's read of every document is the other half of G5.
 - `TODO(W8): distribution of source-overlap across all high-similarity pairs (the overlap-variance statistic).`
 - `TODO(W8): per-stratum query counts (A / B-within / B-cross / C / D, §2) and the trap fraction of the workload.`
 - `TODO(W8): K — the count of distinct queries in the frozen workload.` ⚠️ **Cache capacity derives from this**: `cache_capacity = round(0.25 × K)`. Record both `K` and the derived capacity here and in every run manifest.
 
 ## Ethics / PII
-Public, non-personal data only. No user accounts, no personalization (proposal §6.3) — answers that vary by locale/membership are treated as dynamic and bypass the cache, so no personal data enters the corpus or cache.
+Public, non-personal data only. No user accounts, no personalization (proposal §6.3) — answers that vary by locale/membership are treated as dynamic and bypass the cache, so no personal data enters the corpus or cache. The phones warranty's region condition (item 3.3) is a fixed term of the policy — where warranty service is asked for, for a phone bought from the store — not an answer that varies with who asks, so it is cached like any other policy answer.

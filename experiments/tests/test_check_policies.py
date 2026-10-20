@@ -5,7 +5,9 @@ number the support gate cannot attach to its unit refuses a correct answer; an i
 lets the index's tie order pick the namespace; a broken `category` breaks 3.4's join. None of them
 raises anywhere else.
 
-No fixture reads `data/`: records are built inline, and folders live in `tmp_path`.
+Fixtures never read `data/`: records are built inline, and folders live in `tmp_path`. One test
+reads the tracked, author-owned `data/policies-v1/` (no PQA text), so that a later edit to a
+document that breaks a rule fails `make test` instead of surfacing at the 3.6 freeze.
 """
 
 import itertools
@@ -13,6 +15,7 @@ import json
 
 import pytest
 from check_policies import (
+    DEFAULT_DIR,
     DEPARTMENTS,
     MIN_WORDS,
     check_chunks,
@@ -299,3 +302,27 @@ def test_the_maker_is_the_brand_field_else_the_first_title_word():
     assert maker_of({"title": "Acme-Pro 15.6 laptop", "specs": {}}) == "Acme-Pro"
     assert maker_of({"title": "  (Renewed) Bolt X", "specs": {"Brand": " "}}) == "Renewed"
     assert maker_of({"title": "", "specs": {}}) == "<none>"
+
+
+# =================================================================================================
+# The tracked corpus (plan step 4): the 12 documents of ADR-012
+# =================================================================================================
+TRACKED_DOC_IDS = [
+    "policy-return-electronics",
+    "policy-return-furniture-opened",
+    "policy-return-furniture-unopened",
+    "policy-return-laptops-new",
+    "policy-return-laptops-renewed",
+    "policy-return-phones-opened",
+    "policy-return-phones-unopened",
+    "policy-warranty-electronics",
+    "policy-warranty-furniture",
+    "policy-warranty-laptops",
+    "policy-warranty-phones-domestic",
+    "policy-warranty-phones-international",
+]
+
+
+def test_the_tracked_policy_corpus_is_the_adr_012_set_and_passes_every_check():
+    assert sorted(p.stem for p in DEFAULT_DIR.glob("*.json")) == TRACKED_DOC_IDS
+    assert main(["--dir", str(DEFAULT_DIR)]) == 0

@@ -19,11 +19,30 @@ review.
 **Invalidates:** none — no runs exist (`experiments/results/` holds only `.gitkeep`); `v1` is not
 frozen; `data/dev-v0/` is not touched.
 
-**Blocker before plan step 1:** this session denies Read and Write on `data/`. Writing
-`data/policies-v1/` and reading the 152 titles (U8) need the author to grant that access.
+**Blocker before plan step 1** (resolved 2026-10-21, below): this session denied Read on `data/`.
 
-**Document read-through (P8):** none yet. One line per document goes here when the author approves
-it.
+**Document read-through (P8):** **2026-10-21 — the author reports reading all 12 drafts and sent
+none back.** Approved, each as drafted on 2026-10-21 (`evidence/drafts/make_drafts.py`), then
+copied byte for byte into `data/policies-v1/`:
+
+| Document | Approved |
+| :--- | :--- |
+| `policy-return-phones-unopened` | yes, 2026-10-21 |
+| `policy-return-phones-opened` | yes, 2026-10-21 |
+| `policy-return-laptops-new` | yes, 2026-10-21 |
+| `policy-return-laptops-renewed` | yes, 2026-10-21 |
+| `policy-return-electronics` | yes, 2026-10-21 |
+| `policy-return-furniture-unopened` | yes, 2026-10-21 |
+| `policy-return-furniture-opened` | yes, 2026-10-21 |
+| `policy-warranty-phones-domestic` | yes, 2026-10-21 |
+| `policy-warranty-phones-international` | yes, 2026-10-21 |
+| `policy-warranty-laptops` | yes, 2026-10-21 |
+| `policy-warranty-electronics` | yes, 2026-10-21 |
+| `policy-warranty-furniture` | yes, 2026-10-21 |
+
+**2026-10-21 — data access.** The author narrowed `.claude/settings.json`'s deny rule to
+`Read(./data/raw/**)`, `Read(./data/v1-draft/**)`, `Read(./data/v1/**)`: PQA text stays out of the
+session, and `data/policies-v1/` is readable.
 
 **2026-10-21 — two answers from the author.** (1) **Renewed laptops: 90 days**, the Amazon Renewed
 Guarantee's standard term as read on 2026-10-03 (three re-fetches gave HTTP 503); the conflict on
@@ -41,3 +60,12 @@ whose titles can contradict a policy document stay** (phones 7: Renewed 2, "Inte
 4, "No warranty" 4, one title can hold several; electronics 2 Renewed; laptops 1 Renewed). ADR-011's
 152 stay frozen. **Carried to 3.4:** no policy-lane or stratum-D query names one of them; the data
 card records them as a C1 limitation. Neither answer changes the measured design approved for 3.3.
+
+**2026-10-21 — the warranty sources, decided by the author.** Phones → Samsung and laptops → HP by
+the amended rule. **Electronics → Sony** (skip non-maker title words; Sony 3 / TCL 3 tie,
+alphabetical). **Sony's TV (1 year) and headphone (90 days, old manual) terms differ: the author
+picked 1 year** (W6). **HP's term (1 year) accepted on a weak source, flagged in the data card**
+(four fetches timed out). **The laptops region split is dropped** by §2's pre-registered fallback:
+HP's warranty "is applicable in all countries", so both sides get one term (review M3). The set is
+**12 documents**. `data-card.md` §2 requirement 2 then holds through furniture (10 years) and the
+phones region pair only; phones (12 months), laptops and electronics (1 year) share one duration.

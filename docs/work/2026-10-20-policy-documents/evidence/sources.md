@@ -46,9 +46,17 @@ Best Buy's is 15; neither is a v1 department's source.
 | :--- | :--- | :--- | :--- |
 | furniture (chairs) | 10 years | ikea.com/us, *Find an office chair that suits your needs* | "All the chairs on this page have a 10-year limited warranty." |
 | furniture (desks) | 10 years | ikea.com/us, BEKANT desk product page (`s19022808`) | "10-year Limited Warranty." |
-| phones, domestic / international | — | **pending: maker rule** | — |
-| laptops, domestic / international | — | **pending: maker rule** | — |
-| electronics (TVs, headphones) | — | **pending: maker rule** | — |
+| phones, domestic | 12 months | samsung.com/us, *Samsung Warranty* (`/us/support/warranty/`). Maker by the amended rule: **Samsung** (11 of 38 phones) | "The following models may have limited international warranty service support during the standard warranty 12-month period:" (the sentence goes on to a model list) |
+| phones, international | not covered | same page | "Samsung limits service for smartphones, tablets, and wearable devices to the country where the product was first sold." For a phone bought from the store, service outside the US is therefore not covered. **Conflict, recorded:** the line above says some listed models get limited international support |
+| laptops (one document) | 1 year | Maker by the amended rule: **HP** (9 of 38 laptops). The term is HP's 1-year limited hardware warranty, from a 2026-10-21 search summary of hp.com pages; **four direct fetches of support.hp.com and hp.com timed out**. The only verbatim HP line reached is in the 2004 *Worldwide Limited Warranty and Technical Support* PDF (`h10032.www1.hp.com/ctg/Manual/c00045119.pdf`, desktops): "1-Year Limited Hardware Warranty" | **Weak source; the author may want to confirm in a browser** |
+| laptops, region | — (split dropped) | same PDF, and today's search summary of HP's current worldwide warranty | "THIS LIMITED WARRANTY IS APPLICABLE IN ALL COUNTRIES AND MAY BE ENFORCED IN ANY COUNTRY WHERE HP OR ITS AUTHORIZED SERVICE PROVIDERS OFFER WARRANTY SERVICE". Both sides get the same term, so by §2's fallback (review M3) **the laptops region split is dropped**: the family is one document, `policy-warranty-laptops` |
+| electronics (TVs, headphones) | 1 year | Maker: **Sony**, by the author's rule of 2026-10-21 (skip title words that are not a maker name, so Sony 3 and TCL 3 tie, alphabetical). sony.com blocks this tool's crawler; Sony's own US warranty text was reached only as **old manuals on third-party sites** (manualowl, manualslib) through a search summary | TVs: labor and parts "one (1) year from the original date of purchase". **Conflict, recorded (W6):** an old Sony headphone manual (MDR-V300) gives "ninety (90) days". **The author picked 1 year** for the one electronics document. Weak source, flagged |
+
+**Electronics, 2026-10-21.** The amended rule ran (`make policy-sources`, committed `a3cca5a`
+first): phones → Samsung (11), laptops → HP (9). For electronics the top title word is "Bluetooth"
+(4; headphone titles begin with it), then Sony (3) and TCL (3). Per leaf: TVs → TCL (3); headphones
+→ "Bluetooth" (4), "Wireless" (3), "4" (2). None of the headphone words is a maker, so the rule
+gives no source for that leaf. **The author (2026-10-21): skip title words that are not a maker name** — Sony (3) and TCL (3) tie at department level, alphabetical gives Sony, which makes both TVs and headphones.
 
 Furniture: chairs and desks agree, so W6's one-term rule does not bite. (IKEA Canada lists 5 years
 for BEKANT electric sit / stand frames; not a US source, not used.)
@@ -65,4 +73,7 @@ for BEKANT electric sit / stand frames; not a US source, not used.)
 | `policy-return-furniture-unopened` | `["365 days"]` |
 | `policy-return-furniture-opened` | `["180 days"]` |
 | `policy-warranty-furniture` | `["10 years"]` |
-| warranty, phones / laptops / electronics | pending |
+| `policy-warranty-phones-domestic` | `["12 months"]` |
+| `policy-warranty-phones-international` | `["not covered"]` |
+| `policy-warranty-laptops` | `["1 year"]` |
+| `policy-warranty-electronics` | `["1 year"]` |

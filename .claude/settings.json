@@ -20,7 +20,10 @@
     ],
     "deny": [
       "Bash(rm -rf /*)",
-      "Read(./data/**)"
+      "Read(./data/raw/**)",
+      "Read(./data/v1-draft/**)",
+      "Read(./data/v1/**)"
+
     ]
   },
   "hooks": {

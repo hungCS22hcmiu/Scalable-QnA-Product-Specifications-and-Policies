@@ -6,11 +6,11 @@ Each step ends in something that can be checked. Steps 1–3 come **before any p
 
 ## Before any text
 
-- [ ] **1. Access, and one count.** ⛔ *Blocked 2026-10-20: `.claude/settings.json:23` denies `Read(./data/**)` (tracked since the base commit). Waiting on the author.* The author grants this session Read and Write on
+- [x] **1. Access, and one count.** ✅ *2026-10-21: the counts came from `make policy-sources` (counts only, through `iter_selection`): 10 risky titles, kept by the author; the author then narrowed the deny rule.* The author grants this session Read and Write on
       `data/policies-v1/` and Read on `data/v1-draft/products/` (U5). Then count the 152 titles
       that say "Renewed", "International Version" or "No warranty" (U8). If any, report to the
       author before step 3: 3.2's selection is frozen by ADR-011.
-- [ ] **2. Sources.** ◐ *Partly done 2026-10-20 (`evidence/sources.md`): every return term and the furniture warranty (10 years). The source-choice rule was written before any warranty page was fetched. Laptops' Amazon terms rest on the 2026-10-03 reading (three re-fetches gave HTTP 503), and Amazon's help pages conflict on some Renewed items. Phones, laptops and electronics warranty wait on the maker rule, which needs step 1.* Fetch the primary page for every term in `design.md` §2: the return terms
+- [x] **2. Sources.** ✅ *2026-10-21: every term sourced (`evidence/sources.md`); the maker rule amended twice by the author before the pages it selects were fetched; the laptops region split dropped by the fallback; three weak sources flagged.* ◐ *(history:)* *Partly done 2026-10-20 (`evidence/sources.md`): every return term and the furniture warranty (10 years). The source-choice rule was written before any warranty page was fetched. Laptops' Amazon terms rest on the 2026-10-03 reading (three re-fetches gave HTTP 503), and Amazon's help pages conflict on some Renewed items. Phones, laptops and electronics warranty wait on the maker rule, which needs step 1.* Fetch the primary page for every term in `design.md` §2: the return terms
       again, the warranty terms for the first time. In `evidence/sources.md`: URL, fetch date, the
       one stating line, and the term in `terms` form. Apply §2's fallback (no source, a vague term,
       or the same term on both sides → no split) and report every dropped split to the author.
@@ -52,30 +52,32 @@ Each step ends in something that can be checked. Steps 1–3 come **before any p
 
 ## The documents
 
-- [ ] **4. Draft the 13 documents** ◐ *8 of 13 drafted 2026-10-20 (all returns + furniture warranty), in `evidence/drafts/` (uncommitted) from `make_drafts.py`, until `data/policies-v1/` is writable. `make policy-check POLICY_DIR=docs/work/2026-10-20-policy-documents/evidence/drafts` passes every check except the three missing warranty families. On the way the checker caught the drafts short of 550 words, a 2-chunk furniture warranty, and one identical chunk between the furniture siblings (P4); each was fixed in the text, never in a rule.* into `data/policies-v1/`, one family at a time, siblings side by
+- [x] **4. Draft the documents** ✅ *2026-10-21: the 12 files are in `data/policies-v1/` (byte-identical to the drafts the author read; the trail keeps only the generator), `make policy-check` passes on them, and `test_the_tracked_policy_corpus_is_the_adr_012_set_and_passes_every_check` guards them (it fails when one is broken on purpose).* ◐ *(history:)* *2026-10-21: all **12** drafted (the laptops region split dropped by §2's fallback) and passing `make policy-check` on `evidence/drafts/`: 562–590 words, 4 chunks each, the term in chunk 0, G5 0 of 12. G5 caught one stray `opened` in a phones warranty draft; the text was fixed. Left: move into `data/policies-v1/` (needs the author's settings edit) and add the test over the tracked folder.* ◐ *8 of 13 drafted 2026-10-20 (all returns + furniture warranty), in `evidence/drafts/` (uncommitted) from `make_drafts.py`, until `data/policies-v1/` is writable. `make policy-check POLICY_DIR=docs/work/2026-10-20-policy-documents/evidence/drafts` passes every check except the three missing warranty families. On the way the checker caught the drafts short of 550 words, a 2-chunk furniture warranty, and one identical chunk between the furniture siblings (P4); each was fixed in the text, never in a rule.* into `data/policies-v1/`, one family at a time, siblings side by
       side (W5), from the term table only (W1). After each family: `make policy-check`. A failure
       changes the text, never a rule or a word. When all 13 pass, add **one test over the tracked
       folder**, so `make test` catches a later edit that breaks a rule (impact §7 D).
       *Check:* `make policy-check` exits 0; `make test` passes.
-- [ ] **5. The author's read.** The author reads each document against W1–W9 and approves it or
+- [x] **5. The author's read.** ✅ *2026-10-21: all 12 read, none sent back (`approvals.md`).* The author reads each document against W1–W9 and approves it or
       sends it back. One line per document in `approvals.md` (P8).
 
 ## Records
 
-- [ ] **6. `data-card.md`:** §2 (the doc_id list and titles; terms and sources; the writing rules;
+- [x] **6. `data-card.md`:** ✅ *2026-10-21 (uncommitted): §1 risky titles, §2 the documents, sources, rules, pair table, requirement 2 in part; Schemas; §7 G5 and the counts; Ethics.* §2 (the doc_id list and titles; terms and sources; the writing rules;
       who wrote the text; per sibling pair, a number or words and in which direction; the stratum
       each axis feeds; the region sentence for the Ethics line; shipping dropped); Schemas (the
       policy document; the singular example id; the fields never reach metadata); §7 (five criteria,
       the author's read inside G5, the before / after counts, the splitter version). Remove the
       `TODO(W8)`s these fill, and only those.
-- [ ] **7. `architecture.md`** (the folder, "not a dataset version"; the script; "G5 not built"
+- [x] **7. `architecture.md`** ✅ *(committed in `a3cca5a`; super-plan rows 3.3 and 3.5 and the progress paragraph, 2026-10-21, uncommitted)* (the folder, "not a dataset version"; the script; "G5 not built"
       goes); **`super-plan.md`** (rows 3.3 and 3.5, the Phase 3 progress paragraph, §10's carries
       into 3.6); **Makefile** comments ("four criteria", "G1..G4", "G3/G4 only").
-- [ ] **8. ADR-012** (data), with the real terms and sources (`design.md` §9 point 8).
+- [x] **8. ADR-012** (data), with the real terms and sources (`design.md` §9 point 8). ✅ *2026-10-21, uncommitted.*
 
 ## Close
 
 - [ ] **9.** `/verify`, then `/ai-review`, then `/done`.
+
+  **`/verify`, 2026-10-21, before the documents commit:** gofmt, go vet, go build, go test, ruff, pytest (rag 15, experiments 373) and proto drift all **PASS**, none skipped; `git status --porcelain data/` unchanged by the suite.
 
 **Not in this plan:** any retrieval, embedding or LLM run (P7); building `data/v1/` and everything
 in `design.md` §10 (3.6); any `rag/`, `reuse/` or `interfaces.md` change.

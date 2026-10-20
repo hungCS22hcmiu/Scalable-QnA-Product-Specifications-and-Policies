@@ -51,6 +51,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-009 | The support gate is served, and every judged Tier-2 candidate carries one refusal cause | in force (the real-answer sample, `plan.md` steps 1c–1e, **ran 2026-10-14**: `docs/work/2026-10-14-real-answer-sample/`, no stop rule fired, nothing tuned) | none citable — no runs yet; logs written before the 2.3 commit carry `cache = TIER2_HIT`, `entered_band`, `source_overlap` and `t_search_ms` under an older meaning and lack the five new keys; the 2026-10 item-1.6 Tier-2 hits were served with no gate |
 | ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 has run, `docs/work/2026-10-14-real-answer-sample/`) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
 | ADR-011 | `v1`'s 152 products are drawn by one pre-registered rule; R2 is a pre-filter, not a label | in force (3.4 re-labels every R2-answerable workload query) | none — no runs yet; replaces the 3.1 manifest `bf0feb48…` with `741d52e3…` |
+| ADR-012 | `v1`'s policy corpus is 12 authored documents, one per condition, written to rules fixed before the text; G5 is a lexical scan plus the author's read | in force (3.6 inherits five checks; 3.4 avoids 10 products) | none — no runs yet; replaces ADR-002's "14 / 30 / 30 / 90" return windows |
 
 ---
 
@@ -1097,3 +1098,76 @@ stratum, reported apart and never in the headline. The pool field is named `r2_a
     "return key" is mis-tagged as policy, and there is no shipping tag.
 - **Invalidates:** none — no runs yet. As an artefact, the 3.1 manifest `bf0feb48…` is replaced by
   `741d52e3…` (`MANIFEST_VERSION` 2: every interim line gains `fields_conflict`).
+
+
+### ADR-012 — `v1`'s policy corpus is 12 authored documents, one per condition, written to rules fixed before the text
+**Decided (data)** · 2026-10-21 · *`data-card.md` §1, §2, Schemas, §7 and Ethics; `experiments/scripts/corpus_gate.py` (G5), `check_policies.py`; `data/policies-v1/`; trail `docs/work/2026-10-20-policy-documents/`*
+
+`v1`'s policy half is **12 documents**, one per (kind, department, condition): returns and warranty
+for phones, laptops, electronics and furniture, with **phones returns** (opened / unopened),
+**laptops returns** (new / renewed), **furniture returns** (opened / unopened) and **phones
+warranty** (domestic / international service) each split into two documents. There is no shipping
+document and no global policy. Each record carries, beside `doc_id`, `title`, `category` and `text`,
+three fields read **offline only**: `policy_kind`, `condition` and `terms`. The `doc_id` is derived
+from them. The writing rules W1–W9, the condition word list and the checker were committed
+(`c9a93f6`) **before the first document existed**. The terms come from primary pages, one retailer
+or maker per department, chosen by a rule fixed before any warranty page was fetched: Best Buy,
+Amazon, Target and IKEA for returns; Samsung, HP, Sony and IKEA for warranty. **G5 is
+`corpus_gate.check_g5`**: a document may name only the condition it declares, over the word list
+`CONDITION_AXES` (`packaging`, `grade`, `region`, `kind`). It is lexical, so **the author's read of
+every document is the other half of G5**. The texts were drafted by a model (Claude) from the term
+table only; the author read and approved all 12 on 2026-10-21 (P8).
+
+- **Rationale:**
+  - **Document granularity is required for the namespace to see a condition** (`data-card.md` §7):
+    `reuse.Namespace` takes the rank-1 policy chunk's `doc_id`, so a chunk-level split leaves all
+    four conjuncts blind.
+  - **A both-values rule would miss the natural violation** (design review H1): a domestic warranty
+    that says "not valid outside the United States" names one value and still holds two answers.
+    So G5 fails any undeclared value, and `kind` is an axis too.
+  - **Rules before text**, because the measured residual depends on how the conditions were
+    written (`data-card.md` §3). **Siblings are minimal pairs** (the same text, the condition word
+    once per section), so which sibling ranks first turns on the condition word, which is what RQ2a
+    asks.
+  - **No shipping:** the pool has no shipping tag, and shipping has no condition to split.
+- **Alternatives:**
+  - Siblings worded freely, with only the opening naming the condition: closer to a real page, but
+    drafting would then move the result (review H3).
+  - Invented warranty terms that differ by department: rejected; nothing is invented. Requirement 2
+    then holds only in part (Consequences).
+  - Excluding the 10 products whose titles contradict a policy document: rejected by the author,
+    because it would reopen ADR-011's frozen selection.
+  - G5 as a separate item 3.5, with a second copy of the scan in the checker: rejected; one
+    implementation, two callers (the G3 lesson).
+- **Consequences:**
+  - **The return windows replace ADR-002's "14 / 30 / 30 / 90":** phones 14 (opened: a $45
+    restocking fee), laptops 30 / renewed 90, electronics 30, furniture unopened 365 / opened 180.
+    The store combines four retailers' policies, one per department.
+  - **The laptops region split was dropped** by the pre-registered fallback: HP's warranty "is
+    applicable in all countries", so both sides would carry one term. **`data-card.md` §2
+    requirement 2 holds only in part:** warranty differs through furniture (10 years) and the phones
+    region pair; phones (12 months), laptops and electronics (1 year) share one duration.
+  - **The pre-registered maker rule was amended twice by the author, both times before the page it
+    selects was fetched:** the Brand field was empty on most products, so the title's first word
+    fills it; for electronics the top word ("Bluetooth") is not a maker, so non-maker words are
+    skipped (Sony). Sony's TV and headphone terms differ (1 year / 90 days in an old manual); the
+    author picked 1 year (W6).
+  - **Three sources are weak and flagged:** Amazon (HTTP 503; laptops rest on the 2026-10-03
+    reading, and some Renewed items get 30 days plus an 11-month warranty), HP (timeouts; a search
+    summary and a 2004 PDF), Sony (blocked; old manuals on third-party sites).
+  - **Reading the support gate per pair:** laptops and furniture differ by a number both ways;
+    phones returns and phones warranty only one way ("no fee" and "not covered" carry no number,
+    and `no` / `not` are stopwords), so in that direction both arms are expected to be blind.
+  - **The condition fields never reach the hit path.** A condition tag on chunks is the rule term
+    `Final_Proposal.md:435` rejected; `test_the_new_fields_never_reach_chunk_metadata` pins that
+    `record_to_document` copies only `doc_id`, `kind`, `category`, `title`.
+  - **For 3.4:** no policy-lane or stratum-D query names one of the 10 products whose titles say
+    Renewed, International Version or No warranty; condition questions will mostly be constructed
+    (the pool has none tagged by condition); the grade pair feeds no natural same-product pair.
+  - **For 3.6:** assert `data/v1/`'s policy files equal `data/policies-v1/` byte for byte; record a
+    digest of (chunk id, chunk-text sha256) and pin `llama-index-core` (0.14.23 at writing); measure
+    how often the fresh top-k holds a sibling's term chunk; sweep the lane band on v1 (48 policy
+    chunks against dev-v0's 4); freeze the numeric unit list (v1's terms use days, months, years
+    and `$`); re-run `make policy-check` at the freeze.
+- **Invalidates:** none — no runs yet. `v1` is not frozen, and `data/dev-v0/` is untouched. As a
+  record, ADR-002's return windows are replaced.
