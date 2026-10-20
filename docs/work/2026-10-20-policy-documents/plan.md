@@ -75,9 +75,49 @@ Each step ends in something that can be checked. Steps 1–3 come **before any p
 
 ## Close
 
-- [ ] **9.** `/verify`, then `/ai-review`, then `/done`.
+- [x] **9.** `/verify`, then `/ai-review`, then `/done`. ✅ *2026-10-21.*
 
   **`/verify`, 2026-10-21, before the documents commit:** gofmt, go vet, go build, go test, ruff, pytest (rag 15, experiments 373) and proto drift all **PASS**, none skipped; `git status --porcelain data/` unchanged by the suite.
 
 **Not in this plan:** any retrieval, embedding or LLM run (P7); building `data/v1/` and everything
 in `design.md` §10 (3.6); any `rag/`, `reuse/` or `interfaces.md` change.
+
+
+## Outcome (2026-10-21, `/done`)
+
+**Shipped.** `v1`'s policy half: **12 documents** in the tracked `data/policies-v1/`, one per (kind,
+department, condition), written to rules committed before the text (`c9a93f6`) and approved by the
+author in their current text. G5 in `corpus_gate.py` (stage 1; this **closes item 3.5**), `make
+policy-check`, `make policy-sources`, ADR-012, and the records in `data-card.md`, `architecture.md`,
+`super-plan.md` and `data/README.md`. **Done-when, run:** `make policy-check` passes (555–600 words
+and 4 chunks per document, the term in chunk 0, G5: 4 families split, 0 documents naming an
+undeclared condition); 3.5's tests `test_g5_names_both_values_when_a_document_holds_both` and
+`test_the_gate_runs_g5_in_stage_1_and_stops_on_it` pass. `/verify` passes, nothing skipped
+(rag 15, experiments 392). `/ai-review`: 9 findings, all resolved (`review.md`). 14 + 7 hand mutants,
+all caught.
+
+**Changed on the way (all recorded in `approvals.md`):** 13 → 12 documents (the laptops region split
+dropped by the pre-registered fallback); the maker rule amended twice by the author before the pages
+it chose were fetched; W5 waived for the phones warranty pair (F3; experiment approved again); the G5
+word list widened after the text existed (F2); the corpus kept to returns and warranty on a sampled
+audit (`evidence/policy-scope.md`).
+
+**Was the scope honest?** Yes. Opened at L, and it touched what L is for: half of the measured
+corpus, and a schema 3.4 and 3.5 read. No `interfaces.md`, `.proto`, `reuse/` or `rag/` change, and
+no frozen value changed, so nothing is invalidated (no runs exist).
+
+**Deferred, and carried forward:**
+- **To 3.4** (ADR-012): no policy-lane or stratum-D query names the 10 products whose titles say
+  Renewed, International Version or No warranty; condition questions will mostly be constructed; the
+  grade pair feeds no natural same-product pair; 3.2's policy tagger misses return and warranty
+  questions worded as "replacement" or "send back".
+- **To 3.6** (ADR-012): byte-for-byte check of `data/v1/`'s policy copy; a (chunk id, text sha256)
+  digest and a `llama-index-core` pin; how often the fresh top-k holds a sibling's term chunk; the
+  lane band on 48 policy chunks; the numeric unit list frozen; `make policy-check` re-run at the
+  freeze.
+- **Weak sources** (HP, Sony, Amazon) stay flagged in the data card; the author may confirm them in
+  a browser before the freeze.
+
+**Follow-up worth a task:** none outside 3.4 and 3.6. The `/verify` skill still asks for a weekly
+worklog and `/ai-review` still names "rules #1, #5, #6, #10"; both point at things removed on
+2026-09-21/22 and are stale.

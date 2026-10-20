@@ -51,7 +51,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-009 | The support gate is served, and every judged Tier-2 candidate carries one refusal cause | in force (the real-answer sample, `plan.md` steps 1c–1e, **ran 2026-10-14**: `docs/work/2026-10-14-real-answer-sample/`, no stop rule fired, nothing tuned) | none citable — no runs yet; logs written before the 2.3 commit carry `cache = TIER2_HIT`, `entered_band`, `source_overlap` and `t_search_ms` under an older meaning and lack the five new keys; the 2026-10 item-1.6 Tier-2 hits were served with no gate |
 | ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 has run, `docs/work/2026-10-14-real-answer-sample/`) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
 | ADR-011 | `v1`'s 152 products are drawn by one pre-registered rule; R2 is a pre-filter, not a label | in force (3.4 re-labels every R2-answerable workload query) | none — no runs yet; replaces the 3.1 manifest `bf0feb48…` with `741d52e3…` |
-| ADR-012 | `v1`'s policy corpus is 12 authored documents, one per condition, written to rules fixed before the text; G5 is a lexical scan plus the author's read | in force (3.6 inherits five checks; 3.4 avoids 10 products) | none — no runs yet; replaces ADR-002's "14 / 30 / 30 / 90" return windows |
+| ADR-012 | `v1`'s policy corpus is 12 authored documents, one per condition, written to rules fixed before the text; G5 is a lexical scan plus the author's read | in force (item 3.3 done 2026-10-21; 3.6 inherits five checks; 3.4 avoids 10 products) | none — no runs yet; replaces ADR-002's "14 / 30 / 30 / 90" return windows |
 
 ---
 
@@ -1117,8 +1117,8 @@ Amazon, Target and IKEA for returns; Samsung, HP, Sony and IKEA for warranty. **
 `corpus_gate.check_g5`**: a document may name only the condition it declares, over the word list
 `CONDITION_AXES` (`packaging`, `grade`, `region`, `kind`). It is lexical, so **the author's read of
 every document is the other half of G5**. The texts were drafted by a model (Claude) from the term
-table only; the author read and approved all 12 on 2026-10-21 (P8); **the 8 that `/ai-review`
-then changed wait on the author's re-read** (task `approvals.md`). **The phones warranty pair is not a minimal pair** (`/ai-review` F3):
+table only; the author read and approved all 12 on 2026-10-21 (P8); the 8 that `/ai-review` then
+changed were re-read and approved the same day (task `approvals.md`). **The phones warranty pair is not a minimal pair** (`/ai-review` F3):
 "covered" against "not covered" cannot share one text, so W5 is waived for that family by the
 author, and each document is written to be true on its own.
 

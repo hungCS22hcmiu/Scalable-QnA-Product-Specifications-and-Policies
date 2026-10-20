@@ -94,3 +94,10 @@ marked by Claude at the author's request by the rule in `evidence/policy-scope.m
 `d833126` before any row was read), found about 6 – 10 stable store-policy questions outside the two
 kinds in 4,706 (ships to <country> ≈ 4; protection plan ≈ 2 – 3). The author keeps the two-kind
 corpus, so the design and the experiment approval stand. The author will review the audit files.
+
+**2026-10-21 — P8 re-read, by the author: all 8 changed documents approved** as they are in
+`data/policies-v1/` after `fe01280`: `policy-warranty-phones-domestic`,
+`policy-warranty-phones-international`, `policy-return-phones-opened`, `policy-return-phones-unopened`,
+`policy-return-furniture-opened`, `policy-return-furniture-unopened`, `policy-warranty-laptops`,
+`policy-warranty-electronics`. With the 4 unchanged since the first read, **all 12 are approved in
+their current text.**
