@@ -16,6 +16,16 @@ with changes*, all findings merged into design draft 3 (`review.md`).
 the 3.1 manifest `bf0feb48…` (`data/pqa-manifest.json`, committed in `33a1a9d`) is replaced when the
 builder gains the `fields_conflict` flag (only if open question 3 is "exclude").
 
+**2026-10-20 — fallback step 1 applied, by the author ("yes").** The first live selection held the
+probe pins, then stopped: `led_&_lcd_tvs` had 13 eligible products for a quota of 19
+(`evidence/live-run.md`). Pre-registered step 1 (design §2.3) gives TVs' shortfall of 6 to the sibling
+leaf: `QUOTA` becomes TVs 13 + headphones 25; `electronics` stays 38; the rule, the seed and the
+answerability rule are unchanged. `QUOTA_PREREGISTERED` keeps the old split, and the manifest records
+both and `fallback_applied`. **Test amended with the author's confirmation:**
+`test_the_quota_is_38_per_department_split_evenly_over_its_leaves` now pins `QUOTA_PREREGISTERED`
+(the spec changed, the assertion did not weaken), and a new test pins the applied change. To go into
+ADR-011.
+
 **Pins and constants:** a change to any **new** constant in `design.md` §2 (`COVERAGE`,
 `GENERIC_DF`, `MIN_ANSWERABLE`, `QUOTA`, `SEED`, `AUDIT`), to the probe-pool pins (§2.6), to the ePQA
 join pin (§3.1), or any fallback step of §2.3, after the plan step 12 commit, needs a line here.

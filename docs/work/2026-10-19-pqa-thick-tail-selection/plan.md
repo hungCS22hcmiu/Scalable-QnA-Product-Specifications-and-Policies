@@ -66,11 +66,12 @@ numbers (T1 …) are `design.md` §4.
 
 ## E. The live selection and the audit
 
-- [ ] 16. Memory check. `make pqa-select` twice: same manifest sha256; the probe pins hold; record
+- [x] 16. Memory check. `make pqa-select` twice: same manifest sha256; the probe pins hold; record
       the funnel, distribution and shares in `evidence/live-run.md`. If a leaf is short, **stop**
       and ask the author which pre-registered fallback step to apply (design §2.3).
-      *First run 2026-10-20: the probe pins held; TVs short (13 of 19). Stopped; waiting for the
-      author (`evidence/live-run.md`).*
+      *First run 2026-10-20: the probe pins held; TVs short (13 of 19). Stopped. The author applied
+      fallback step 1 (TVs 13 + headphones 25). Then 152 products, 4,706 pool lines, the same
+      selection sha256 `036dcae8…` twice, `pqa-select-verify` passes (`evidence/live-run.md`).*
 - [ ] 17. `make pqa-audit-sheet`; **the author marks the 100 questions** (about one hour);
       `make pqa-audit-score`; `evidence/audit.json` and a short reading.
 

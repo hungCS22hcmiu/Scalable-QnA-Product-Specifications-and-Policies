@@ -254,15 +254,34 @@ def test_the_probe_pins_are_the_recorded_numbers():
     }
 
 
-def test_the_quota_is_38_per_department_split_evenly_over_its_leaves():
+def _departments():
     by_dept = {}
     for spec in build_pqa.LEAVES:
         by_dept.setdefault(spec.department, []).append(spec.leaf)
-    assert set(select_pqa.QUOTA) == {s.leaf for s in build_pqa.LEAVES}
-    for leaves in by_dept.values():
-        assert sum(select_pqa.QUOTA[leaf] for leaf in leaves) == select_pqa.DEPARTMENT_QUOTA
-        assert len({select_pqa.QUOTA[leaf] for leaf in leaves}) == 1
-    assert set(select_pqa.PROBE_PINS["capped"]) == set(select_pqa.QUOTA)
+    return by_dept
+
+
+def test_the_quota_is_38_per_department_split_evenly_over_its_leaves():
+    # Amended 2026-10-20 (approvals.md): this pins the PRE-REGISTERED quota. The author then
+    # applied fallback step 1, which the next test pins.
+    quota = select_pqa.QUOTA_PREREGISTERED
+    assert set(quota) == {s.leaf for s in build_pqa.LEAVES}
+    for leaves in _departments().values():
+        assert sum(quota[leaf] for leaf in leaves) == select_pqa.DEPARTMENT_QUOTA
+        assert len({quota[leaf] for leaf in leaves}) == 1
+    assert set(select_pqa.PROBE_PINS["capped"]) == set(quota)
+
+
+def test_the_applied_fallback_only_moves_tv_quota_to_headphones_inside_electronics():
+    """Fallback step 1 (design §2.3), applied by the author 2026-10-20: TVs had 13 eligible of 19."""
+    pre, now = select_pqa.QUOTA_PREREGISTERED, select_pqa.QUOTA
+    changed = {leaf: now[leaf] - pre[leaf] for leaf in pre if now[leaf] != pre[leaf]}
+    assert changed == {"led_&_lcd_tvs": -6, "over-ear_headphones": 6}
+    for leaves in _departments().values():
+        assert sum(now[leaf] for leaf in leaves) == select_pqa.DEPARTMENT_QUOTA
+    assert select_pqa.FALLBACK_APPLIED == (
+        "step 1: led_&_lcd_tvs gives its shortfall of 6 to over-ear_headphones",
+    )
 
 
 # =================================================================================================
@@ -789,3 +808,29 @@ def test_wilson_matches_a_hand_computed_interval():
     assert select_pqa.wilson(10, 10) == [0.7225, 1.0]
     low, high = select_pqa.wilson(5, 10)
     assert (low, high) == (0.2366, 0.7634)
+
+
+# =================================================================================================
+# A record the frozen splitter refuses (found on the live run of 2026-10-20)
+# =================================================================================================
+def test_an_unchunkable_probe_pool_record_is_counted_not_fatal(world):
+    def chunker(record):
+        if record["doc_id"].endswith(asin(4).lower()):  # untitled: in the probe pool, never selected
+            raise ValueError("Metadata length is longer than chunk size")
+        return fake_chunker(record)
+
+    assert run(world, chunker=chunker) == 0
+    prose = selection(world)["prose"]["chairs"]
+    assert prose["probe_pool"]["unchunkable"] == 1
+    assert prose["selected"]["unchunkable"] == 0
+
+
+def test_an_unchunkable_selected_record_stops_the_run(world, capsys):
+    def chunker(record):
+        if record["title"] == "Acme Desk Model":  # both desks are selected
+            raise ValueError("Metadata length is longer than chunk size")
+        return fake_chunker(record)
+
+    assert run(world, chunker=chunker) == 2
+    assert "make ingest" in capsys.readouterr().err
+    assert_nothing_published(world)

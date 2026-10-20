@@ -56,3 +56,54 @@ All are below ePQA's 22.9 % (an upper bound for a PQA record). The `answerable` 
 most products everywhere after `cap`. **Waiting for the author:** the pre-registered fallback, step 1
 (design §2.3), would give TVs' shortfall of 6 to `over-ear_headphones` (52 eligible), so TVs 13 +
 headphones 25 = 38 for `electronics`.
+
+## Plan step 16 — the selection with fallback step 1 (2026-10-20)
+
+The author applied pre-registered fallback step 1 (`approvals.md`): TVs 13, headphones 25.
+
+**A run in between crashed on a report, not on the rule.** `SentenceSplitter` refused one record of the
+TV **probe pool** (a 1,353-character title: the metadata, which holds the title, was longer than the
+256-token chunk). A read-only diagnostic found it the only one: 0 of the 152 selected and 0 of the 452
+eligible products are affected. Nothing was published. The fix (no rule change): the report counts such a
+record in the probe pool, and **stops the run if a selected product has one**, because `make ingest` would
+fail on it. Two tests.
+
+**Then two runs, memory pressure level 1, 50 s, peak RSS 233 MB:**
+
+| | |
+| :--- | :--- |
+| consumed `pqa-manifest.json` | `741d52e3…` (as `make pqa-verify`) |
+| `selection sha256`, run 1 and run 2 | `036dcae86afbf5cd40daf1ab6436966c2cc64a298736a9c44cb39a8312c0df23` both |
+| `make pqa-select-verify` | passes |
+| products | **152**: phones 38, laptops 38, TVs 13 + headphones 25, chairs 19 + desks 19 |
+| question pool | **4,706** lines: 1,180 answerable spec, 3,399 unanswerable spec, 127 policy (92 warranty, 35 return) |
+
+The probe pins held on both runs. Per selected product (median, min–max):
+
+| Leaf | Kept | Policy | Answerable (R2) | Unanswerable |
+| :--- | :--- | :--- | :--- | :--- |
+| phones | 36 (11–49) | 1 (0–5) | 8 (5–16) | 24 (4–41) |
+| laptops | 34 (13–50) | 1 (0–4) | 7 (5–15) | 26 (8–44) |
+| TVs | 36 (12–50) | 0 (0–2) | 6 (5–14) | 29 (4–38) |
+| headphones | 23 (7–48) | 0 (0–1) | 6 (5–22) | 15 (1–32) |
+| chairs | 25 (11–47) | 0 (0–5) | 6 (5–13) | 20 (4–42) |
+| desks | 29 (11–49) | 0 (0–2) | 7 (5–13) | 20 (4–39) |
+
+**Three things the author should read:**
+
+1. **The selection leans hard toward long product text (review M4, confirmed).** Median embedded text,
+   characters / chunks, selected against the probe pool: phones 1,711 / 3 against 1,068 / 2; laptops
+   1,201 / 3 against 763 / 2; TVs 918 / 2 against 561 / 1; headphones 2,769 / 5 against 1,384 / 2; chairs
+   985 / 2 against 757 / 1; desks 1,739 / 3 against 771 / 1. The `data-card.md` §1 statement that PQA
+   products chunk to about one chunk is not true of the selected corpus. More chunks per product gives
+   containment more of a gradient: a corpus property that moves in the headline's direction.
+2. **R2-answerable share:** 20–36 % of the selected products' spec questions, against 6.5–14 % over all
+   products. The `answerable` and `pair` steps select for it, as designed.
+3. **Policy questions are scarce:** 127 in the pool, median 0 or 1 per product. 3.4's policy wording will
+   have to come from more than these products.
+
+Re-asks, pooled, `1 − clusters / questions` (exact only / all): unfiltered phones 3.1 % / 10.1 %,
+filtered 3.1 % / 11.6 %; the per-leaf counts are in the manifest. Digit flips: 0 or 1 per leaf filtered,
+3 – 68 unfiltered. Carrier drops: phones 163,844 questions; laptops 1,095; TVs 283; headphones 136;
+chairs 41; desks 20. The non-phone ones are probably mis-drops (review L3 showed "bass boost" matches
+`CARRIER_Q`); they were not read one by one.

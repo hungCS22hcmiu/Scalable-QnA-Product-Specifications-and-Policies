@@ -104,13 +104,22 @@ COVERAGE = Fraction(1, 2)
 GENERIC_DF = Fraction(1, 10)
 MIN_ANSWERABLE = 5
 DEPARTMENT_QUOTA = 38
-QUOTA = {
+QUOTA_PREREGISTERED = {
     "unlocked_cell_phones": 38,
     "traditional_laptops": 38,
     "led_&_lcd_tvs": 19,
     "over-ear_headphones": 19,
     "chairs": 19,
     "home_office_desks": 19,
+}
+# The short-leaf fallback (design §2.3), applied ONLY by the author, one step at a time. Step 1 was
+# applied on 2026-10-20 after the first live run, in which led_&_lcd_tvs had 13 eligible products
+# for a quota of 19 (evidence/live-run.md; approvals.md). The rule itself is unchanged.
+FALLBACK_APPLIED = ("step 1: led_&_lcd_tvs gives its shortfall of 6 to over-ear_headphones",)
+QUOTA = {
+    **QUOTA_PREREGISTERED,
+    "led_&_lcd_tvs": 13,
+    "over-ear_headphones": 25,
 }
 SEED = "v1-item-3.2"
 AUDIT_ANSWERABLE, AUDIT_UNANSWERABLE = 15, 10  # per department
@@ -666,6 +675,7 @@ def build_selection(
     pins: dict[str, dict[str, int]],
     prose_stats: dict[str, dict],
     outputs: dict,
+    fallback: tuple[str, ...] = (),
 ) -> dict:
     """Counts and digests only. Every string is a name, a digest, a regex source, the seed or a
     fixed label (the tests check it against an allow-list)."""
@@ -723,6 +733,7 @@ def build_selection(
             "near_duplicate_band": [repr(ND_LO), repr(ND_HI)],
             "pair_cap": PAIR_CAP,
             "quota": dict(quota),
+            "quota_preregistered": dict(QUOTA_PREREGISTERED),
             "seed": SEED,
             "audit_per_department": {
                 "answerable": AUDIT_ANSWERABLE,
@@ -738,7 +749,7 @@ def build_selection(
             },
             "stop_words_sha256": _sha256_bytes(" ".join(sorted(STOP)).encode()),
             "probe_pins": pins,
-            "fallback_applied": [],
+            "fallback_applied": list(fallback),
         },
         "generic": {
             leaf: {
@@ -766,6 +777,10 @@ def _prose_stats(
     records: dict[str, dict],
     chunker: Callable[[dict], tuple[int, int]],
 ) -> dict[str, dict]:
+    """A record the frozen splitter refuses (SentenceSplitter raises ValueError when the metadata,
+    which holds the title, is longer than the chunk size) would make `make ingest` fail. In the
+    probe pool it is counted; among the selected products it stops the run. Found on the first
+    run with fallback step 1: one TV in the probe pool, a title of 1,353 characters."""
     out = {}
     for leaf, asins in chosen.items():
         groups = {
@@ -774,10 +789,21 @@ def _prose_stats(
         }
         out[leaf] = {}
         for name, recs in groups.items():
-            measured = [chunker(r) for r in recs]
+            measured, unchunkable = [], 0
+            for r in recs:
+                try:
+                    measured.append(chunker(r))
+                except ValueError:
+                    unchunkable += 1
+            if name == "selected" and unchunkable:
+                raise SelectionStop(
+                    f"{leaf}: {unchunkable} selected product(s) cannot be chunked by the frozen "
+                    f"splitter, so `make ingest` would fail on them"
+                )
             out[leaf][name] = {
                 "chars": distribution([m[0] for m in measured]),
                 "chunks": distribution([m[1] for m in measured]),
+                "unchunkable": unchunkable,
             }
     return out
 
@@ -831,8 +857,13 @@ def select(
     quota: dict[str, int] | None = None,
     pins: dict[str, dict[str, int]] | None = None,
     chunker: Callable[[dict], tuple[int, int]] | None = None,
+    fallback: tuple[str, ...] | None = None,
 ) -> int:
-    """Run the selection. Returns 0, or 2 if a stop tripped. Any other exception propagates."""
+    """Run the selection. Returns 0, or 2 if a stop tripped. Any other exception propagates.
+
+    With no `quota`, the real QUOTA and the fallback steps applied to it are used and recorded."""
+    if fallback is None:
+        fallback = FALLBACK_APPLIED if quota is None else ()
     quota = QUOTA if quota is None else quota
     pins = PROBE_PINS if pins is None else pins
     work = draft_dir / f"{TEMP_PREFIX}{os.getpid()}"
@@ -856,7 +887,7 @@ def select(
         records, outputs = write_outputs(work, tallies, chosen, generic)
         prose_stats = _prose_stats(tallies, chosen, records, chunker or default_chunker())
         selection = build_selection(
-            consumed_sha256, tallies, chosen, generic, quota, pins, prose_stats, outputs
+            consumed_sha256, tallies, chosen, generic, quota, pins, prose_stats, outputs, fallback
         )
         data = _canonical(selection) + b"\n"
         (work / "selection.json").write_bytes(data)
