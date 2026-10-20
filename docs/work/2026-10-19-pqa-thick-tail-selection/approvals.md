@@ -26,6 +26,12 @@ both and `fallback_applied`. **Test amended with the author's confirmation:**
 (the spec changed, the assertion did not weaken), and a new test pins the applied change. To go into
 ADR-011.
 
+**2026-10-20 — the audit was marked by a model, at the author's request.** The author had no time for
+the 100 questions and asked Claude to mark them by the stated rule. This departs from design §3.2
+("the auditor is the author, not a model"). Recorded as a **model audit**: not human-verified, and the
+marker wrote R2, so it is not independent of the rule (`evidence/audit.md`). Result: R2 precision 21 / 60
+= 35 % [24.2, 47.6], NPV 39 / 40. **Whether R2 stands: waiting for the author.**
+
 **Pins and constants:** a change to any **new** constant in `design.md` §2 (`COVERAGE`,
 `GENERIC_DF`, `MIN_ANSWERABLE`, `QUOTA`, `SEED`, `AUDIT`), to the probe-pool pins (§2.6), to the ePQA
 join pin (§3.1), or any fallback step of §2.3, after the plan step 12 commit, needs a line here.

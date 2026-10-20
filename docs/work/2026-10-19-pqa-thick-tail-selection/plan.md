@@ -72,7 +72,7 @@ numbers (T1 …) are `design.md` §4.
       *First run 2026-10-20: the probe pins held; TVs short (13 of 19). Stopped. The author applied
       fallback step 1 (TVs 13 + headphones 25). Then 152 products, 4,706 pool lines, the same
       selection sha256 `036dcae8…` twice, `pqa-select-verify` passes (`evidence/live-run.md`).*
-- [ ] 17. `make pqa-audit-sheet`; **the author marks the 100 questions** (about one hour);
+- [x] 17. `make pqa-audit-sheet`; **the author marks the 100 questions** (about one hour); *(marked by Claude at the author's request: a model audit, `evidence/audit.md`; precision 21 / 60)*
       `make pqa-audit-score`; `evidence/audit.json` and a short reading.
 
 ## F. The record

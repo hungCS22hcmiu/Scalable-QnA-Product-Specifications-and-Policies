@@ -1,0 +1,62 @@
+{
+  "npv": {
+    "k": 39,
+    "n": 40,
+    "wilson95": [
+      0.8712,
+      0.9956
+    ]
+  },
+  "per_department": {
+    "electronics": {
+      "fn": 0,
+      "fp": 12,
+      "tn": 10,
+      "tp": 3
+    },
+    "furniture": {
+      "fn": 0,
+      "fp": 8,
+      "tn": 10,
+      "tp": 7
+    },
+    "laptops": {
+      "fn": 0,
+      "fp": 7,
+      "tn": 10,
+      "tp": 8
+    },
+    "phones": {
+      "fn": 1,
+      "fp": 12,
+      "tn": 9,
+      "tp": 3
+    }
+  },
+  "pool_spec_tags": {
+    "answerable": 1180,
+    "unanswerable": 3399
+  },
+  "pooled": {
+    "fn": 1,
+    "fp": 39,
+    "tn": 39,
+    "tp": 21
+  },
+  "precision": {
+    "k": 21,
+    "n": 60,
+    "wilson95": [
+      0.2417,
+      0.4764
+    ]
+  },
+  "recall_reweighted": 0.8294,
+  "rule": "R2",
+  "sample": {
+    "per_department": {
+      "answerable": 15,
+      "unanswerable": 10
+    }
+  }
+}
