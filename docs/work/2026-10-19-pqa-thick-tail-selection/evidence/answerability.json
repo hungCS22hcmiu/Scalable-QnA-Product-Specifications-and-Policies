@@ -1,0 +1,234 @@
+{
+  "agreement": {
+    "primary": {
+      "r1": {
+        "agreement": 0.8252,
+        "fn": 6,
+        "fp": 19,
+        "kappa": 0.2379,
+        "n": 143,
+        "precision": {
+          "k": 6,
+          "n": 25,
+          "wilson95": [
+            0.115,
+            0.4343
+          ]
+        },
+        "recall": {
+          "k": 6,
+          "n": 12,
+          "wilson95": [
+            0.2538,
+            0.7462
+          ]
+        },
+        "tn": 112,
+        "tp": 6
+      },
+      "r2": {
+        "agreement": 0.8392,
+        "fn": 8,
+        "fp": 15,
+        "kappa": 0.173,
+        "n": 143,
+        "precision": {
+          "k": 4,
+          "n": 19,
+          "wilson95": [
+            0.0851,
+            0.4333
+          ]
+        },
+        "recall": {
+          "k": 4,
+          "n": 12,
+          "wilson95": [
+            0.1381,
+            0.6094
+          ]
+        },
+        "tn": 116,
+        "tp": 4
+      }
+    },
+    "secondary": {
+      "r1": {
+        "agreement": 0.7692,
+        "fn": 20,
+        "fp": 13,
+        "kappa": 0.2797,
+        "n": 143,
+        "precision": {
+          "k": 12,
+          "n": 25,
+          "wilson95": [
+            0.3003,
+            0.665
+          ]
+        },
+        "recall": {
+          "k": 12,
+          "n": 32,
+          "wilson95": [
+            0.2293,
+            0.5475
+          ]
+        },
+        "tn": 98,
+        "tp": 12
+      },
+      "r2": {
+        "agreement": 0.7273,
+        "fn": 26,
+        "fp": 13,
+        "kappa": 0.0823,
+        "n": 143,
+        "precision": {
+          "k": 6,
+          "n": 19,
+          "wilson95": [
+            0.1536,
+            0.5399
+          ]
+        },
+        "recall": {
+          "k": 6,
+          "n": 32,
+          "wilson95": [
+            0.0889,
+            0.3531
+          ]
+        },
+        "tn": 98,
+        "tp": 6
+      }
+    },
+    "tertiary": {
+      "r1": {
+        "agreement": 0.8462,
+        "fn": 2,
+        "fp": 20,
+        "kappa": 0.2556,
+        "n": 143,
+        "precision": {
+          "k": 5,
+          "n": 25,
+          "wilson95": [
+            0.0886,
+            0.3913
+          ]
+        },
+        "recall": {
+          "k": 5,
+          "n": 7,
+          "wilson95": [
+            0.3589,
+            0.9178
+          ]
+        },
+        "tn": 116,
+        "tp": 5
+      },
+      "r2": {
+        "agreement": 0.8601,
+        "fn": 4,
+        "fp": 16,
+        "kappa": 0.1715,
+        "n": 143,
+        "precision": {
+          "k": 3,
+          "n": 19,
+          "wilson95": [
+            0.0552,
+            0.3757
+          ]
+        },
+        "recall": {
+          "k": 3,
+          "n": 7,
+          "wilson95": [
+            0.1582,
+            0.7495
+          ]
+        },
+        "tn": 120,
+        "tp": 3
+      }
+    }
+  },
+  "epqa_commit": "cec976cc2f2218aa76e562ecc9c7d79f1f3271bc",
+  "epqa_sha256": {
+    "dev.csv": "ec5c486592b59f2efb30abceb57c76fa55c2ff55333720a41d347cec601b024a",
+    "test.csv": "a01387cf43b6c9f2e24ea32b0a06aedad29eb7c65ba4a5009fe818409cef7dab",
+    "train.csv": "b63de9681b770573240367e919f7f04f087f6a4745ab1f79a77e6b800105ea25"
+  },
+  "matched_lines": {
+    "chairs": 2,
+    "home_office_desks": 4,
+    "led_&_lcd_tvs": 21,
+    "over-ear_headphones": 19,
+    "traditional_laptops": 5,
+    "unlocked_cell_phones": 143
+  },
+  "per_leaf": {
+    "chairs": {
+      "primary_answerable": 1,
+      "r1_answerable": 0,
+      "r2_answerable": 0,
+      "secondary_answerable": 1,
+      "spec": 2,
+      "tertiary_answerable": 1
+    },
+    "home_office_desks": {
+      "primary_answerable": 0,
+      "r1_answerable": 1,
+      "r2_answerable": 1,
+      "secondary_answerable": 0,
+      "spec": 4,
+      "tertiary_answerable": 0
+    },
+    "led_&_lcd_tvs": {
+      "primary_answerable": 2,
+      "r1_answerable": 3,
+      "r2_answerable": 1,
+      "secondary_answerable": 4,
+      "spec": 21,
+      "tertiary_answerable": 1
+    },
+    "over-ear_headphones": {
+      "primary_answerable": 2,
+      "r1_answerable": 2,
+      "r2_answerable": 2,
+      "secondary_answerable": 6,
+      "spec": 18,
+      "tertiary_answerable": 1
+    },
+    "traditional_laptops": {
+      "primary_answerable": 0,
+      "r1_answerable": 3,
+      "r2_answerable": 2,
+      "secondary_answerable": 1,
+      "spec": 5,
+      "tertiary_answerable": 0
+    },
+    "unlocked_cell_phones": {
+      "carrier": 40,
+      "policy": 5,
+      "primary_answerable": 7,
+      "r1_answerable": 16,
+      "r2_answerable": 13,
+      "secondary_answerable": 20,
+      "spec": 93,
+      "tertiary_answerable": 4
+    }
+  },
+  "pqa_manifest_sha256": "741d52e359e2bb95694ffbfa4b80e16941b6d7ec3de813948c5b2ca34c217c3f",
+  "selector_sha256": "993b5697aa26efe83fd461359ed62aea65e541ab76c5d063b73aa5284d066571",
+  "unit_kinds": {
+    "carrier": 40,
+    "policy": 5,
+    "spec": 143
+  },
+  "units": 188
+}

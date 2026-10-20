@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -463,6 +463,28 @@ pqa-audit-sheet: ## Item 3.2: write the blind audit sheet (gitignored) for the a
 
 pqa-audit-score: ## Item 3.2: score the marked audit sheet into AUDIT_OUT (counts only)
 	$(PY) experiments/scripts/select_pqa.py --audit-score $(AUDIT_OUT)
+
+# Item 3.2, design 3.1: ePQA (CDLA-Sharing-1.0) at a pinned commit, for the answerability check only.
+# Same shape as pqa-fetch: the file list lives in answerability_check.py (--list); the script checks
+# every byte by sha256 before it reads one. Each run appends the time and the hashes to EPQA_LOG, so
+# the trail shows the labels were fetched AFTER the rule was committed (review L6).
+EPQA_DIR ?= data/raw/epqa
+EPQA_LOG ?= docs/work/2026-10-19-pqa-thick-tail-selection/evidence/epqa-fetch.log
+epqa-fetch: ## Item 3.2: download the three ePQA CSVs into data/raw/epqa/ (network; 46 MB)
+	@command -v curl >/dev/null || { echo "FAIL -- curl not found"; exit 1; }
+	@mkdir -p "$(EPQA_DIR)"
+	@list=$$(mktemp); trap 'rm -f "$$list"' EXIT; \
+	 $(PY) experiments/scripts/answerability_check.py --list > "$$list" || exit 1; \
+	 while read -r file url size; do \
+	   have=$$( [ -f "$(EPQA_DIR)/$$file" ] && wc -c < "$(EPQA_DIR)/$$file" | tr -d ' ' ); \
+	   if [ "$${have:-0}" = "$$size" ]; then echo "  present  $$file"; continue; fi; \
+	   echo "  fetching $$file ($${have:-0} of $$size bytes)"; \
+	   curl -fL --retry 5 --retry-delay 5 -C - -o "$(EPQA_DIR)/$$file" "$$url" || exit 1; \
+	 done < "$$list"
+	@{ date -u +"%Y-%m-%dT%H:%M:%SZ epqa-fetch"; shasum -a 256 "$(EPQA_DIR)"/*.csv; } | tee -a "$(EPQA_LOG)"
+
+pqa-answerability: ## Item 3.2: agreement of the answerability rule with ePQA's labels (counts only)
+	$(PY) experiments/scripts/answerability_check.py
 
 mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }

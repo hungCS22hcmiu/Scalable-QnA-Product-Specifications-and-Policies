@@ -56,17 +56,21 @@ numbers (T1 …) are `design.md` §4.
 
 ## D. The answerability check against ePQA
 
-- [ ] 13. `make epqa-fetch` (curl, a pinned commit, into `data/raw/epqa/`); keep the curl log with
-      its time (review L6); pin the three sha256 in the script.
-- [ ] 14. `answerability_check.py` and `make pqa-answerability`. T15.
-- [ ] 15. **Live:** run it. `evidence/answerability.json` (counts) and a short reading in
-      `evidence/answerability.md`. Not a gate: the numbers go to the author.
+- [x] 13. `make epqa-fetch` (curl, a pinned commit, into `data/raw/epqa/`); keep the curl log with
+      its time (review L6); pin the three sha256 in the script. *Done: commit `cec976cc…`, fetched
+      09:15:09Z, two minutes after the rule commit; no earlier copy existed (closes step 2).*
+- [x] 14. `answerability_check.py` and `make pqa-answerability`. T15. *8 tests.*
+- [x] 15. **Live:** run it. `evidence/answerability.json` (counts) and a short reading in
+      `evidence/answerability.md`. Not a gate: the numbers go to the author. *Done: the 194 pin held;
+      R2 precision 4 / 19 against ePQA's primary label, κ 0.17.*
 
 ## E. The live selection and the audit
 
 - [ ] 16. Memory check. `make pqa-select` twice: same manifest sha256; the probe pins hold; record
       the funnel, distribution and shares in `evidence/live-run.md`. If a leaf is short, **stop**
       and ask the author which pre-registered fallback step to apply (design §2.3).
+      *First run 2026-10-20: the probe pins held; TVs short (13 of 19). Stopped; waiting for the
+      author (`evidence/live-run.md`).*
 - [ ] 17. `make pqa-audit-sheet`; **the author marks the 100 questions** (about one hour);
       `make pqa-audit-score`; `evidence/audit.json` and a short reading.
 
