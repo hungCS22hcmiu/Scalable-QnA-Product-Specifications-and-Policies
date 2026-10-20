@@ -157,7 +157,7 @@ Replaces the train/validation/test reuse-safety dataset of v0.1 — **nothing is
 ---
 
 ## Schemas (frozen shapes)
-`TODO(W8): finalize the policy document and the QA pair; the product record and the question pool are fixed by item 3.2.`
+`TODO(W8): finalize the QA pair; the product record and the question pool are fixed by item 3.2, the policy document by item 3.3.`
 
 ```json
 // product record — written by select_pqa.py (item 3.2) as data/v1-draft/products/{doc_id}.json.
@@ -175,15 +175,25 @@ Replaces the train/validation/test reuse-safety dataset of v0.1 — **nothing is
   "answers": ["..."], "tag": "spec", "policy_kinds": [], "r2_answerable": true, "r1_answerable": true,
   "q_tokens": 3, "covered": 2 }
 
-// policy document  — `category` is the product<->policy join key; null only for
-//                     genuinely global policies, which v1 keeps to a minimum
-{ "doc_id": "policy-returns-electronics", "title": "Return Policy — Electronics",
-  "category": "electronics", "text": "..." }
+// policy document  — item 3.3, data/policies-v1/{doc_id}.json (TRACKED; 3.6 copies it into data/v1/).
+//   Exactly these seven fields. `category` is the product<->policy join key, one of the four
+//   departments, never null: v1 has no global policy. `policy_kind` is a pool tag ("return" |
+//   "warranty"). `condition` is null or one {axis, value} of corpus_gate.CONDITION_AXES.
+//   doc_id = "policy-{policy_kind}-{category}" + "-{value}" when a condition is set (checked).
+//   `terms`: the main term first; "<n> day(s)|month(s)|year(s)", "$<n>", "not covered" or
+//   "not accepted"; the only numbers the text may hold. Title and text are ASCII.
+//   ⚠️ policy_kind, condition and terms are read offline only (G5, check_policies, 3.4). They never
+//   reach chunk metadata, Redis or the gateway: a condition tag on the hit path is the rule term
+//   Final_Proposal.md rejected. test_the_new_fields_never_reach_chunk_metadata pins it.
+{ "doc_id": "policy-return-phones-opened", "title": "Return Policy - Phones, Opened",
+  "category": "phones", "policy_kind": "return",
+  "condition": { "axis": "packaging", "value": "opened" },
+  "terms": ["14 days", "$45"], "text": "..." }
 
 // QA pair  — `stratum` is one of A | B-within | B-cross | C | D (see section 2)
 //            `reference_answer` is pipeline-generated at eval time, NOT from the source dataset (§3)
 { "qa_id": "...", "question": "...", "reference_answer": "...",
-  "doc_ids": ["policy-returns-electronics"], "product_id": "product-B08XYZ",
+  "doc_ids": ["policy-return-electronics"], "product_id": "product-B08XYZ",
   "stratum": "B-within" }
 ```
 
@@ -196,11 +206,15 @@ C1 can only produce a signal where queries are **similar but ground differently*
 **Procedure (~30 lines, W8):** embed all workload queries with the frozen embedding model; compute pairwise similarity; retrieve top-k for each; then count pairs satisfying **`sim ≥ 0.85` AND `J ≤ 0.2`**.
 
 > **Implemented and runnable (2026-09-06):** `experiments/scripts/corpus_gate.py`, via `make gate-corpus`.
-> It computes every statistic listed below and **refuses to print a snapshot hash unless all four
+> It computes every statistic listed below and **refuses to print a snapshot hash unless all five
 > criteria pass**, so "frozen" cannot happen by accident.
-> ⚠️ **"Four" means G1–G4. G5 is not implemented yet** (`super-plan.md` item 3.5). Until it is, a
-> passing gate run says nothing about G5, even though the freeze policy requires all five. Check G5
-> by hand before any freeze.
+> ⚠️ **G5 is implemented as a lexical scan** (item 3.3, `c9a93f6`; this closes the code half of item
+> 3.5): `corpus_gate.check_g5` fails any policy document that names a condition value it does not
+> declare, over the word list `CONDITION_AXES` (axes `packaging`, `grade`, `region` and `kind`).
+> It sees only listed words ("if the seal is broken" passes), so **the author's read of every policy
+> document is the other half of G5**, and a passing gate run proves G5 only together with that read.
+> While the policy documents are written, before a workload exists, `make policy-check` runs G5 on
+> `data/policies-v1/`.
 >
 > **The workload file must live OUTSIDE `data/{version}/`** — `rag.ingest` globs that directory and
 > asserts `doc_id == filename`, so a workload dropped in it breaks ingestion. Convention:

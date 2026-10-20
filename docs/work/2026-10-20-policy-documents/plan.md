@@ -6,16 +6,16 @@ Each step ends in something that can be checked. Steps 1–3 come **before any p
 
 ## Before any text
 
-- [ ] **1. Access, and one count.** The author grants this session Read and Write on
+- [ ] **1. Access, and one count.** ⛔ *Blocked 2026-10-20: `.claude/settings.json:23` denies `Read(./data/**)` (tracked since the base commit). Waiting on the author.* The author grants this session Read and Write on
       `data/policies-v1/` and Read on `data/v1-draft/products/` (U5). Then count the 152 titles
       that say "Renewed", "International Version" or "No warranty" (U8). If any, report to the
       author before step 3: 3.2's selection is frozen by ADR-011.
-- [ ] **2. Sources.** Fetch the primary page for every term in `design.md` §2: the return terms
+- [ ] **2. Sources.** ◐ *Partly done 2026-10-20 (`evidence/sources.md`): every return term and the furniture warranty (10 years). The source-choice rule was written before any warranty page was fetched. Laptops' Amazon terms rest on the 2026-10-03 reading (three re-fetches gave HTTP 503), and Amazon's help pages conflict on some Renewed items. Phones, laptops and electronics warranty wait on the maker rule, which needs step 1.* Fetch the primary page for every term in `design.md` §2: the return terms
       again, the warranty terms for the first time. In `evidence/sources.md`: URL, fetch date, the
       one stating line, and the term in `terms` form. Apply §2's fallback (no source, a vague term,
       or the same term on both sides → no split) and report every dropped split to the author.
       *Check:* every row of §2 has a concrete term from a primary source, or is dropped.
-- [ ] **3. Commit the rules.** One commit, **before step 4**, holding:
+- [x] **3. Commit the rules.** ✅ *`c9a93f6`, 2026-10-20, before any policy text existed.* One commit, **before step 4**, holding:
       `CONDITION_AXES`, `condition_hits`, `load_policy_records`, `check_g5` in `corpus_gate.py`,
       wired into stage 1 with the "five criteria" wording; `check_policies.py`; `make policy-check`;
       the tests below; and the writing rules and word list as `design.md` §4–§5 state them.
@@ -52,7 +52,7 @@ Each step ends in something that can be checked. Steps 1–3 come **before any p
 
 ## The documents
 
-- [ ] **4. Draft the 13 documents** into `data/policies-v1/`, one family at a time, siblings side by
+- [ ] **4. Draft the 13 documents** ◐ *8 of 13 drafted 2026-10-20 (all returns + furniture warranty), in `evidence/drafts/` (uncommitted) from `make_drafts.py`, until `data/policies-v1/` is writable. `make policy-check POLICY_DIR=docs/work/2026-10-20-policy-documents/evidence/drafts` passes every check except the three missing warranty families. On the way the checker caught the drafts short of 550 words, a 2-chunk furniture warranty, and one identical chunk between the furniture siblings (P4); each was fixed in the text, never in a rule.* into `data/policies-v1/`, one family at a time, siblings side by
       side (W5), from the term table only (W1). After each family: `make policy-check`. A failure
       changes the text, never a rule or a word. When all 13 pass, add **one test over the tracked
       folder**, so `make test` catches a later edit that breaks a rule (impact §7 D).

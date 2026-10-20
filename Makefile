@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -494,6 +494,9 @@ pqa-answerability: ## Item 3.2: agreement of the answerability rule with ePQA's 
 POLICY_DIR ?= data/policies-v1
 policy-check: ## Item 3.3: check the policy documents (schema, terms, >= 3 chunks, G5)
 	$(PY) experiments/scripts/check_policies.py --dir $(POLICY_DIR)
+
+policy-sources: ## Item 3.3: brand and risky-title counts of the 3.2 selection (counts only)
+	$(PY) experiments/scripts/check_policies.py --product-counts
 
 mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }

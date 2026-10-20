@@ -29,7 +29,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 
 import build_pqa
@@ -250,6 +251,80 @@ def check_chunks(records: list[dict], chunks: dict[str, list[str]]) -> list[str]
 
 
 # =================================================================================================
+# Source counts (plan steps 1-2): counts only, never a title or a question
+# =================================================================================================
+RISKY_TITLE = {
+    "renewed or refurbished": re.compile(r"\b(renewed|refurbished)\b", re.IGNORECASE),
+    "international version": re.compile(r"\binternational version\b", re.IGNORECASE),
+    "no warranty": re.compile(r"\bno warranty\b", re.IGNORECASE),
+}
+
+
+TITLE_WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9&'.-]*")
+
+
+def maker_of(product: dict) -> str:
+    """The maker rule, amended by the author on 2026-10-21 before any maker page was fetched
+    (evidence/sources.md): the Brand field, or else the first word of the title. The plain Brand
+    rule failed on the data: most selected products carry no Brand (phones 32 of 38)."""
+    brand = str(product.get("specs", {}).get("Brand", "")).strip()
+    if brand:
+        return brand
+    m = TITLE_WORD_RE.search(str(product.get("title", "")))
+    return m.group().rstrip(".-'") if m else "<none>"
+
+
+def source_counts(items: Iterable[tuple[str, dict]]) -> dict:
+    """From `select_pqa.iter_selection`'s stream: brand counts per department and per leaf (the
+    maker rule of evidence/sources.md), and per department how many titles carry a word that can
+    contradict a policy document (design U8). Brands are counted case-folded."""
+    products, leaf_of = [], {}
+    for kind, item in items:
+        if kind == "product":
+            products.append(item)
+        else:
+            leaf_of[item["doc_id"]] = item["leaf"]
+
+    brands: dict[str, Counter] = defaultdict(Counter)
+    spelling: dict[str, Counter] = defaultdict(Counter)
+    risky: dict[str, Counter] = defaultdict(Counter)
+    for p in products:
+        brand = maker_of(p)
+        key = brand.casefold()
+        spelling[key][brand] += 1
+        for group in (p["category"], leaf_of.get(p["doc_id"], "<no leaf>")):
+            brands[group][key] += 1
+        hits = [bool(pattern.search(str(p.get("title", "")))) for pattern in RISKY_TITLE.values()]
+        for label, hit in zip(RISKY_TITLE, hits, strict=True):
+            risky[p["category"]][label] += hit
+        risky[p["category"]]["any"] += any(hits)  # distinct products
+
+    def name(key: str) -> str:  # the most common spelling; ties alphabetical
+        return min(spelling[key].items(), key=lambda kv: (-kv[1], kv[0]))[0]
+
+    return {
+        "products": len(products),
+        "top_brands": {
+            group: [(name(k), n) for k, n in sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))[:3]]
+            for group, c in sorted(brands.items())
+        },
+        "risky_titles": {dept: dict(c) for dept, c in sorted(risky.items())},
+    }
+
+
+def print_source_counts() -> int:
+    counts = source_counts(select_pqa.iter_selection(select_pqa.SELECTION_PATH, select_pqa.DRAFT_DIR))
+    print(f"{counts['products']} selected products (read through select_pqa.iter_selection)\n")
+    print("  top brands (count), per department and per leaf; the maker rule takes the first:")
+    for group, top in counts["top_brands"].items():
+        print(f"    {group:<24} " + ", ".join(f"{b} ({n})" for b, n in top))
+    print("\n  titles that can contradict a policy document (design U8), per department:")
+    for dept, c in counts["risky_titles"].items():
+        print(f"    {dept:<24} " + ", ".join(f"{label}: {n}" for label, n in c.items()))
+    return 0
+
+
+# =================================================================================================
 # Report
 # =================================================================================================
 def _jaccard(a: str, b: str) -> float:
@@ -260,7 +335,14 @@ def _jaccard(a: str, b: str) -> float:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", default=str(DEFAULT_DIR), help="the policy folder (default: data/policies-v1)")
+    ap.add_argument(
+        "--product-counts",
+        action="store_true",
+        help="print the brand and risky-title counts of the 3.2 selection (counts only) and exit",
+    )
     args = ap.parse_args(argv)
+    if args.product_counts:
+        return print_source_counts()
 
     folder = Path(args.dir)
     if not folder.is_dir() or not any(folder.glob("*.json")):

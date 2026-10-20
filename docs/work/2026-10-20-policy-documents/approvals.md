@@ -24,3 +24,20 @@ frozen; `data/dev-v0/` is not touched.
 
 **Document read-through (P8):** none yet. One line per document goes here when the author approves
 it.
+
+**2026-10-21 — two answers from the author.** (1) **Renewed laptops: 90 days**, the Amazon Renewed
+Guarantee's standard term as read on 2026-10-03 (three re-fetches gave HTTP 503); the conflict on
+some Renewed items (30 days plus an 11-month warranty) goes into the data card. This is the
+proposal, so the experiment approval stands. (2) **Data access: narrow the deny rule** in
+`.claude/settings.json` to `Read(./data/raw/**)`, `Read(./data/v1-draft/**)`, `Read(./data/v1/**)`,
+keeping PQA text out of the session and opening `data/policies-v1/`. Claude's edit was refused by
+the auto-mode safety check, so **the author makes this edit**; until then plan steps 1, 2 (warranty
+makers) and 4 (placing the documents) wait.
+
+**2026-10-21 — two more answers from the author**, after `make policy-sources` (counts only, read
+through `select_pqa.iter_selection`). (1) **The maker rule is amended** before any maker page was
+fetched: the Brand field, else the title's first word (`evidence/sources.md`). (2) **The 10 products
+whose titles can contradict a policy document stay** (phones 7: Renewed 2, "International Version"
+4, "No warranty" 4, one title can hold several; electronics 2 Renewed; laptops 1 Renewed). ADR-011's
+152 stay frozen. **Carried to 3.4:** no policy-lane or stratum-D query names one of them; the data
+card records them as a C1 limitation. Neither answer changes the measured design approved for 3.3.

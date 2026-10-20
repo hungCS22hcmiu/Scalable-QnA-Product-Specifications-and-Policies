@@ -14,6 +14,12 @@ The documents are drafted from the **term table** at the end, never with these p
   - Best Buy, Amazon and Target publish no own warranty for phones, laptops, TVs or headphones →
     maker rule. **Not run yet: it needs Read on `data/v1-draft/products/`** (plan step 1).
   - IKEA publishes its own furniture warranty → IKEA.
+  - **Amended by the author, 2026-10-21, before any maker page was fetched.** `make policy-sources`
+    showed the Brand field empty on most selected products (phones 32 of 38, laptops 21, electronics
+    26, furniture 21), so the rule would pick "no brand", and the few branded phones tie Amazon.com /
+    Apple at 1. **The maker is now the Brand field, or else the first word of the title**
+    (`check_policies.maker_of`), counted the same way: case-folded, ties alphabetical, per
+    department and per leaf. Committed before it was run.
 - **Second conditions are not used** (W7): member windows, carrier exceptions, state exceptions,
   prepaid exclusions, holiday windows.
 

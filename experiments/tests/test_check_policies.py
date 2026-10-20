@@ -20,6 +20,8 @@ from check_policies import (
     check_terms,
     derive_doc_id,
     main,
+    maker_of,
+    source_counts,
     split_chunks,
 )
 from corpus_gate import check_g5
@@ -262,3 +264,38 @@ def test_the_new_fields_never_reach_chunk_metadata():
     assert set(document.metadata) == {"doc_id", "kind", "category", "title"}
     bare = {k: record[k] for k in ("doc_id", "title", "category", "text")}
     assert record_to_document(bare).text == document.text
+
+
+# =================================================================================================
+# Source counts -- counts only (plan steps 1-2)
+# =================================================================================================
+def test_source_counts_gives_the_maker_rule_and_counts_only():
+    """The maker rule takes the most common brand (case-folded, ties alphabetical) per department
+    and per leaf; the risky-title counts are counts, never titles."""
+    stream = [
+        ("product", {"doc_id": "p1", "title": "Phone X (Renewed)", "category": "phones", "specs": {"Brand": "Acme"}}),
+        ("product", {"doc_id": "p2", "title": "Phone Y International Version", "category": "phones", "specs": {"Brand": "ACME"}}),
+        ("product", {"doc_id": "p3", "title": "Phone Z", "category": "phones", "specs": {"Brand": "Bolt"}}),
+        ("product", {"doc_id": "p4", "title": "Desk", "category": "furniture", "specs": {}}),
+        ("question", {"doc_id": "p1", "leaf": "unlocked_cell_phones"}),
+        ("question", {"doc_id": "p3", "leaf": "unlocked_cell_phones"}),
+        ("question", {"doc_id": "p4", "leaf": "home_office_desks"}),
+    ]
+    counts = source_counts(stream)
+    assert counts["products"] == 4
+    # "Acme" and "ACME" are one brand; the shown spelling ties 1-1 and breaks by code point.
+    assert counts["top_brands"]["phones"] == [("ACME", 2), ("Bolt", 1)]
+    # one display spelling per brand, chosen over all products
+    assert counts["top_brands"]["unlocked_cell_phones"] == [("ACME", 1), ("Bolt", 1)]  # p1, p3
+    assert counts["top_brands"]["furniture"] == [("Desk", 1)]  # no Brand: the title's first word
+    assert counts["risky_titles"]["phones"] == {
+        "renewed or refurbished": 1, "international version": 1, "no warranty": 0, "any": 2,
+    }
+    assert "Phone X (Renewed)" not in repr(counts)  # no title ever leaves this function
+
+
+def test_the_maker_is_the_brand_field_else_the_first_title_word():
+    assert maker_of({"title": "Zeta phone", "specs": {"Brand": "Acme"}}) == "Acme"
+    assert maker_of({"title": "Acme-Pro 15.6 laptop", "specs": {}}) == "Acme-Pro"
+    assert maker_of({"title": "  (Renewed) Bolt X", "specs": {"Brand": " "}}) == "Renewed"
+    assert maker_of({"title": "", "specs": {}}) == "<none>"
