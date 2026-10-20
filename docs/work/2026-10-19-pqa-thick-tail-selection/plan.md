@@ -92,8 +92,39 @@ numbers (T1 …) are `design.md` §4.
       not committed yet" in the 3.1 row (`:393`), and 3.4's inherited constraints (the stratum for
       unanswerable questions; read through `iter_selection`; do not label strata with this
       tokenizer; "return key"; no shipping tag).
-- [ ] 22. `/verify`, `/ai-review`, `/done`.
+- [x] 22. `/verify`, `/ai-review`, `/done`. *2026-10-20: `make verify` green (333 + 15; proto drift is not a `make verify` target, so not run); `/ai-review` found 10, all fixed (`review.md`); `/done` below.*
 
 **Passed on, not done here:** `data/workload-v1.json` (the gate's default path) is not gitignored,
 and 3.4 will write PQA question text to it (impact F11). Stale prose for the author:
 `data/README.md`, `.gitignore:21-24`, `data-card.md:48` (impact F14).
+
+## Outcome — closed 2026-10-20
+
+**Shipped.** `experiments/scripts/select_pqa.py` (the selection, `iter_selection`, the blind audit),
+`experiments/scripts/answerability_check.py` (the ePQA check), `build_pqa.py`'s `fields_conflict` flag
+(`MANIFEST_VERSION` 2), seven Make targets, 75 tests. Tracked outputs: `data/pqa-manifest.json`
+(`741d52e3…`) and `data/pqa-selection.json`. Gitignored drafts: 152 product records (digest `d373c4b0…`), a
+4,706-question pool, the generic tokens, the marked audit sheet; `data/raw/epqa/`. Records: `data-card.md`
+§1, §3 and Schemas (**the Done-when**), **ADR-011**, `architecture.md`, `super-plan.md` (the 3.2 row, the
+Phase 3 progress line, 3.4's inherited constraints).
+
+**What the numbers say.** The probe's pools reproduce exactly. R2 is a high-recall, low-precision
+pre-filter: precision 35 % (a model audit) and 21 % (ePQA); NPV 97.5 % and 93.5 %. The selection favours
+long product text (2 – 5 chunks against 1 – 2), a C1 limitation.
+
+**Departures, each recorded:** fallback step 1 applied by the author (TVs 13 + headphones 25); the audit
+marked by a model at the author's request, not human-verified; one test amended and one renamed field, with
+the reasons in `approvals.md`.
+
+**Deferred, to a named owner:**
+- **3.4:** re-label every R2-answerable workload query and a sample of the R2-unanswerable ones; keep the
+  unanswerable stratum; read the drafts through `iter_selection`; never label strata with the probe's
+  tokenizer; policy questions are scarce (127); `data/workload-v1.json` must be gitignored before it holds
+  PQA text.
+- **3.6:** `K` comes from a pool whose true answerable yield is estimated (≈ 410 of 1,180), not measured;
+  the selected products' long titles: one probe-pool title already makes `make ingest` fail, so the freeze
+  must ingest the drafts once before hashing.
+- **For the author (stale prose, not this item's):** `data/README.md`; `.gitignore:21-24`;
+  `data-card.md:48` (the builder no longer downloads).
+
+**Follow-up worth a task:** none outside the items above.
