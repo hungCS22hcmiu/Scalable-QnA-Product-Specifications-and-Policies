@@ -146,7 +146,11 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   flag and, when answerable, evidence that overlaps the reference span (pass-1 evidence for seed and
   para, the lookalike's own evidence); a disagreement drops the query. Limit to report: Claude wrote
   the queries and labels them blind in the same session, so the blind check is less independent;
-  step 10 (the author's read) is the outside check.
+  step 10 (the author's read) is the outside check. **Resume point (checked at the stop):**
+  `make workload-status` shows `blind 0/954, swap 0/74`; the last import is `write-22.rows.jsonl`;
+  no check-round row exists. The session stopped for its usage limit before any check-round
+  labelling, so the next session starts at check sheet 1, labelling each query from the record
+  alone.
 - [ ] **10. The author's read** (review M6 d). A seeded sample of **30** rows across the row types,
       written by `make` to a gitignored sheet for the author: does each keep (paraphrase) or change
       (probe) the answer as its rule says, and does it read as a shopper's question? **Stop rule,
