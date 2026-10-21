@@ -131,6 +131,22 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
       the pass-2 sheets. Claude writes R3, R4, R5 (with answers and evidence), R6 labels, R7 built
       policy questions (from pool wording first), R8, and labels every written query on its own
       (R2, without its seed). Import and batch records as in step 7.
+  **Step 9 status (in progress, 2026-10-21; handoff for the next session).** The write round is
+  complete: 22 sheets, 1,097 rows imported (350 seed, 480 para, 124 lookalike, 69 D, 74 cell).
+  One reject: a paraphrase used "hard", a record word ("Hard Drive"), which R4 forbids. It was
+  re-done as `write-10b` and the reject stays counted in `batches.md`. Before each import, rows went
+  through a read-only pre-check (`tools/precheck.py`), which calls `build_workload.check_row` on
+  the record text the sheet shows. That is why rejects are near zero: the reject count measures
+  little, and the step-9 result must say so. Conventions kept: D questions name their condition
+  ("unopened", "new", "US version"); twin cells are minimal pairs that differ only in the condition
+  word; identical originals get different Tier-1 forms ("this X" against "the X"); `pqa-template`
+  only where a real pool question fits the cell, `claude` otherwise. **Not started: the check
+  round**, 1,028 tasks (954 blind, 74 swap). Regenerate the sheets with `make workload-sheets
+  ROUND=check OUT=<scratchpad>/sheets-check`. A blind label agrees only with the same answerable
+  flag and, when answerable, evidence that overlaps the reference span (pass-1 evidence for seed and
+  para, the lookalike's own evidence); a disagreement drops the query. Limit to report: Claude wrote
+  the queries and labels them blind in the same session, so the blind check is less independent;
+  step 10 (the author's read) is the outside check.
 - [ ] **10. The author's read** (review M6 d). A seeded sample of **30** rows across the row types,
       written by `make` to a gitignored sheet for the author: does each keep (paraphrase) or change
       (probe) the answer as its rule says, and does it read as a shopper's question? **Stop rule,
