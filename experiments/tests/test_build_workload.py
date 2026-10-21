@@ -693,6 +693,70 @@ def test_rules_md_states_every_constant():
 
 
 # =================================================================================================
+# Plan step 8: the pass-1 report, counts only
+# =================================================================================================
+BATCHES = """\
+| Imported (UTC) | Rows file | sha256 (16) | Model | rules.md (16) | Accepted | Skipped | Rejected |
+| :--- | :--- | :--- | :--- | :--- | :--- | ---: | ---: |
+| 2026-10-21T10:57:49+00:00 | `a.jsonl` | `0` | m | `0` | label 3, name 2 | 0 | 1 |
+| 2026-10-21T10:58:49+00:00 | `b.jsonl` | `0` | m | `0` | label 1 | 2 | 0 |
+| 2026-10-21T10:59:49+00:00 | `c.jsonl` | `0` | m | `0` | relabel 4 | 0 | 0 |
+| 2026-10-21T11:00:49+00:00 | `d.jsonl` | `0` | m | `0` | seed 5, para 2 | 0 | 3 |
+"""
+
+
+def test_batch_totals_split_pass_1_from_the_repeat_and_leave_later_rounds_out():
+    totals = build_workload.batch_totals(BATCHES)
+    assert totals["pass 1"] == {"batches": 2, "accepted": 6, "skipped": 2, "rejected": 1}
+    assert totals["relabel"] == {"batches": 1, "accepted": 4, "skipped": 0, "rejected": 0}
+
+
+def test_the_labels_report_counts_the_yield_r2_and_the_repeat(tmp_path, inputs):
+    layer = load_layer(_complete_label_round(tmp_path, inputs))
+    text = build_workload.labels_report(inputs, layer, BATCHES)
+    assert "| **all** | 11 / 11 | 0 / 3 | 11 / 14 |" in text
+    assert "| phones | 5 / 5 | 0 / 3 | 5 / 8 |" in text
+    assert "Precision of R2 (Claude-answerable among R2-answerable): 11 / 11" in text
+    assert "NPV of R2 (Claude-unanswerable among the R2-unanswerable sample): 3 / 3" in text
+    assert "Same answerable flag: 14 / 14" in text
+    assert "evidence overlapping (same field, spans intersect): 11 / 11" in text
+    assert "U1 check: yield 11 against the floor 200 → STOP" in text
+    assert "- pass 1: 2 batches · 6 rows accepted · 2 skipped · 1 rejected" in text
+    assert "| phones | 2 | 0 | 0 | 0 |" in text
+    assert "- policy-warranty-phones-domestic · term: 2" in text
+
+
+def test_a_repeat_that_flips_is_counted_in_its_direction(tmp_path, inputs):
+    layer = load_layer(_complete_label_round(tmp_path, inputs))
+    flip = next(r for r in build_workload.rows_of(layer, "relabel") if r["answerable"])
+    flip.update(answerable=False, answer="", evidence="")
+    text = build_workload.labels_report(inputs, layer, "")
+    assert "Same answerable flag: 13 / 14" in text
+    assert "Pass 1 answerable, repeat not: 1 · pass 1 not, repeat answerable: 0" in text
+    assert "evidence overlapping (same field, spans intersect): 10 / 10" in text
+
+
+def test_the_labels_report_holds_no_question_and_no_product_id(tmp_path, inputs):
+    text = build_workload.labels_report(inputs, load_layer(_complete_label_round(tmp_path, inputs)), "")
+    assert not [d for d in inputs.products if d in text]
+    assert not [p.text for p in inputs.pool.values() if p.text in text]
+
+
+def test_the_labels_command_waits_for_the_whole_label_round(tmp_path, inputs, monkeypatch):
+    out = tmp_path / "labels.md"
+    monkeypatch.setattr(build_workload, "read_inputs", lambda *a: inputs)
+    monkeypatch.setattr(build_workload, "LABELS_REPORT_PATH", out)
+    monkeypatch.setattr(build_workload, "BATCHES_PATH", _rows_file(tmp_path, [], "batches.md"))
+    _, partial = _import(tmp_path, inputs, _name_rows())
+    assert build_workload.main(["--layer", str(partial), "labels"]) == 2
+    assert not out.exists()
+    (tmp_path / "complete").mkdir()
+    complete = _complete_label_round(tmp_path / "complete", inputs)
+    assert build_workload.main(["--layer", str(complete), "labels"]) == 0
+    assert out.read_text().startswith("# Pass-1 labels")
+
+
+# =================================================================================================
 # W3: 3.2's drafts are read only through iter_selection, which stops on a mismatch
 # =================================================================================================
 def test_a_missing_or_changed_selection_stops_before_anything_is_read(tmp_path):

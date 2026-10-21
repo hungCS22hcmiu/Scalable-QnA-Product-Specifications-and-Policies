@@ -33,7 +33,7 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   pytest (rag 15, experiments 422) and proto regeneration all **PASS**, none skipped (the stubs are
   gitignored, so "drift" means they regenerate and Go builds and tests against them);
   `git status --porcelain data/` empty.
-- [ ] **4. The pilot** (review U13). Memory check (must not be red; record the level). About 20
+- [x] **4. The pilot** (review U13). Memory check (must not be red; record the level). About 20
       synthetic close / far / name-swap pairs, written for the pilot and containing **no PQA text**,
       embedded with `nomic-embed-text` through the frozen path. `evidence/pilot.md`: each pair's
       cosine against 0.85. This is the **last point** where a constant in `design.md` §2.2 may move;
@@ -41,7 +41,7 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
       ✅ *2026-10-21: 25 pairs, 38 texts; close paraphrases 0.966 – 0.994, far 0.817 – 0.959, name
       swaps 0.668 – 0.803 (all below), same-product traps 0.831 – 0.948, unrelated 0.697 – 0.746.
       **No constant moves** (reasons in `evidence/pilot.md`).*
-- [ ] **5. `rules.md`, the constants and the import checks.** `rules.md` in this trail holds R1 –
+- [x] **5. `rules.md`, the constants and the import checks.** `rules.md` in this trail holds R1 –
       R10 (`design.md` §4) with their sheet and row formats, the shape table (§2.3), the twin groups,
       the constants (§2.2), `SEED`, and the analysis rules A1 – A4 (§8). `build_workload.py`:
       `write_sheets` and `import_rows` with every mechanical check; `make workload-sheets`,
@@ -62,7 +62,7 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   `data/sheets/`; removed, and the test now points the root at a temporary folder). `/verify`:
   gofmt, go vet, go build, go test, ruff, pytest (rag 15, experiments 485) and proto all **PASS**,
   none skipped; `git status --porcelain data/` empty.
-- [ ] **6. The offline builder.** `build`, `make_units`, `assign_split`, `assign_stratum`, `rank`,
+- [x] **6. The offline builder.** `build`, `make_units`, `assign_split`, `assign_stratum`, `rank`,
       `simulate_lru`, `write_outputs`, `verify`, `embed_all` (injected embedder); `make
       workload-embed`, `workload-build`, `workload-verify`. Tests T1, T3 – T9, T11 – T13, T19, on
       fixtures. Commit. The whole build path is fixed before any model row exists.
@@ -86,16 +86,47 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
 
 ## B. The model layer
 
-- [ ] **7. Pass 1 — labels.** `make workload-sheets OUT=<scratchpad>` in batches. Claude writes R1
+- [x] **7. Pass 1 — labels.** `make workload-sheets OUT=<scratchpad>` in batches. Claude writes R1
       (names), R2 (every R2-answerable spec question and the R2-unanswerable sample), R7 (policy
       assignments) and R9 (natural-pair marks), following `rules.md` only. `make workload-import`
       after each batch; rejects are re-done, never edited by a script. Each batch's sha256, model id
       and time go to `evidence/batches.md` and are committed (impact F10). `RELABEL = 40` questions
       come back in a later batch.
-- [ ] **8. Report pass 1** (`evidence/labels.md`, counts only): the yield, by R2 tag; R2 against
+  **Step 7 result (2026-10-21).** 19 label sheets, one re-done row and 5 relabel sheets, all
+  imported; every batch line is in `evidence/batches.md`, committed in five commits. Pass 1
+  accepted 1,898 rows: 1,340 labels, 152 names, 232 natural-pair marks, 174 policy assignments.
+  **One reject:** an answerable label whose only evidence ("iOS 9") was 2 words, under
+  `EVIDENCE_WORDS`' 3. No longer span holds the fact, so it was re-done as not answerable. This is
+  a miss the rule causes, not a labelling error. **One error caught before import:** on sheet 9 an
+  evidence span was verbatim but did not support the answer. The import cannot see this kind of
+  error (the span is in the record); the blind relabel of step 9 and the author's read of step 10
+  are what cover it. Conventions kept across the sheets, for the author to check in step 10: a
+  record that claims worldwide use ("works worldwide", "U.S. and world", "Global 4G LTE") makes a
+  country question answerable; a carrier the record does not name stays not answerable (which
+  network a carrier uses is outside knowledge); a return question that says neither opened nor
+  unopened is `ambiguous`; a phones warranty question takes its product's region when the record
+  states it, and is `ambiguous` otherwise. The relabel sheets reuse the names `label-01` …
+  `label-05`; `batches.md` tells them apart by sha256 and by "relabel" in the Accepted column.
+- [x] **8. Report pass 1** (`evidence/labels.md`, counts only): the yield, by R2 tag; R2 against
       Claude (precision, NPV, Wilson intervals); the repeat agreement; the rejects; the policy
       assignments. **If the yield is below 200** (U1), stop and show the author. The constants do not
       move.
+  **Step 8 result (2026-10-21).** The plan named no command for this report, so I added one:
+  `make workload-labels` (`labels_report`, `batch_totals`, and a `labels` command that refuses
+  until the label round is complete). 5 new tests (94 in the file); 3 hand mutants, all caught (the
+  guard removed, the NPV numerator, the direction of a repeat change). **Yield 448** (427 of 1,180
+  R2-answerable, 21 of the 160-question sample): above the floor of 200 and inside ADR-011's
+  285 – 560, so the plan goes on and no constant moves. R2 precision 0.362 (Wilson 0.335 – 0.390),
+  NPV 0.869 (0.808 – 0.913). **Repeat agreement 38 of 40** (0.835 – 0.986). Both changes went from
+  not answerable to answerable, so the repeat was never stricter than pass 1. All 16
+  both-answerable pairs quote overlapping evidence. 5 of the 40 repeats (from sheets 17 – 19) were
+  labelled earlier in the same context window, so those 5 are less independent; all 5 agreed.
+  Policy: 76 assigned, 33 `ambiguous`, 22 `not_covered`, 43 `not_policy`. Natural pairs: 36
+  `same`, 6 `different`, 190 `unanswerable`. **Pass 2 gets fewer spec seeds than the design
+  expected:** 214, not about 304, because 62 of the 152 products have fewer than 2 Claude-answerable
+  labels outside the natural candidates; 52 unanswerable seeds. The design says these counts are
+  expectations, not targets, so nothing is changed to reach 304. `/verify`: gofmt, go vet, go
+  build, go test, ruff, pytest (rag 15, experiments 516) and proto all **PASS**, none skipped.
 - [ ] **9. Pass 2 — writing.** The script picks the seeds from the labels (deterministic) and writes
       the pass-2 sheets. Claude writes R3, R4, R5 (with answers and evidence), R6 labels, R7 built
       policy questions (from pool wording first), R8, and labels every written query on its own

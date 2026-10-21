@@ -2146,6 +2146,138 @@ def build_report(workload: Workload, manifest: dict) -> str:
 
 
 # =================================================================================================
+# The pass-1 report (plan step 8)
+# =================================================================================================
+LABELS_REPORT_PATH = TRAIL / "evidence" / "labels.md"
+YIELD_FLOOR = 200  # design U1: below it the spec half shrinks, and the author decides
+LABEL_ROUND_TYPES = frozenset({"name", "label", "policy", "natural"})
+NOT_ASSIGNED = ("ambiguous", "not_covered", "not_policy")
+
+
+def _rate(k: int, n: int) -> str:
+    ci = select_pqa.wilson(k, n)
+    return f"{k} / {n} ({k / n:.3f}, Wilson 95 % {ci[0]} – {ci[1]})" if ci else f"{k} / {n}"
+
+
+def batch_totals(text: str) -> dict[str, Counter]:
+    """Batches and rows accepted, skipped and rejected, per label-round kind, from the table in
+    evidence/batches.md. A later round's batches are left out."""
+    out = {"pass 1": Counter(), "relabel": Counter()}
+    for line in text.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) != 8 or not cells[0][:4].isdigit():
+            continue
+        accepted = Counter({t: int(n) for t, n in (p.rsplit(" ", 1) for p in cells[5].split(", "))})
+        if set(accepted) == {"relabel"}:
+            kind = "relabel"
+        elif set(accepted) <= LABEL_ROUND_TYPES:
+            kind = "pass 1"
+        else:
+            continue
+        out[kind].update(batches=1, accepted=accepted.total(), skipped=int(cells[6]),
+                         rejected=int(cells[7]))
+    return out
+
+
+def labels_report(inputs: Inputs, layer: dict[str, dict], batches_text: str) -> str:
+    """evidence/labels.md: counts only -- no question, no asin, no product doc_id."""
+    labels = first_labels(layer)
+    depts = departments(inputs)
+    by: dict[tuple[str, bool], list[bool]] = defaultdict(list)  # (department, R2 tag) -> Claude
+    for ref, r in labels.items():
+        line = inputs.pool[ref]
+        by[(line.department, bool(line.r2_answerable))].append(bool(r["answerable"]))
+
+    def cell(rows: list[bool]) -> str:
+        return f"{sum(rows)} / {len(rows)}"
+
+    lines = ["# Pass-1 labels — item 3.4 (written by `make workload-labels`)", ""]
+    lines += [
+        "## Yield: Claude-answerable among the labelled spec questions", "",
+        "| Department | R2-answerable | R2-unanswerable (sample) | Both |",
+        "| :--- | ---: | ---: | ---: |",
+    ]
+    for d in [*depts, None]:
+        keep = [d] if d else depts
+        yes = [v for k in keep for v in by[(k, True)]]
+        no = [v for k in keep for v in by[(k, False)]]
+        lines.append(f"| {d or '**all**'} | {cell(yes)} | {cell(no)} | {cell(yes + no)} |")
+    yes_all = [v for d in depts for v in by[(d, True)]]
+    no_all = [v for d in depts for v in by[(d, False)]]
+    total = sum(yes_all) + sum(no_all)
+    verdict = "continue" if total >= YIELD_FLOOR else "STOP: show the author (plan step 8)"
+    lines += ["", f"U1 check: yield {total} against the floor {YIELD_FLOOR} → {verdict}.", ""]
+
+    precision = _rate(sum(yes_all), len(yes_all))
+    npv = _rate(len(no_all) - sum(no_all), len(no_all))
+    lines += [
+        "## R2 against Claude (Claude's label as the reference)", "",
+        f"- Precision of R2 (Claude-answerable among R2-answerable): {precision}",
+        f"- NPV of R2 (Claude-unanswerable among the R2-unanswerable sample): {npv}",
+        (f"  The sample is the first {R2_UNANSWERABLE_SAMPLE} per department in hash order, so the "
+         "NPV estimates the pool's R2-unanswerable spec questions; the precision is a census."),
+        "",
+    ]
+
+    pairs = [(labels[f"{r['doc_id']}:{r['line_no']}"], r) for r in rows_of(layer, "relabel")]
+    both = [(a, b) for a, b in pairs if a["answerable"] and b["answerable"]]
+    same = _rate(sum(a["answerable"] == b["answerable"] for a, b in pairs), len(pairs))
+    lost = sum(a["answerable"] and not b["answerable"] for a, b in pairs)
+    gained = sum(b["answerable"] and not a["answerable"] for a, b in pairs)
+    overlap = sum(overlaps(inputs.products[a["doc_id"]], a["evidence"], b["evidence"])
+                  for a, b in both)
+    lines += [
+        f"## Repeat agreement (RELABEL = {RELABEL})", "",
+        f"- Same answerable flag: {same}",
+        f"- Pass 1 answerable, repeat not: {lost} · pass 1 not, repeat answerable: {gained}",
+        f"- Both answerable, evidence overlapping (same field, spans intersect): {overlap} / {len(both)}",
+        "",
+    ]
+
+    lines += ["## Imports (evidence/batches.md)", ""]
+    for kind, c in batch_totals(batches_text).items():
+        lines.append(f"- {kind}: {c['batches']} batches · {c['accepted']} rows accepted · "
+                     f"{c['skipped']} skipped · {c['rejected']} rejected")
+    lines.append("")
+
+    policy = rows_of(layer, "policy")
+
+    def kind_of(r: dict) -> str:
+        return r["assign"] if r["assign"] in NOT_ASSIGNED else "assigned"
+
+    lines += [
+        "## Policy assignments (R7 a)", "",
+        "| Department | assigned | ambiguous | not_covered | not_policy |",
+        "| :--- | ---: | ---: | ---: | ---: |",
+    ]
+    for d in [*depts, None]:
+        c = Counter(kind_of(r) for r in policy if d is None or inputs.products[r["doc_id"]].department == d)
+        lines.append(f"| {d or '**all**'} | " + " | ".join(
+            str(c[k]) for k in ("assigned", *NOT_ASSIGNED)) + " |")
+    assigned = Counter((r["assign"], r["shape"], r["variant"]) for r in policy if kind_of(r) == "assigned")
+    ambiguous = Counter((r["kind"], r["shape"]) for r in policy if r["assign"] == "ambiguous")
+    lines += ["", "Assigned, by document, shape and variant:", ""]
+    lines += [f"- {doc} · {shape}{' · ' + v if v else ''}: {n}"
+              for (doc, shape, v), n in sorted(assigned.items())] or ["- none"]
+    lines += ["", "Ambiguous, by kind and shape:", ""]
+    lines += [f"- {k} · {shape}: {n}" for (k, shape), n in sorted(ambiguous.items())] or ["- none"]
+
+    marks = Counter(r["mark"] for r in rows_of(layer, "natural"))
+    seeds = seed_refs(inputs, layer)
+    short = sum(len(v) < SPEC_SEEDS_PER_PRODUCT for v in seeds.values())
+    n_seeds = sum(len(v) for v in seeds.values())
+    n_unanswerable = len(unanswerable_refs(inputs, layer))
+    lines += [
+        "", "## Names, natural pairs and what pass 2 draws on", "",
+        f"- Names: {len(rows_of(layer, 'name'))} of {len(inputs.products)} products",
+        "- Natural pairs: " + ", ".join(f"{m} {n}" for m, n in sorted(marks.items())),
+        f"- Spec seeds: {n_seeds} ({SPEC_SEEDS_PER_PRODUCT} per product; {short} products have fewer)",
+        f"- Unanswerable seeds: {n_unanswerable} ({UNANSWERABLE_SEEDS} per department at most)",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+# =================================================================================================
 # CLI
 # =================================================================================================
 def rules_sha256_committed(rules_path: Path = RULES_PATH) -> str:
@@ -2215,6 +2347,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--layer", type=Path, default=LAYER_PATH)
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="open tasks per round, counts only")
+    sub.add_parser("labels", help="write the pass-1 report, evidence/labels.md (counts only)")
     sp = sub.add_parser("sheets", help="write the open tasks of one round as sheets")
     sp.add_argument("--round", choices=ROUNDS, required=True)
     sp.add_argument("--out", type=Path, required=True)
@@ -2232,6 +2365,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "status":
             for line in status_lines(inputs, layer):
                 print(line)
+            return 0
+        if args.command == "labels":
+            if not round_complete(all_tasks(inputs, layer)["label"], layer):
+                raise WorkloadStop("the label round is not complete; see make workload-status")
+            text = labels_report(inputs, layer, BATCHES_PATH.read_text())
+            LABELS_REPORT_PATH.write_text(text)
+            print(text, end="")
             return 0
         if args.command == "verify":
             problems = verify_outputs(inputs, DATA_DIR)
