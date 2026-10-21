@@ -19,3 +19,8 @@ characters of the file's sha256), the model id and the first 16 characters of `r
 | 2026-10-21T11:11:21+00:00 | `label-10.rows.jsonl` | `d4eaf70adaba0125` | claude-opus-5-5 | `f4035be73a5637c2` | label 78, name 8, natural 16, policy 17 | 0 | 0 |
 | 2026-10-21T15:07:19+00:00 | `label-11.rows.jsonl` | `97e14f1a0c857b35` | claude-opus-5-5 | `f4035be73a5637c2` | label 71, name 8, natural 13, policy 15 | 0 | 0 |
 | 2026-10-21T15:08:42+00:00 | `label-12.rows.jsonl` | `153b89d1cd19e17c` | claude-opus-5-5 | `f4035be73a5637c2` | label 66, name 8, natural 13, policy 12 | 0 | 0 |
+| 2026-10-21T15:09:57+00:00 | `label-13.rows.jsonl` | `e1e5ff9d91ad788a` | claude-opus-5-5 | `f4035be73a5637c2` | label 61, name 8, natural 17, policy 9 | 0 | 0 |
+| 2026-10-21T15:11:20+00:00 | `label-14.rows.jsonl` | `238b19bde5ecce43` | claude-opus-5-5 | `f4035be73a5637c2` | label 70, name 8, natural 13, policy 13 | 0 | 0 |
+| 2026-10-21T15:12:43+00:00 | `label-15.rows.jsonl` | `79156cda37905a87` | claude-opus-5-5 | `f4035be73a5637c2` | label 73, name 8, natural 16, policy 8 | 0 | 0 |
+| 2026-10-21T15:14:19+00:00 | `label-16.rows.jsonl` | `f3e7b2370fb196ae` | claude-opus-5-5 | `f4035be73a5637c2` | label 68, name 8, natural 21, policy 12 | 0 | 1 |
+| 2026-10-21T15:14:30+00:00 | `label-16b.rows.jsonl` | `abc824dd4fb5bf33` | claude-opus-5-5 | `f4035be73a5637c2` | label 1 | 0 | 0 |
