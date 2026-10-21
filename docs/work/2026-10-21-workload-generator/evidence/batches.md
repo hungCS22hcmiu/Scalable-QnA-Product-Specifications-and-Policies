@@ -46,3 +46,7 @@ characters of the file's sha256), the model id and the first 16 characters of `r
 | 2026-10-21T16:06:32+00:00 | `write-11.rows.jsonl` | `781b20bc459dee5a` | claude-opus-5-5 | `f4035be73a5637c2` | d 5, lookalike 8, para 31, seed 20 | 0 | 0 |
 | 2026-10-21T16:07:56+00:00 | `write-12.rows.jsonl` | `731f62cef770d383` | claude-opus-5-5 | `f4035be73a5637c2` | d 4, lookalike 8, para 28, seed 21 | 0 | 0 |
 | 2026-10-21T16:09:13+00:00 | `write-13.rows.jsonl` | `928fcaa0e4b55ee0` | claude-opus-5-5 | `f4035be73a5637c2` | d 5, lookalike 6, para 28, seed 20 | 0 | 0 |
+| 2026-10-21T16:10:33+00:00 | `write-14.rows.jsonl` | `755c69f1666cb476` | claude-opus-5-5 | `f4035be73a5637c2` | d 5, lookalike 7, para 26, seed 18 | 0 | 0 |
+| 2026-10-21T16:11:59+00:00 | `write-15.rows.jsonl` | `12de2d35f8131df1` | claude-opus-5-5 | `f4035be73a5637c2` | d 5, lookalike 8, para 27, seed 23 | 0 | 0 |
+| 2026-10-21T16:13:14+00:00 | `write-16.rows.jsonl` | `e0734206a28eba3a` | claude-opus-5-5 | `f4035be73a5637c2` | d 1, lookalike 7, para 33, seed 29 | 0 | 0 |
+| 2026-10-21T16:14:38+00:00 | `write-17.rows.jsonl` | `c2eac3d4867e38e1` | claude-opus-5-5 | `f4035be73a5637c2` | lookalike 8, para 29, seed 27 | 0 | 0 |
