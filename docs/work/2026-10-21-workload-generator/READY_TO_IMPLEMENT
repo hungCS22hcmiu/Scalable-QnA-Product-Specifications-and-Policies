@@ -1,0 +1,3 @@
+approved: 2026-10-21
+phases: impact (yes), contract (yes), experiment (yes), implementation (yes)
+covers: design.md draft 2 (with the section 2.7 contract note) and plan.md draft 2, with the proposed answers to spec.md open questions 1-14
