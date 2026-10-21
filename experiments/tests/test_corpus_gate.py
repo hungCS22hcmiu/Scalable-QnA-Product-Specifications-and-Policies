@@ -15,21 +15,33 @@ from pathlib import Path
 
 import pytest
 from corpus_gate import (
+    Pair,
     Query,
     check_g1,
     check_g2,
     check_g3,
     check_g4,
     check_g5,
+    check_split_files,
+    check_workload_shape,
     condition_hits,
     cosine,
     derive_capacity,
+    derive_split,
     find_pairs,
+    freeze_files,
     jaccard,
+    k_per_run_file,
     label_pair,
     load_policy_records,
+    load_workload,
     normalize_t1,
+    retrieve_all,
+    similar_pairs,
     snapshot_digest,
+    split_pairs,
+    split_path,
+    trap_fraction,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -472,3 +484,309 @@ def test_the_gate_runs_g5_in_stage_1_and_stops_on_it(tmp_path, monkeypatch, caps
     assert corpus_gate.main() == 1
     out = capsys.readouterr().out
     assert "[FAIL] G5" in out and "STOP" in out
+
+
+# =================================================================================================
+# Item 3.4 -- the workload's shape, its split files, K per run file, scoped stage 2
+# (docs/work/2026-10-21-workload-generator/design.md §2.7 and §5; tests T2, T14, T17, T18, T24)
+# =================================================================================================
+def _w(qa_id, question, split, stratum="A", cluster_id="", pair_of="", probe_kind="",
+       product_id="product-phones-x1"):
+    return Query(qa_id=qa_id, question=question, split=split, stratum=stratum,
+                 cluster_id=cluster_id or f"c-{qa_id}", pair_of=pair_of, probe_kind=probe_kind,
+                 product_id=product_id)
+
+
+def _good_workload():
+    return [
+        _w("v1", "How heavy is the Galaxy A10e?", "validation", cluster_id="c1"),
+        _w("v2", "What does the Galaxy A10e weigh?", "validation", stratum="C", cluster_id="c1"),
+        _w("v3", "How heavy is the Moto G7?", "validation", stratum="B-cross", pair_of="v1",
+           probe_kind="name-swap", product_id="product-phones-x2"),
+        _w("t1", "How long is the warranty on the Pixel 3?", "test", stratum="C",
+           product_id="product-phones-x3"),
+        _w("t2", "How long is the return window on the Pixel 3?", "test", stratum="B-within",
+           pair_of="t1", probe_kind="policy-kind", product_id="product-phones-x3"),
+    ]
+
+
+def test_a_well_formed_workload_passes_the_shape_check():
+    """T17: the shape check passes what the builder is meant to write."""
+    shape = check_workload_shape(_good_workload())
+    assert shape.passed, shape.detail
+    assert "validation=3 test=2" in shape.summary
+
+
+def test_the_shape_check_names_a_cluster_that_spans_both_splits():
+    """T2 / W2: a cluster split in two leaks its paraphrases into test."""
+    queries = _good_workload()
+    queries[1].split = "test"  # v2 shares cluster c1 with v1, which stays in validation
+    shape = check_workload_shape(queries)
+    assert not shape.passed
+    assert any("cluster c1 spans" in d for d in shape.detail)
+
+
+def test_the_shape_check_names_a_probe_split_from_its_target():
+    """T2 / W2: a probe in one split file and its target in the other is a trap no run contains."""
+    queries = _good_workload()
+    queries[4].split = "validation"  # t2 is built against t1, which stays in test
+    queries[4].cluster_id = "c-t2"
+    shape = check_workload_shape(queries)
+    assert not shape.passed
+    assert any("t2 (validation) is built against t1 (test)" in d for d in shape.detail)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("stratum", ""), ("stratum", "B"), ("split", ""), ("split", "train"), ("cluster_id", "")],
+)
+def test_the_shape_check_needs_one_stratum_split_and_cluster_per_record(field, value):
+    """W1: every record carries exactly one of each, from the allowed values."""
+    queries = _good_workload()
+    setattr(queries[0], field, value)
+    shape = check_workload_shape(queries)
+    assert not shape.passed
+    assert any(d.startswith("v1:") for d in shape.detail)
+
+
+def test_the_shape_check_fails_one_tier1_form_even_across_products():
+    """W5 is stricter than G3: G3 partitions by product_id, W5 does not, so the offline join on
+    `query_normalized` stays exact whether or not a run sends product_id."""
+    queries = _good_workload()
+    queries.append(_w("t3", "how heavy is the GALAXY A10e", "test",
+                      product_id="product-phones-x9"))
+    assert check_g3(queries)[0].passed
+    shape = check_workload_shape(queries)
+    assert not shape.passed
+    assert any("v1, t3" in d for d in shape.detail)
+
+
+def test_the_shape_check_fails_an_empty_split_a_dangling_probe_and_a_reused_id():
+    queries = [q for q in _good_workload() if q.split == "validation"]
+    queries[2].pair_of = "nowhere"
+    queries.append(_w("v1", "Is the Galaxy A10e waterproof?", "validation"))
+    shape = check_workload_shape(queries)
+    text = "\n".join(shape.detail)
+    assert "split 'test' holds no record" in text
+    assert "pair_of nowhere names no record" in text
+    assert "qa_id v1 is used by 2 records" in text
+
+
+def test_the_shape_check_caps_each_kind_of_problem():
+    queries = [_w(f"q{i}", f"question number {i}", "validation", stratum="") for i in range(25)]
+    shape = check_workload_shape(queries)
+    stratum_lines = [d for d in shape.detail if "stratum" in d]
+    assert len(stratum_lines) == 11 and stratum_lines[-1].startswith("... and 15 more")
+
+
+def test_k_and_the_trap_fraction_are_per_run_file():
+    """T14 / impact F1: a run's capacity is round(0.25 * K) of the file it draws from."""
+    assert k_per_run_file(_good_workload()) == {"whole": 5, "validation": 3, "test": 2}
+
+
+def test_the_trap_fraction_leaves_out_a_same_answer_name_swap():
+    """design.md §2.4: name-swap-same measures what the namespace costs and is not a trap."""
+    queries = [
+        Query("a", "?", stratum="A"),
+        Query("b", "?", stratum="B-cross", probe_kind="name-swap"),
+        Query("c", "?", stratum="B-cross", probe_kind="name-swap-same"),
+        Query("d", "?", stratum="B-within", probe_kind="policy-condition"),
+    ]
+    assert trap_fraction(queries) == 0.5
+
+
+def test_load_workload_reads_the_new_fields_and_treats_null_as_empty(tmp_path):
+    path = tmp_path / "workload-v1.json"
+    path.write_text(json.dumps([
+        {"qa_id": "t2", "question": "How long is the return window on the Pixel 3?",
+         "doc_ids": ["policy-return-phones-unopened"], "product_id": None, "stratum": "B-within",
+         "split": "test", "cluster_id": "c3", "pair_of": "t1", "probe_kind": "policy-kind"},
+        {"question": "Bare record", "pair_of": None, "doc_ids": None},
+    ]))
+    a, b = load_workload(path)
+    assert (a.split, a.cluster_id, a.pair_of, a.probe_kind, a.product_id) == (
+        "test", "c3", "t1", "policy-kind", "")
+    assert (b.qa_id, b.pair_of, b.doc_ids, b.split) == ("q0001", "", (), "")
+
+
+# --- the split files (impact F2, review L4; T18) --------------------------------------------------
+def _records():
+    """The whole file, deliberately NOT in rank order, so the derivation must sort."""
+    def rec(qa_id, question, split, rank, stratum="A", cluster="c1", pair_of=None):
+        return {"qa_id": qa_id, "question": question, "doc_ids": ["product-phones-x1"],
+                "product_id": "product-phones-x1", "stratum": stratum, "split": split,
+                "cluster_id": cluster, "pair_of": pair_of, "probe_kind": None,
+                "popularity_rank": rank}
+
+    return [
+        rec("v1", "How heavy is the Galaxy A10e?", "validation", 2),
+        rec("v2", "What does the Galaxy A10e weigh?", "validation", 1),
+        rec("t1", "How long is the battery life of the Galaxy A10e?", "test", 1, "C", "c2"),
+        rec("t2", "Does the Galaxy A10e have a headphone jack?", "test", 2, "B-within", "c3", "t1"),
+    ]
+
+
+def _write_workload(directory, records, splits=("validation", "test")):
+    whole = directory / "workload-v1.json"
+    whole.write_text(json.dumps(records))
+    for s in splits:
+        split_path(whole, s).write_text(json.dumps(derive_split(records, s)))
+    return whole
+
+
+def test_split_files_are_found_by_name_beside_the_whole_file():
+    whole = Path("data/workload-v1.json")
+    assert split_path(whole, "validation") == Path("data/workload-v1-validation.json")
+    assert split_path(whole, "test") == Path("data/workload-v1-test.json")
+
+
+def test_derive_split_orders_by_popularity_rank():
+    assert [r["qa_id"] for r in derive_split(_records(), "validation")] == ["v2", "v1"]
+
+
+@pytest.mark.parametrize("bad", [None, 3, True, "1"])
+def test_derive_split_needs_ranks_exactly_one_to_n(bad):
+    records = _records()
+    records[0]["popularity_rank"] = bad
+    with pytest.raises(ValueError, match="popularity_rank"):
+        derive_split(records, "validation")
+
+
+def test_split_files_that_match_the_whole_file_pass(tmp_path):
+    whole = _write_workload(tmp_path, _records())
+    result = check_split_files(whole)
+    assert result.passed, result.detail
+
+
+def test_a_missing_split_file_fails(tmp_path):
+    """T18: the gate fails on a missing split file rather than hashing two files of three."""
+    whole = _write_workload(tmp_path, _records(), splits=("validation",))
+    result = check_split_files(whole)
+    assert not result.passed
+    assert result.detail == ["no split file at workload-v1-test.json"]
+
+
+def test_a_reordered_split_file_fails_and_changes_the_digest(tmp_path):
+    """T18: a re-sorted split file is a different workload under the same name. The gate fails
+    it, and the digest over the three files moves with it."""
+    import corpus_gate
+
+    whole = _write_workload(tmp_path, _records())
+    files = [whole] + [split_path(whole, s) for s in ("validation", "test")]
+    original_root = corpus_gate.REPO_ROOT
+    corpus_gate.REPO_ROOT = tmp_path
+    try:
+        before, _ = snapshot_digest(files)
+        test_file = split_path(whole, "test")
+        test_file.write_text(json.dumps(list(reversed(json.loads(test_file.read_text())))))
+        after, _ = snapshot_digest(files)
+    finally:
+        corpus_gate.REPO_ROOT = original_root
+    assert before != after
+    result = check_split_files(whole)
+    assert not result.passed
+    assert "workload-v1-test.json differs" in result.detail[0] and "position 1" in result.detail[0]
+
+
+def test_a_split_file_with_an_edited_record_fails(tmp_path):
+    records = _records()
+    whole = _write_workload(tmp_path, records)
+    stale = derive_split(records, "validation")
+    stale[1]["stratum"] = "C"
+    split_path(whole, "validation").write_text(json.dumps(stale))
+    result = check_split_files(whole)
+    assert not result.passed and "position 2" in result.detail[0]
+
+
+def test_the_gate_prints_k_and_capacity_per_run_file_and_passes_a_good_workload(
+    tmp_path, monkeypatch, capsys
+):
+    """T14 and T17: stage 1 end to end on a well-formed workload and a clean corpus."""
+    import corpus_gate
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "policy-return-electronics.json").write_text(json.dumps(
+        _policy("policy-return-electronics", "return", "electronics",
+                "Items go back within 30 days.")))
+    (corpus / "product-phones-x1.json").write_text(json.dumps({"doc_id": "product-phones-x1"}))
+    whole = _write_workload(tmp_path, _records())
+    monkeypatch.setattr("sys.argv", ["corpus_gate.py", "--corpus-dir", str(corpus),
+                                     "--workload", str(whole), "--structural-only"])
+    assert corpus_gate.main() == 0
+    out = capsys.readouterr().out
+    assert "whole K=4 capacity=1" in out
+    assert "validation K=2 capacity=0" in out and "test K=2 capacity=0" in out
+    assert "[PASS] W   workload shape" in out and "[PASS] S   split files" in out
+
+
+# --- stage 2: scoped retrieval, pairs per split (review H3, impact F3; T24) ------------------------
+def test_stage_2_retrieves_scoped_by_each_querys_product_id():
+    """T24: G1 and G2 must measure the retrieval a run does, and a run sends product_id."""
+    scoped_calls, unscoped_calls = [], []
+    queries = [Query("a", "How heavy is it?", product_id="product-phones-x1"),
+               Query("b", "How long is the return window?")]
+    retrieve_all(
+        queries,
+        embed=lambda text: [1.0, 0.0],
+        retrieve_scoped=lambda text, pid: scoped_calls.append((text, pid)) or [f"s-{pid}"],
+        retrieve_unscoped=lambda text: unscoped_calls.append(text) or ["u"],
+        progress=lambda _: None,
+    )
+    assert scoped_calls == [("How heavy is it?", "product-phones-x1"),
+                            ("How long is the return window?", None)]
+    assert unscoped_calls == ["How heavy is it?", "How long is the return window?"]
+    assert queries[0].retrieved == ("s-product-phones-x1",)
+    assert queries[0].retrieved_unscoped == ("u",)
+
+
+def test_find_pairs_reads_the_unscoped_retrieval_only_when_asked():
+    same = [1.0, 0.0]
+    a = Query("a", "x", product_id="p1", embedding=same, retrieved=("c1",),
+              retrieved_unscoped=("c9",))
+    b = Query("b", "y", product_id="p1", embedding=same, retrieved=("c2",),
+              retrieved_unscoped=("c9",))
+    similar = similar_pairs([a, b])
+    assert len(find_pairs([a, b], similar)[0]) == 1  # scoped: two chunks apart, a G1 pair
+    assert find_pairs([a, b], similar, unscoped=True)[0] == []  # unscoped: one chunk shared
+
+
+def test_similar_pairs_gives_the_cosine_bit_for_bit():
+    """The shared pass computes each norm once; it must still give cosine()'s exact value, or a
+    pair at the floor could pass one and fail the other."""
+    import random
+
+    rng = random.Random(7)
+    vecs = [[rng.uniform(-1, 1) for _ in range(16)] for _ in range(4)]
+    vecs[1] = [x + rng.uniform(-0.05, 0.05) for x in vecs[0]]
+    queries = [Query(f"q{i}", "?", embedding=v) for i, v in enumerate(vecs)]
+    found = similar_pairs(queries)
+    assert found, "the fixture must hold a pair above the floor"
+    for i, j, sim in found:
+        assert sim == cosine(vecs[i], vecs[j])
+
+
+def test_g1_and_g2_count_only_pairs_inside_one_split():
+    """Impact F3: two queries in different split files never meet in one run's cache."""
+    queries = [Query("v1", "x", split="validation", product_id="p1"),
+               Query("v2", "y", split="validation", product_id="p1"),
+               Query("t1", "z", split="test", product_id="p1")]
+    pairs = [Pair("v1", "v2", 0.9, 0.0, "B-within"), Pair("v1", "t1", 0.9, 0.0, "B-within")]
+    within, across = split_pairs(pairs, queries)
+    assert [p.right for p in within["validation"]] == ["v2"]
+    assert within["test"] == [] and [p.right for p in across] == ["t1"]
+    assert check_g2(within["validation"], scope="validation").passed
+    g2_test = check_g2(within["test"], scope="test")
+    assert not g2_test.passed and g2_test.name.endswith("(test)")
+    assert check_g1(within["validation"], scope="within split").name.endswith("(within split)")
+
+
+def test_the_digest_covers_the_corpus_and_all_three_workload_files(tmp_path):
+    """Impact F2: the freeze record names every file a run can draw from."""
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "product-phones-x1.json").write_text("{}")
+    whole = _write_workload(tmp_path, _records())
+    names = [p.name for p in freeze_files(corpus, whole)]
+    assert names == ["product-phones-x1.json", "workload-v1.json", "workload-v1-validation.json",
+                     "workload-v1-test.json"]

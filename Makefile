@@ -404,16 +404,23 @@ load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 #   make gate-corpus STRUCTURAL=1          # G3/G4/G5 only -- needs a workload; before one exists,
 #                                          # make policy-check runs G5 on the policy documents
 #   make gate-corpus VERSION=dev-v0 ...    # shakedown; dev-v0 is NOT gated
+#   make gate-corpus STRUCTURAL=1 CORPUS_DIR=<dir>   # a scratch corpus (item 3.4: the drafts and
+#                                          # the policies), before data/v1 exists; never frozen
+# The workload's two split files are found by name beside WORKLOAD (workload-v1-validation.json,
+# workload-v1-test.json), re-derived from it, and hashed with it.
 VERSION ?= v1
 WORKLOAD ?= data/workload-$(VERSION).json
+CORPUS_DIR ?=
 gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the snapshot hash
-	@test -d data/$(VERSION) || { echo "FAIL -- no corpus at data/$(VERSION)"; exit 1; }
+	@test -d "$(or $(CORPUS_DIR),data/$(VERSION))" || { \
+	   echo "FAIL -- no corpus at $(or $(CORPUS_DIR),data/$(VERSION))"; exit 1; }
 	@test -f "$(WORKLOAD)" || { \
 	   echo "FAIL -- no workload at $(WORKLOAD)"; \
 	   echo "        It must live OUTSIDE data/$(VERSION)/: rag.ingest globs that directory and"; \
 	   echo "        asserts doc_id == filename, so a workload file dropped in it breaks ingestion."; \
 	   exit 1; }
 	$(PY) experiments/scripts/corpus_gate.py --version $(VERSION) --workload $(WORKLOAD) \
+	  $(if $(CORPUS_DIR),--corpus-dir "$(CORPUS_DIR)",) \
 	  $(if $(STRUCTURAL),--structural-only,) $(if $(REPORT),--report $(REPORT),)
 
 # Item 3.1: the Amazon-PQA builder (docs/data-card.md 1, ADR-002). The builder has NO network code.

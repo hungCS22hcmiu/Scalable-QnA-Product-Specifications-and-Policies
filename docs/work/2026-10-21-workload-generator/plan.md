@@ -8,19 +8,31 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
 
 ## A. Before any model text
 
-- [ ] **1. Access and memory.** This session reads `data/v1-draft/` only through `make` targets,
+- [x] **1. Access and memory.** This session reads `data/v1-draft/` only through `make` targets,
       never directly; sheets go to the session scratchpad. Record the memory pressure
       (`sysctl kern.memorystatus_vm_pressure_level`). No model is loaded before step 4.
-- [ ] **2. `.gitignore` first** (W10). Add `data/workload-v1*.json`. *Check:* `git check-ignore`
+      ✅ *2026-10-21: level 2 (yellow), no model loaded; `evidence/memory.md`.*
+- [x] **2. `.gitignore` first** (W10). Add `data/workload-v1*.json`. *Check:* `git check-ignore`
       matches the whole file and both split files, and does **not** match
       `data/workload-manifest.json`; `data/v1-draft/workload/` is already ignored (`.gitignore:31`).
-      Commit on its own.
-- [ ] **3. The gate** (`corpus_gate.py`, `Makefile`). `Query` gains `split`, `cluster_id`,
+      Commit on its own. ✅ *2026-10-21, `91f2b7b`; the check passed as written.*
+- [x] **3. The gate** (`corpus_gate.py`, `Makefile`). `Query` gains `split`, `cluster_id`,
       `pair_of`; `check_workload_shape` as one more stage-1 `Criterion`; the split files found by
       name, re-derived, and hashed with the whole file; `K` and the capacity per split; stage 2
       scoped (`rag.retrieve.retrieve(q, product_id=...)`), G1 within split, G2 per split, unscoped
       and cross-split reported; `CORPUS_DIR`. Tests T2 (gate side), T14, T17, T18, T24.
       *Check:* `test_the_gate_runs_g5_in_stage_1_and_stops_on_it` passes **unchanged**.
+  **Step 3 result (2026-10-21).** Done as written, with four small additions: `Query` also gains
+  `probe_kind`, so the trap fraction leaves out `name-swap-same` (design §2.4); the shape check also
+  enforces W5 (one Tier-1 form per record across the whole file) and a `qa_id` used once, since
+  `pair_of` resolves by it; a split file is re-derived as that split's records in `popularity_rank`
+  order, ranks exactly 1 .. n; the norms in the O(K²) cosine pass are computed once (the same value
+  bit for bit, tested). The two new stage-1 checks print as `W` and `S` beside G3 – G5. 30 new
+  tests (68 → 98); the immutable test passes unchanged. 11 hand mutants, all caught (the digest one only after
+  `freeze_files` was split out and tested). `/verify`: gofmt, go vet, go build, go test, ruff,
+  pytest (rag 15, experiments 422) and proto regeneration all **PASS**, none skipped (the stubs are
+  gitignored, so "drift" means they regenerate and Go builds and tests against them);
+  `git status --porcelain data/` empty.
 - [ ] **4. The pilot** (review U13). Memory check (must not be red; record the level). About 20
       synthetic close / far / name-swap pairs, written for the pilot and containing **no PQA text**,
       embedded with `nomic-embed-text` through the frozen path. `evidence/pilot.md`: each pair's

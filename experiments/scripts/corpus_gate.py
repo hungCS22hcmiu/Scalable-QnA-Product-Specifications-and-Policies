@@ -20,17 +20,30 @@ unless every criterion passes, so "frozen" cannot happen by accident.
 G5 here is a **lexical scan over the declared axes** (`CONDITION_AXES`). It is a floor, not a proof
 of §7's G5: the author's read of every policy document is the other half of the criterion.
 
+## The workload and its split files (item 3.4)
+
+A run draws from **one split file** (`ask.js` takes the file it is given), so the gate reads the
+workload the way the runs will. Stage 1 also checks the workload's shape (`check_workload_shape`:
+one stratum, one split and one cluster per record, no cluster or probe across the splits, one Tier-1
+form per record) and its two split files (`check_split_files`: found by name beside the whole file,
+re-derived from it, then hashed with it). `K` and the capacity are printed per run file; G1 counts
+within-split pairs and G2 must hold inside each split (docs/work/2026-10-21-workload-generator/
+design.md §2.7).
+
 ## Two stages, because §7's "do not proceed to ingestion" reads as a contradiction otherwise
 
 §7 says a failure means *"do not proceed to ingestion"*, yet G1/G2 are defined over `retrieve(q)`,
 which needs an ingested index. The resolution is that the criteria split cleanly by what they need:
 
-- **Stage 1 — structural.** G4, G3 and G5 read the corpus files and the workload file only. They
-  are genuinely pre-ingestion, and `--structural-only` runs them alone. While the policy documents
-  are being written, before any workload exists, `make policy-check` runs G5 on its own.
+- **Stage 1 — structural.** G4, G3, G5 and the two workload checks read the corpus files and the
+  workload files only. They are genuinely pre-ingestion, and `--structural-only` runs them alone.
+  While the policy documents are being written, before any workload exists, `make policy-check`
+  runs G5 on its own.
 - **Stage 2 — retrieval.** G1 and G2 need the frozen retrieval path, so they run against an
   ingested index (`make ingest`). Ingesting to *measure* is not ingesting to *ship*: nothing is
-  frozen until this gate passes, and re-ingestion is idempotent (`overwrite=True`).
+  frozen until this gate passes, and re-ingestion is idempotent (`overwrite=True`). Retrieval is
+  **scoped by each query's `product_id`**, as a run's is (`ask.js` sends it whenever a record has
+  one); the unscoped retrieval is reported beside it, never gated on.
 
 Stage 1 failing aborts before stage 2, so a mis-slugged corpus is never embedded.
 
@@ -50,10 +63,12 @@ import argparse
 import hashlib
 import json
 import math
+import operator
 import re
 import sys
 import unicodedata
 from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -69,6 +84,16 @@ G1_MIN_PAIRS = 50  # "high-similarity / low-overlap pairs >= ~50"
 CAPACITY_RATIO = 0.25  # the capacity ratio: capacity = round(ratio * K)
 
 DOC_ID_PREFIXES = ("product-", "policy-")
+
+# The workload's shape (item 3.4, design.md §2.4 and §2.5). One stratum and one split per record.
+STRATA = ("A", "B-within", "B-cross", "C", "D")
+SPLITS = ("validation", "test")
+# A B-cross probe whose answer equals its target's. Kept, because it measures what the namespace
+# costs, but it is NOT a trap (design.md §2.4), so the trap fraction leaves it out.
+NOT_A_TRAP = ("name-swap-same",)
+# Problem lines printed per kind before "... and N more": a workload missing a field on every record
+# would otherwise print a line per record.
+DETAIL_CAP = 10
 
 # G5's word list (docs/work/2026-10-20-policy-documents/design.md §5), committed before the first
 # policy document was written, and WIDENED by /ai-review F2 (2026-10-21) after the text existed;
@@ -158,7 +183,8 @@ def normalize_t1(query: str) -> str:
 # =================================================================================================
 @dataclass
 class Query:
-    """One workload record (data-card.md §6). Only `question` is required."""
+    """One workload record (data-card.md §6). Only `question` is required to load one;
+    `check_workload_shape` is what requires the rest."""
 
     qa_id: str
     question: str
@@ -166,10 +192,15 @@ class Query:
     product_id: str = ""
     stratum: str = ""
     reference_answer: str = ""
+    split: str = ""
+    cluster_id: str = ""
+    pair_of: str = ""  # the qa_id a probe was built against; "" on every non-probe
+    probe_kind: str = ""
 
     # filled by stage 2
     embedding: list[float] = field(default_factory=list, repr=False)
-    retrieved: tuple[str, ...] = ()
+    retrieved: tuple[str, ...] = ()  # scoped by product_id, as a run retrieves
+    retrieved_unscoped: tuple[str, ...] = ()  # reported beside, never gated on
 
 
 def load_corpus_doc_ids(corpus_dir: Path) -> list[str]:
@@ -218,18 +249,24 @@ def load_workload(path: Path) -> list[Query]:
     if not isinstance(records, list):
         raise SystemExit(f"FAIL — {path} must be a JSON array of workload records")
 
+    # Lenient by design: a missing or null field loads as "" and is reported by
+    # check_workload_shape, beside G3 - G5, rather than stopping the load at the first record.
     queries = []
     for i, r in enumerate(records):
         if not r.get("question"):
             raise SystemExit(f"FAIL — {path} record {i} has no `question`")
         queries.append(
             Query(
-                qa_id=r.get("qa_id", f"q{i:04d}"),
+                qa_id=r.get("qa_id") or f"q{i:04d}",
                 question=r["question"],
-                doc_ids=tuple(r.get("doc_ids", ())),
-                product_id=r.get("product_id", ""),
-                stratum=r.get("stratum", ""),
-                reference_answer=r.get("reference_answer", ""),
+                doc_ids=tuple(r.get("doc_ids") or ()),
+                product_id=r.get("product_id") or "",
+                stratum=r.get("stratum") or "",
+                reference_answer=r.get("reference_answer") or "",
+                split=r.get("split") or "",
+                cluster_id=r.get("cluster_id") or "",
+                pair_of=r.get("pair_of") or "",
+                probe_kind=r.get("probe_kind") or "",
             )
         )
     return queries
@@ -431,21 +468,219 @@ def check_g5(records: list[dict]) -> tuple[Criterion, dict[str, int]]:
     )
 
 
+def _capped(problems: dict[str, list[str]]) -> list[str]:
+    """Every kind of problem, each listed up to DETAIL_CAP lines and then counted."""
+    lines = []
+    for kind in sorted(problems):
+        found = problems[kind]
+        lines += found[:DETAIL_CAP]
+        if len(found) > DETAIL_CAP:
+            lines.append(f"... and {len(found) - DETAIL_CAP} more: {kind}")
+    return lines
+
+
+def check_workload_shape(queries: list[Query]) -> Criterion:
+    """The workload's own shape (item 3.4, spec W1, W2, W5): what every later number assumes.
+
+    - **One stratum** of `STRATA`, **one split** of `SPLITS` and a **`cluster_id`** on every
+      record, and a `qa_id` used once (W1).
+    - **No cluster and no `pair_of` link across the splits** (W2). A cluster split in two leaks its
+      paraphrases into test, and a probe split from its target is a trap no run ever contains,
+      because a run draws from one split file. A `pair_of` that names no record fails too.
+    - **Both splits non-empty.**
+    - **One `normalize_t1` form per record across the WHOLE file** (W5). Stricter than G3, which
+      partitions by `product_id`: it keeps the offline join on `query_normalized` exact whether or
+      not a run sends `product_id`, and it makes `K` equal the record count.
+
+    A Criterion, never a SystemExit, so it is reported beside G3 - G5 in one pass. The workload
+    builder calls this same function.
+    """
+    problems: dict[str, list[str]] = defaultdict(list)
+
+    by_id: dict[str, Query] = {}
+    for qa_id, n in sorted(Counter(q.qa_id for q in queries).items()):
+        if n > 1:
+            problems["a qa_id used twice"].append(f"qa_id {qa_id} is used by {n} records")
+    for q in queries:
+        by_id.setdefault(q.qa_id, q)
+        if q.stratum not in STRATA:
+            problems["no stratum"].append(
+                f"{q.qa_id}: stratum {q.stratum!r} is not one of {', '.join(STRATA)}"
+            )
+        if q.split not in SPLITS:
+            problems["no split"].append(
+                f"{q.qa_id}: split {q.split!r} is not one of {', '.join(SPLITS)}"
+            )
+        if not q.cluster_id:
+            problems["no cluster_id"].append(f"{q.qa_id}: no cluster_id")
+
+    clusters: dict[str, list[Query]] = defaultdict(list)
+    for q in queries:
+        if q.cluster_id:
+            clusters[q.cluster_id].append(q)
+    for cluster_id, members in sorted(clusters.items()):
+        splits = sorted({m.split for m in members})
+        if len(splits) > 1:
+            problems["a cluster across the splits"].append(
+                f"cluster {cluster_id} spans {' and '.join(repr(s) for s in splits)}: "
+                + ", ".join(f"{m.qa_id} ({m.split})" for m in members)
+            )
+
+    for q in queries:
+        if not q.pair_of:
+            continue
+        target = by_id.get(q.pair_of)
+        if target is None:
+            problems["a pair_of that names no record"].append(
+                f"{q.qa_id}: pair_of {q.pair_of} names no record"
+            )
+        elif target.split != q.split:
+            problems["a pair across the splits"].append(
+                f"{q.qa_id} ({q.split}) is built against {target.qa_id} ({target.split}): "
+                "the pair crosses the splits"
+            )
+
+    per_split = Counter(q.split for q in queries)
+    for split in SPLITS:
+        if not per_split[split]:
+            problems["an empty split"].append(f"split {split!r} holds no record")
+
+    forms: dict[str, list[str]] = defaultdict(list)
+    for q in queries:
+        forms[normalize_t1(q.question)].append(q.qa_id)
+    for ids in sorted(forms.values()):
+        if len(ids) > 1:
+            problems["one Tier-1 form, two records"].append(
+                f"{len(ids)} records normalise to one Tier-1 form: {', '.join(ids)}"
+            )
+
+    n_problems = sum(len(v) for v in problems.values())
+    return Criterion(
+        name="W   workload shape (stratum, split, cluster, one Tier-1 form)",
+        passed=not problems,
+        summary=(
+            f"{len(queries)} records · "
+            + " ".join(f"{s}={per_split[s]}" for s in SPLITS)
+            + f" · {len(clusters)} clusters · {sum(1 for q in queries if q.pair_of)} probes"
+            + f" · {n_problems} problem(s)"
+        ),
+        detail=_capped(problems),
+    )
+
+
+def split_path(workload_path: Path, split: str) -> Path:
+    """`data/workload-v1.json` -> `data/workload-v1-validation.json`: found by name, beside it."""
+    return workload_path.with_name(f"{workload_path.stem}-{split}{workload_path.suffix}")
+
+
+def derive_split(records: list[dict], split: str) -> list[dict]:
+    """One split file's content, re-derived from the whole file: that split's records, in
+    `popularity_rank` order. `ask.js` takes the file index as the Zipf rank, so the order IS the
+    popularity, and the same records in another order are a different workload.
+
+    Raises ValueError unless that split's ranks are exactly 1 .. n.
+    """
+    mine = [r for r in records if r.get("split") == split]
+    ranks = [r.get("popularity_rank") for r in mine]
+    integers = all(type(rank) is int for rank in ranks)  # `is int`: True is not a rank
+    if not integers or sorted(ranks) != list(range(1, len(mine) + 1)):
+        raise ValueError(
+            f"the {split} records' popularity_rank values are not exactly 1 .. {len(mine)}"
+        )
+    return sorted(mine, key=lambda r: r["popularity_rank"])
+
+
+def check_split_files(workload_path: Path) -> Criterion:
+    """Both split files exist beside the whole file and equal what it re-derives (impact F2,
+    review L4).
+
+    A run draws from ONE split file, so a split file re-sorted or edited after the freeze would
+    change every hit rate while the whole file, and a digest over it alone, stayed the same. So the
+    gate re-derives each split file from the whole file, fails if one is missing or differs, and
+    only then are all three hashed into the snapshot digest.
+    """
+    with open(workload_path) as f:
+        records = json.load(f)
+
+    problems: list[str] = []
+    for split in SPLITS:
+        path = split_path(workload_path, split)
+        if not path.is_file():
+            problems.append(f"no split file at {path.name}")
+            continue
+        try:
+            want = derive_split(records, split)
+        except ValueError as e:
+            problems.append(f"{workload_path.name}: {e}")
+            continue
+        with open(path) as f:
+            have = json.load(f)
+        if have == want:
+            continue
+        if not isinstance(have, list) or len(have) != len(want):
+            n = len(have) if isinstance(have, list) else "not a list"
+            problems.append(f"{path.name} holds {n} records; the whole file gives {len(want)}")
+            continue
+        first = next(i for i, (h, w) in enumerate(zip(have, want)) if h != w)
+        problems.append(
+            f"{path.name} differs from the whole file's {split} records, first at position "
+            f"{first + 1} (popularity_rank order)"
+        )
+
+    return Criterion(
+        name="S   split files (found by name, re-derived from the whole file)",
+        passed=not problems,
+        summary=", ".join(split_path(workload_path, s).name for s in SPLITS)
+        + (" match the whole file" if not problems else f": {len(problems)} problem(s)"),
+        detail=problems,
+    )
+
+
+def k_per_run_file(queries: list[Query]) -> dict[str, int]:
+    """`K` of every file a run may draw from: the whole file and each split (impact F1, ADR-013).
+
+    A run's capacity is `round(0.25 × K)` of the file it draws from, never of the whole file:
+    `K_total` would give a split run a cache about half its own working set.
+    """
+    k = {"whole": len({normalize_t1(q.question) for q in queries})}
+    for split in SPLITS:
+        k[split] = len({normalize_t1(q.question) for q in queries if q.split == split})
+    return k
+
+
+def trap_fraction(queries: list[Query]) -> float:
+    """The share of records built as traps: B-within and B-cross, less `NOT_A_TRAP` probes."""
+    if not queries:
+        return 0.0
+    traps = sum(
+        1
+        for q in queries
+        if q.stratum in ("B-within", "B-cross") and q.probe_kind not in NOT_A_TRAP
+    )
+    return traps / len(queries)
+
+
 # =================================================================================================
 # Stage 2 -- retrieval criteria
 # =================================================================================================
+def _norm(v: list[float]) -> float:
+    return math.sqrt(sum(x * x for x in v))
+
+
+def _cosine_with_norms(a: list[float], b: list[float], na: float, nb: float) -> float:
+    if na == 0.0 or nb == 0.0:
+        return 0.0
+    return sum(map(operator.mul, a, b)) / (na * nb)
+
+
 def cosine(a: list[float], b: list[float]) -> float:
     """Plain-Python cosine. No numpy: adding a top-level dependency needs sign-off.
 
-    O(K²·d) for the whole sweep — a few tens of seconds at K in the hundreds, which is the right
-    trade for a check that runs once per corpus freeze.
+    O(K²·d) for the whole sweep. `similar_pairs` computes each norm once and gets the same value
+    bit for bit, which keeps a workload of ~1,500 queries to minutes, the right trade for a check
+    that runs once per corpus freeze.
     """
-    dot = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(y * y for y in b))
-    if na == 0.0 or nb == 0.0:
-        return 0.0
-    return dot / (na * nb)
+    return _cosine_with_norms(a, b, _norm(a), _norm(b))
 
 
 def jaccard(a: tuple[str, ...], b: tuple[str, ...]) -> float:
@@ -483,33 +718,95 @@ def label_pair(a: Query, b: Query) -> str:
     return "B-within" if a.product_id == b.product_id else "B-cross"
 
 
-def find_pairs(queries: list[Query]) -> tuple[list[Pair], list[float]]:
+def similar_pairs(queries: list[Query]) -> list[tuple[int, int, float]]:
+    """Every `(i, j, cosine)` with `cosine >= SIM_FLOOR`: the one O(K²·d) pass, shared by the
+    scoped and the unscoped overlap so the slow part runs once."""
+    norms = [_norm(q.embedding) for q in queries]
+    out = []
+    n = len(queries)
+    for i in range(n):
+        for j in range(i + 1, n):
+            sim = _cosine_with_norms(queries[i].embedding, queries[j].embedding, norms[i], norms[j])
+            if sim >= SIM_FLOOR:
+                out.append((i, j, sim))
+    return out
+
+
+def find_pairs(
+    queries: list[Query],
+    similar: list[tuple[int, int, float]] | None = None,
+    unscoped: bool = False,
+) -> tuple[list[Pair], list[float]]:
     """All high-similarity pairs, and the Jaccard of every one of them.
 
     The second return value is §7's overlap-variance statistic: the distribution of overlap across
     *all* high-similarity pairs, not only the ones that clear the low-overlap ceiling. A corpus
     where every high-similarity pair also shares its grounding has overlap ≈ 1 everywhere and
     cannot produce a C1 signal — that is visible in the distribution long before G1's count says so.
+
+    The overlap is over the scoped retrieval, as a run retrieves; `unscoped=True` gives the
+    unscoped one, which is reported and never gated on.
     """
+    if similar is None:
+        similar = similar_pairs(queries)
     hits: list[Pair] = []
     overlaps: list[float] = []
-    n = len(queries)
-    for i in range(n):
-        for j in range(i + 1, n):
-            a, b = queries[i], queries[j]
-            sim = cosine(a.embedding, b.embedding)
-            if sim < SIM_FLOOR:
-                continue
+    for i, j, sim in similar:
+        a, b = queries[i], queries[j]
+        if unscoped:
+            j_overlap = jaccard(a.retrieved_unscoped, b.retrieved_unscoped)
+        else:
             j_overlap = jaccard(a.retrieved, b.retrieved)
-            overlaps.append(j_overlap)
-            if j_overlap <= JACCARD_CEILING:
-                hits.append(Pair(a.qa_id, b.qa_id, sim, j_overlap, label_pair(a, b)))
+        overlaps.append(j_overlap)
+        if j_overlap <= JACCARD_CEILING:
+            hits.append(Pair(a.qa_id, b.qa_id, sim, j_overlap, label_pair(a, b)))
     return hits, overlaps
 
 
-def check_g1(pairs: list[Pair]) -> Criterion:
+def split_pairs(pairs: list[Pair], queries: list[Query]) -> tuple[dict[str, list[Pair]], list[Pair]]:
+    """The pairs inside each split, and the pairs across the splits (impact F3, open question 14).
+
+    A run draws from one split file, so only two queries in the same file can ever meet in one
+    cache. G1 counts the within-split pairs and G2 must hold inside each split; a cross-split pair
+    is reported apart and gates nothing.
+    """
+    split_of = {q.qa_id: q.split for q in queries}
+    within: dict[str, list[Pair]] = {s: [] for s in SPLITS}
+    across: list[Pair] = []
+    for p in pairs:
+        s = split_of.get(p.left)
+        if s in within and split_of.get(p.right) == s:
+            within[s].append(p)
+        else:
+            across.append(p)
+    return within, across
+
+
+def retrieve_all(
+    queries: list[Query],
+    embed: Callable[[str], list[float]],
+    retrieve_scoped: Callable[[str, str | None], Iterable[str]],
+    retrieve_unscoped: Callable[[str], Iterable[str]],
+    progress: Callable[[str], None] = print,
+) -> None:
+    """Fill each query's embedding, its scoped retrieval and its unscoped one, in place.
+
+    Scoped is what a run does (design review H3): `ask.js` sends `product_id` whenever a record has
+    one, and the RAG service then keeps that product's chunks and all policy chunks (interfaces.md
+    v0.8). A query with no `product_id` is retrieved unscoped in both. The three callables are
+    injected so a test can record the calls; `main` passes the frozen path.
+    """
+    for n, q in enumerate(queries, 1):
+        q.embedding = embed(q.question)
+        q.retrieved = tuple(retrieve_scoped(q.question, q.product_id or None))
+        q.retrieved_unscoped = tuple(retrieve_unscoped(q.question))
+        if n % 25 == 0 or n == len(queries):
+            progress(f"  {n}/{len(queries)}")
+
+
+def check_g1(pairs: list[Pair], scope: str = "") -> Criterion:
     return Criterion(
-        name="G1  high-similarity / low-overlap pairs",
+        name="G1  high-similarity / low-overlap pairs" + (f" ({scope})" if scope else ""),
         passed=len(pairs) >= G1_MIN_PAIRS,
         summary=(
             f"{len(pairs)} pair(s) with sim >= {SIM_FLOOR} and J <= {JACCARD_CEILING} "
@@ -529,12 +826,12 @@ def check_g1(pairs: list[Pair]) -> Criterion:
     )
 
 
-def check_g2(pairs: list[Pair]) -> Criterion:
+def check_g2(pairs: list[Pair], scope: str = "") -> Criterion:
     counts = Counter(p.label for p in pairs)
     within, cross, unlabelled = counts["B-within"], counts["B-cross"], counts["unlabelled"]
     ratio = f"{within / cross:.2f}" if cross else "n/a"
     return Criterion(
-        name="G2  within-product traps exist",
+        name="G2  within-product traps exist" + (f" ({scope})" if scope else ""),
         passed=within > 0,
         summary=f"B-within={within}  B-cross={cross}  ratio={ratio}  unlabelled={unlabelled}",
         detail=(
@@ -587,6 +884,14 @@ def snapshot_digest(paths: list[Path]) -> tuple[str, list[tuple[str, str]]]:
     return hashlib.sha256(manifest.encode()).hexdigest(), per_file
 
 
+def freeze_files(corpus_dir: Path, workload_path: Path) -> list[Path]:
+    """What the snapshot digest covers: every corpus record, the whole workload file and its two
+    split files (impact F2). A run draws from a split file, so a digest without them would stay the
+    same while a run's workload changed."""
+    run_files = [workload_path] + [split_path(workload_path, s) for s in SPLITS]
+    return sorted(corpus_dir.glob("*.json")) + run_files
+
+
 # =================================================================================================
 # Report
 # =================================================================================================
@@ -599,7 +904,8 @@ def histogram(values: list[float], buckets: int = 10) -> list[tuple[str, int]]:
 
 
 def derive_capacity(k: int) -> int:
-    """the capacity ratio: `round(0.25 × K)` ENTRIES, where K is the distinct-query count.
+    """the capacity ratio: `round(0.25 × K)` ENTRIES, where K is the distinct-query count of the
+    workload file the run draws from (`k_per_run_file`, ADR-013).
 
     A COUNT, not a byte budget puts enforcement in the gateway for exactly this reason.
     Feed the result to the gateway as CACHE_CAPACITY and record it in every run manifest.
@@ -667,75 +973,105 @@ def main() -> int:
     g4 = check_g4(doc_ids)
     g3, benign_groups = check_g3(queries)
     g5, g5_counts = check_g5(policies)
-    criteria = [g3, g4, g5]
+    shape = check_workload_shape(queries)
+    split_files = check_split_files(workload_path)
+    criteria = [g3, g4, g5, shape, split_files]
 
-    distinct = len({normalize_t1(q.question) for q in queries})
-    print(f"\n{len(doc_ids)} corpus documents · {len(queries)} workload records · K={distinct} distinct")
+    k = k_per_run_file(queries)
+    print(f"\n{len(doc_ids)} corpus documents · {len(queries)} workload records · K={k['whole']} distinct")
+    print(
+        "K and capacity per run file: "
+        + " · ".join(f"{name} K={n} capacity={derive_capacity(n)}" for name, n in k.items())
+    )
 
     if not emit(criteria):
-        print("\n  STOP — a structural criterion failed. Do not ingest; fix the corpus first.")
+        print("\n  STOP — a structural criterion failed. Do not ingest; fix the corpus or the "
+              "workload first.")
         return 1
     if args.structural_only:
-        print("\n  Structural criteria pass (G3, G4, G5). Re-run without --structural-only for G1/G2.")
+        print("\n  Structural criteria pass (G3, G4, G5, the workload shape, the split files). "
+              "Re-run without --structural-only for G1/G2.")
         return 0
 
     # --- stage 2 --------------------------------------------------------------------------------
     # Imported here, not at module scope, so --structural-only needs neither Redis nor Ollama.
     from rag.embedding import OllamaEmbedding
-    from rag.retrieve import make_retriever
+    from rag.retrieve import make_retriever, retrieve
 
-    print("\nembedding the workload and retrieving (frozen path: nomic-embed-text + FLAT)...")
+    print("\nembedding the workload and retrieving, scoped and unscoped "
+          "(frozen path: nomic-embed-text + FLAT)...")
     embedder = OllamaEmbedding()
-    retriever = make_retriever()
-    for n, q in enumerate(queries, 1):
-        q.embedding = embedder.get_query_embedding(q.question)
-        q.retrieved = tuple(c.chunk_id for c in retriever(q.question))
-        if n % 25 == 0 or n == len(queries):
-            print(f"  {n}/{len(queries)}")
+    unscoped_retriever = make_retriever()
+    retrieve_all(
+        queries,
+        embed=embedder.get_query_embedding,
+        # retrieve() rebuilds the index on every call (rag/src/rag/retrieve.py): slow at ~1,500
+        # queries, and still the path a run takes. A faster scoped retriever is its own rag/ task.
+        retrieve_scoped=lambda text, pid: [c.chunk_id for c in retrieve(text, product_id=pid)[0]],
+        retrieve_unscoped=lambda text: [c.chunk_id for c in unscoped_retriever(text)],
+    )
 
     ungrounded = [q.qa_id for q in queries if not q.retrieved]
     if ungrounded:
         print(f"\n  WARNING — {len(ungrounded)} quer(y|ies) retrieved NOTHING: {ungrounded[:10]}")
         print("            They cannot contribute to G1 and are usually an un-ingested corpus.")
 
-    pairs, overlaps = find_pairs(queries)
-    g1, g2 = check_g1(pairs), check_g2(pairs)
-    criteria += [g1, g2]
-    passed = emit([g1, g2]) and g3.passed and g4.passed and g5.passed
+    similar = similar_pairs(queries)
+    pairs, overlaps = find_pairs(queries, similar)
+    within, across = split_pairs(pairs, queries)
+    g1 = check_g1([p for s in SPLITS for p in within[s]], scope="within split")
+    g2s = [check_g2(within[s], scope=s) for s in SPLITS]
+    criteria += [g1, *g2s]
+    passed = emit([g1, *g2s]) and all(c.passed for c in (g3, g4, g5, shape, split_files))
+
+    unscoped_pairs, _ = find_pairs(queries, similar, unscoped=True)
+    unscoped_within, _ = split_pairs(unscoped_pairs, queries)
 
     # --- the statistics data-card.md §7 records at freeze -----------------------------------------
-    capacity = derive_capacity(distinct)
-    strata = Counter(q.stratum or "<untagged>" for q in queries)
     mean_overlap = sum(overlaps) / len(overlaps) if overlaps else 0.0
     var_overlap = (
         sum((o - mean_overlap) ** 2 for o in overlaps) / len(overlaps) if overlaps else 0.0
     )
-    trap_strata = {"B-within", "B-cross"}
-    trap_fraction = sum(strata[s] for s in trap_strata) / len(queries) if queries else 0.0
+    in_split = {s: [q for q in queries if q.split == s] for s in SPLITS}
+    strata = {
+        s: dict(sorted(Counter(q.stratum for q in in_split[s]).items())) for s in SPLITS
+    }
 
     print("\n--- statistics to record in data-card.md §7 ---")
-    print(f"  G1 pairs (sim>={SIM_FLOOR}, J<={JACCARD_CEILING}) : {len(pairs)}")
-    print(f"  B-within / B-cross                          : {g2.summary}")
+    print(f"  G1 pairs (sim>={SIM_FLOOR}, J<={JACCARD_CEILING}), scoped : "
+          + " ".join(f"{s}={len(within[s])}" for s in SPLITS)
+          + f" · across the splits={len(across)} (not gated)")
+    for g2 in g2s:
+        print(f"  {g2.name[4:]:<44}: {g2.summary}")
+    print("  unscoped, for comparison (not gated)        : "
+          + " ".join(
+              f"{s}: G1={len(unscoped_within[s])} "
+              f"B-within={sum(1 for p in unscoped_within[s] if p.label == 'B-within')}"
+              for s in SPLITS
+          ))
     print(f"  Tier-1 collision groups / benign duplicates  : 0 / {benign_groups}")
-    print(f"  overlap across ALL high-sim pairs            : n={len(overlaps)} "
+    print(f"  overlap across ALL high-sim pairs (scoped)   : n={len(overlaps)} "
           f"mean={mean_overlap:.3f} var={var_overlap:.4f}")
     for label, count in histogram(overlaps):
         if count:
             print(f"      J {label}: {count}")
-    print(f"  per-stratum counts                           : {dict(sorted(strata.items()))}")
-    print(f"  trap fraction of the workload                : {trap_fraction:.3f}")
-    print(f"  K (distinct queries)                         : {distinct}")
-    print(f"  derived cache capacity (round({CAPACITY_RATIO}*K)) : {capacity}")
+    for s in SPLITS:
+        print(f"  {s:<10} per-stratum counts              : {strata[s]}")
+        print(f"  {s:<10} trap fraction                   : {trap_fraction(in_split[s]):.3f}")
+    print(f"  trap fraction of the whole file              : {trap_fraction(queries):.3f}")
+    for name, n in k.items():
+        print(f"  {name:<10} K={n:<6} derived cache capacity (round({CAPACITY_RATIO}*K)) = "
+              f"{derive_capacity(n)}")
 
     # --- freeze ------------------------------------------------------------------------------------
-    digest, per_file = snapshot_digest(sorted(corpus_dir.glob("*.json")) + [workload_path])
+    digest, per_file = snapshot_digest(freeze_files(corpus_dir, workload_path))
     if passed:
         print("\n--- FREEZE ---")
         print(f"  dataset version : {args.version}")
         print(f"  snapshot digest : {digest}")
         print(f"  over            : {len(per_file)} files")
-        print("\n  All five criteria pass. Record the version, the digest, K and the capacity in")
-        print("  data-card.md §7 and in every run manifest (the evaluation).")
+        print("\n  All five criteria pass. Record the version, the digest, and K and the capacity")
+        print("  of each run file in data-card.md §7 and in every run manifest (the evaluation).")
         print("  G5 here is lexical: the author's read of every policy document is the other half")
         print("  of G5 (data-card.md §7), and it must be recorded before this digest is frozen.")
     else:
@@ -757,18 +1093,45 @@ def main() -> int:
                         {"name": c.name, "passed": c.passed, "summary": c.summary} for c in criteria
                     ],
                     "statistics": {
-                        "g1_pairs": len(pairs),
-                        "b_within": sum(1 for p in pairs if p.label == "B-within"),
-                        "b_cross": sum(1 for p in pairs if p.label == "B-cross"),
-                        "b_unlabelled": sum(1 for p in pairs if p.label == "unlabelled"),
+                        "g1_pairs_within_split": {s: len(within[s]) for s in SPLITS},
+                        "g1_pairs_across_splits": len(across),
+                        "b_within": {
+                            s: sum(1 for p in within[s] if p.label == "B-within") for s in SPLITS
+                        },
+                        "b_cross": {
+                            s: sum(1 for p in within[s] if p.label == "B-cross") for s in SPLITS
+                        },
+                        "b_unlabelled": {
+                            s: sum(1 for p in within[s] if p.label == "unlabelled") for s in SPLITS
+                        },
+                        "unscoped": {
+                            s: {
+                                "g1_pairs": len(unscoped_within[s]),
+                                "b_within": sum(
+                                    1 for p in unscoped_within[s] if p.label == "B-within"
+                                ),
+                            }
+                            for s in SPLITS
+                        },
                         "benign_duplicate_groups": benign_groups,
                         "high_sim_pairs": len(overlaps),
                         "overlap_mean": mean_overlap,
                         "overlap_variance": var_overlap,
-                        "strata": dict(strata),
-                        "trap_fraction": trap_fraction,
-                        "k_distinct_queries": distinct,
-                        "cache_capacity": capacity,
+                        "strata": strata,
+                        "trap_fraction": {
+                            **{s: trap_fraction(in_split[s]) for s in SPLITS},
+                            "whole": trap_fraction(queries),
+                        },
+                        "run_files": {
+                            name: {
+                                "path": str(split_path(workload_path, name))
+                                if name in SPLITS
+                                else str(workload_path),
+                                "k_distinct_queries": n,
+                                "cache_capacity": derive_capacity(n),
+                            }
+                            for name, n in k.items()
+                        },
                         "g5_split_families": g5_counts["split_families"],
                         "g5_offending_documents": g5_counts["offending_documents"],
                     },
