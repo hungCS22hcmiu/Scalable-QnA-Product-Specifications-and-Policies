@@ -24,3 +24,6 @@ characters of the file's sha256), the model id and the first 16 characters of `r
 | 2026-10-21T15:12:43+00:00 | `label-15.rows.jsonl` | `79156cda37905a87` | claude-opus-5-5 | `f4035be73a5637c2` | label 73, name 8, natural 16, policy 8 | 0 | 0 |
 | 2026-10-21T15:14:19+00:00 | `label-16.rows.jsonl` | `f3e7b2370fb196ae` | claude-opus-5-5 | `f4035be73a5637c2` | label 68, name 8, natural 21, policy 12 | 0 | 1 |
 | 2026-10-21T15:14:30+00:00 | `label-16b.rows.jsonl` | `abc824dd4fb5bf33` | claude-opus-5-5 | `f4035be73a5637c2` | label 1 | 0 | 0 |
+| 2026-10-21T15:19:22+00:00 | `label-17.rows.jsonl` | `15ef3b1e5f7fba86` | claude-opus-5-5 | `f4035be73a5637c2` | label 76, name 8, natural 18, policy 11 | 0 | 0 |
+| 2026-10-21T15:21:47+00:00 | `label-18.rows.jsonl` | `c154b4e5721676bc` | claude-opus-5-5 | `f4035be73a5637c2` | label 86, name 8, natural 13, policy 8 | 0 | 0 |
+| 2026-10-21T15:23:43+00:00 | `label-19.rows.jsonl` | `8f85fa1d7c6295c5` | claude-opus-5-5 | `f4035be73a5637c2` | label 68, name 8, natural 12, policy 6 | 0 | 0 |
