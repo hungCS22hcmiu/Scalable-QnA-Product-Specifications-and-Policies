@@ -35,6 +35,11 @@ data/v1-draft/
 # Not under data/v1/: rag.ingest globs that directory. Hashes live in docs/data-card.md §1
 # and in build_pqa.py (a test checks the two are equal).
 data/raw/
+# The workload (item 3.4): the whole file and its two split files hold Amazon-PQA question text,
+# so they are the same unresolved licence. Ignored before the first one is written. The tracked
+# record is data/workload-manifest.json (sha256s and counts, no text), which this pattern does not
+# match; regenerate the files with the workload-* make targets.
+data/workload-v1*.json
 
 # --- Build output --------------------------------------------------------------
 # Generated protobuf stubs (regenerate with `make proto`)
