@@ -66,6 +66,23 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
       `simulate_lru`, `write_outputs`, `verify`, `embed_all` (injected embedder); `make
       workload-embed`, `workload-build`, `workload-verify`. Tests T1, T3 – T9, T11 – T13, T19, on
       fixtures. Commit. The whole build path is fixed before any model row exists.
+  **Step 6 result (2026-10-21).** `build_workload.py`'s second half, as `design.md` §2.4 – §2.7
+  and `rules.md` §8 say: the records from the model layer with the blind-label drop rules; units
+  (product pairs; (shape group, department)); the split (the two minimal-pair unit pairs first,
+  then the other policy units alternating across departments, then product units balanced per
+  department); the stratum by precedence; the stratified rank in exact fractions; the
+  nearest-foreign cosine; the cross-split leak cosines (U9, D against `term`); the seeded LRU
+  simulation and the exact traffic shares per skew; outputs written through the ignored work folder
+  with the manifest last; `verify` re-hashes and re-runs the gate's split-file check, W6 and W16;
+  `embed` refuses in red memory. Three faults found in my own first draft, before any test: product
+  units ordered by department instead of leaf; temporary output files under a name `.gitignore`
+  does not cover (a crash could have left PQA text visible to git); the U9 statistic missing. 26
+  new tests (89 in the file), among them T4 in two subprocesses with `PYTHONHASHSEED` 0 and 1. 21
+  hand mutants, all caught (four only after a test was added: the axis check, the blind
+  agreement, the temporary-file cleanup on a failed write, the condition check on a filled policy
+  query). The real inputs: `workload-build` and `workload-verify` stop cleanly with no layer.
+  `/verify`: gofmt, go vet, go build, go test, ruff, pytest (rag 15, experiments 511) and proto all
+  **PASS**, none skipped; `git status --porcelain data/` empty.
 
 ## B. The model layer
 

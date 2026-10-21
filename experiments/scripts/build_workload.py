@@ -25,15 +25,19 @@ The rules, the constants and the analysis rules were committed before the first 
 from __future__ import annotations
 
 import argparse
+import bisect
 import hashlib
 import json
+import os
+import random
 import re
 import subprocess
 import sys
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from fractions import Fraction
 from pathlib import Path
 
 import check_policies
@@ -46,9 +50,12 @@ DRAFT_DIR = select_pqa.DRAFT_DIR
 POLICY_DIR = check_policies.DEFAULT_DIR
 WORK_DIR = DRAFT_DIR / "workload"  # gitignored with data/v1-draft/
 LAYER_PATH = WORK_DIR / "model-layer.jsonl"
+VECTORS_PATH = WORK_DIR / "vectors.json"
+DATA_DIR = REPO_ROOT / "data"
 TRAIL = REPO_ROOT / "docs" / "work" / "2026-10-21-workload-generator"
 RULES_PATH = TRAIL / "rules.md"
 BATCHES_PATH = TRAIL / "evidence" / "batches.md"
+BUILD_REPORT_PATH = TRAIL / "evidence" / "build.md"
 
 # =================================================================================================
 # The constants (rules.md §2; design.md §2.2). Fixed before any label was read: a count is never
@@ -1465,6 +1472,680 @@ def write_sheets(
 
 
 # =================================================================================================
+# The build (plan step 6; design.md §2.4 - §2.7; rules.md §8). No model and no network: the model
+# layer and the vectors are inputs, hashed into the manifest.
+# =================================================================================================
+WORKLOAD_VERSION = "v1"
+STAGE = "3.4-workload"
+STRATA = corpus_gate.STRATA
+SPLITS = corpus_gate.SPLITS
+STRATUM_ORDER = ("A", "C", "B-within", "B-cross", "D")  # the rank's tie order (design §2.6)
+MINIMAL_PAIR_KINDS = ("policy-condition", "condition-department")
+CONDITION_AXIS_NAMES = ("packaging", "grade", "region")
+SKEWS = (0.8, 1.1, 1.4)  # illustrative only; the run values are item 7.1's
+LRU_REQUESTS = 3000
+# The four minimal-pair groups' units, paired so each split gets two (design §2.5, review H2).
+TWIN_UNIT_PAIRS = (
+    ("phones-term/phones-remedy", ("u-phones-term", "u-phones-return-remedy")),
+    ("furniture-term/laptops-term", ("u-furniture-term", "u-laptops-term")),
+)
+
+
+@dataclass
+class Record:
+    """One workload query. `to_json` gives design.md §3's schema."""
+
+    qa_id: str
+    question: str
+    doc_ids: tuple[str, ...]
+    product_id: str | None
+    cluster_id: str
+    split_unit: str
+    role: str  # seed | paraphrase | natural | probe | d
+    origin: str  # pqa | pqa-template | claude
+    answerable: bool
+    r2_answerable: bool | None
+    department: str
+    pair_of: str | None = None
+    probe_kind: str | None = None
+    axis: str | None = None  # the policy document's condition axis (W16)
+    stratum: str = ""
+    split: str = ""
+    popularity_rank: int = 0
+    nearest_foreign_cos: float | None = None
+    nearest_foreign_same_product: bool | None = None
+
+    def to_json(self) -> dict:
+        return {
+            "qa_id": self.qa_id,
+            "question": self.question,
+            "reference_answer": "",
+            "doc_ids": list(self.doc_ids),
+            "product_id": self.product_id,
+            "stratum": self.stratum,
+            "probe_kind": self.probe_kind,
+            "split": self.split,
+            "cluster_id": self.cluster_id,
+            "split_unit": self.split_unit,
+            "pair_of": self.pair_of,
+            "role": self.role,
+            "origin": self.origin,
+            "answerable": self.answerable,
+            "r2_answerable": self.r2_answerable,
+            "nearest_foreign_cos": self.nearest_foreign_cos,
+            "nearest_foreign_same_product": self.nearest_foreign_same_product,
+            "popularity_rank": self.popularity_rank,
+        }
+
+
+def require_complete(inputs: Inputs, layer: dict[str, dict]) -> None:
+    for round_ in ROUNDS:
+        tasks = all_tasks(inputs, layer)[round_]
+        if not tasks:
+            raise WorkloadStop(f"round {round_} is not open yet")
+        missing = [t for t in tasks if t.key not in layer]
+        if missing:
+            raise WorkloadStop(f"round {round_} has {len(missing)} open task(s)")
+
+
+def blind_agrees(inputs: Inputs, layer: dict[str, dict], target: str, answerable: bool,
+                 evidence: str | None = None) -> bool:
+    """rules.md §8: the query labelled on its own must agree with what it was written to be."""
+    row = layer[blind_key(target)]
+    if not answerable:
+        return not row["answerable"]
+    product = inputs.products[layer[target]["doc_id"]]
+    return bool(row["answerable"]) and evidence is not None and overlaps(
+        product, row["evidence"], evidence
+    )
+
+
+def unit_of_products(inputs: Inputs) -> dict[str, str]:
+    return {d: f"u-{unit[0]}" for unit in make_units(inputs) for d in unit}
+
+
+def policy_unit(doc: dict, shape: str) -> str:
+    """(shape group, department): `term` holds both kinds, so a kind twin never crosses; every
+    other shape is one group per kind (design §2.5). 11 groups a department."""
+    group = "term" if shape == "term" else f"{doc['policy_kind']}-{shape}"
+    return f"u-{doc['category']}-{group}"
+
+
+def swap_kind(swap_answer: str, seed_answer: str, same_answer: object) -> str:
+    """rules.md §8, review M5 c: a swap whose answer differs is a trap (`name-swap`); one whose
+    answer is the same is kept as `name-swap-same`, never a trap. Two polarities decide; without
+    them the writer's `same_answer` mark does."""
+    pa, pb = polarity(swap_answer), polarity(seed_answer)
+    same = (pa == pb) if pa and pb else bool(same_answer)
+    return "name-swap-same" if same else "name-swap"
+
+
+def construct(inputs: Inputs, layer: dict[str, dict]) -> tuple[list[Record], Counter]:
+    """Every query the model layer yields, with the drops counted (rules.md §8). Pure."""
+    require_complete(inputs, layer)
+    labels, names = first_labels(layer), short_names(layer)
+    unit_of = unit_of_products(inputs)
+    drops: Counter = Counter()
+    out: list[Record] = []
+
+    def spec(qa_id, question, doc_id, cluster, role, origin, answerable, r2, **kw) -> Record:
+        rec = Record(qa_id, question, (doc_id,), doc_id, cluster, unit_of[doc_id], role, origin,
+                     answerable, r2, inputs.products[doc_id].department, **kw)
+        out.append(rec)
+        return rec
+
+    first_seed: dict[str, Record] = {}
+    for doc_id, refs in seed_refs(inputs, layer).items():
+        for i, ref in enumerate(refs):
+            line, label = inputs.pool[ref], labels[ref]
+            stem = f"q-{doc_id}-{line.line_no}"
+            cluster = f"c-{doc_id}-{line.line_no}"
+            dependants = PARAPHRASES_PER_SEED + (1 if i < SPEC_LOOKALIKES_PER_PRODUCT else 0)
+            if not blind_agrees(inputs, layer, f"seed:{ref}", True, label["evidence"]):
+                drops["spec seed: the blind label disagrees (its cluster and probes go too)"] += 1
+                drops["spec query dropped with its seed"] += dependants
+                continue
+            seed = spec(f"{stem}-seed", layer[f"seed:{ref}"]["question"], doc_id, cluster, "seed",
+                        "pqa", True, line.r2_answerable)
+            for kind in ("close", "far")[:PARAPHRASES_PER_SEED]:
+                key = f"para:{ref}:{kind}"
+                if blind_agrees(inputs, layer, key, True, label["evidence"]):
+                    spec(f"{stem}-para-{kind}", layer[key]["question"], doc_id, cluster,
+                         "paraphrase", "claude", True, None)
+                else:
+                    drops["paraphrase: the blind label disagrees"] += 1
+            if i < SPEC_LOOKALIKES_PER_PRODUCT:
+                first_seed[doc_id] = seed
+                key = f"lookalike:{ref}"
+                row = layer[key]
+                if blind_agrees(inputs, layer, key, True, row["evidence"]):
+                    spec(f"{stem}-look", row["question"], doc_id, f"{cluster}-look", "probe",
+                         "claude", True, None, pair_of=seed.qa_id, probe_kind="spec-attribute")
+                else:
+                    drops["lookalike: the blind label disagrees"] += 1
+
+    for row in rows_of(layer, "swap"):
+        a, b, ref = row["from"], row["doc_id"], row["ref"]
+        seed = first_seed.get(a)
+        if seed is None or seed.qa_id != f"q-{a}-{inputs.pool[ref].line_no}-seed":
+            drops["name swap: its seed was dropped"] += 1
+            continue
+        if not row["answerable"]:
+            drops["name swap: the partner's record cannot answer it"] += 1
+            continue
+        # The seed's real wording re-targeted to another product: pqa-template (rules.md §8).
+        spec(f"q-{b}-x-{a}-{inputs.pool[ref].line_no}", row["question"], b,
+             f"c-{b}-x-{a}", "probe", "pqa-template", True, None, pair_of=seed.qa_id,
+             probe_kind=swap_kind(row["answer"], labels[ref]["answer"], row["same_answer"]))
+
+    for row in natural_pairs_kept(layer):
+        sides = {s: inputs.pool[row[s]] for s in ("a", "b")}
+        if not all(blind_agrees(inputs, layer, f"seed:{row[s]}", True, row[f"{s}_evidence"])
+                   for s in sides):
+            drops["natural pair: a blind label disagrees"] += 1
+            continue
+        doc_id = row["doc_id"]
+        ids = {s: f"q-{doc_id}-{sides[s].line_no}-natural" for s in sides}
+        for s, other in (("a", "b"), ("b", "a")):
+            line = sides[s]
+            if row["mark"] == "same":
+                spec(ids[s], layer[f"seed:{row[s]}"]["question"], doc_id,
+                     f"c-{doc_id}-{sides['a'].line_no}-natural", "natural", "pqa", True,
+                     line.r2_answerable)
+            else:
+                spec(ids[s], layer[f"seed:{row[s]}"]["question"], doc_id,
+                     f"c-{doc_id}-{line.line_no}-natural", "probe", "pqa", True,
+                     line.r2_answerable, pair_of=ids[other], probe_kind="natural")
+    drops["natural pair: marked unanswerable"] += sum(
+        1 for r in rows_of(layer, "natural") if r["mark"] == "unanswerable"
+    )
+
+    for ref in unanswerable_refs(inputs, layer):
+        line = inputs.pool[ref]
+        stem, cluster = f"q-{line.doc_id}-{line.line_no}-u", f"c-{line.doc_id}-{line.line_no}-u"
+        if not blind_agrees(inputs, layer, f"seed:{ref}", False):
+            drops["unanswerable seed: the blind label finds an answer"] += 1
+            drops["unanswerable query dropped with its seed"] += UNANSWERABLE_PARAPHRASES
+            continue
+        spec(f"{stem}-seed", layer[f"seed:{ref}"]["question"], line.doc_id, cluster, "seed",
+             "pqa", False, line.r2_answerable)
+        for kind in ("close",)[:UNANSWERABLE_PARAPHRASES]:
+            key = f"para:{ref}:{kind}"
+            if blind_agrees(inputs, layer, key, False):
+                spec(f"{stem}-para-{kind}", layer[key]["question"], line.doc_id, cluster,
+                     "paraphrase", "claude", False, None)
+            else:
+                drops["unanswerable paraphrase: the blind label finds an answer"] += 1
+
+    for doc_id, policy in sorted(d_assignments(inputs, layer).items()):
+        out.append(Record(f"q-{doc_id}-d", layer[f"d:{doc_id}"]["question"], (doc_id, policy),
+                          doc_id, f"c-{doc_id}-d", unit_of[doc_id], "d", "claude", True, None,
+                          inputs.products[doc_id].department))
+
+    for cell in plan_cells(inputs, layer):
+        row = layer[f"cell:{cell.cell_id}"]
+        doc = inputs.policies[cell.doc_id]
+        axis = doc["condition"]["axis"] if doc.get("condition") else None
+        unit = policy_unit(doc, cell.shape)
+        if cell.variant == "dept":
+            members = [(f"w{i + 1}", None, w) for i, w in enumerate(row["wordings"])]
+        else:
+            members = [(p, p, row["wordings"][0].replace("{name}", names[p]))
+                       for p in cell.products]
+        for n, (tag, product_id, question) in enumerate(members):
+            problems = condition_problems(inputs, question, cell.doc_id)
+            if problems:
+                raise WorkloadStop(f"cell {cell.cell_id}: a filled query {problems[0]}")
+            pair = f"q-{cell.pair_cell}-{tag}" if cell.pair_cell else None
+            role = "probe" if pair else ("seed" if n == 0 else "paraphrase")
+            out.append(Record(f"q-{cell.cell_id}-{tag}", question, (cell.doc_id,), product_id,
+                              f"c-{cell.cell_id}", unit, role, row["origin"], True, None,
+                              doc["category"], pair_of=pair,
+                              probe_kind=cell.probe_kind if pair else None, axis=axis))
+    return out, drops
+
+
+def assign_split(records: list[Record], inputs: Inputs) -> dict[str, str]:
+    """design.md §2.5, pre-registered and never re-drawn:
+
+    1. the four minimal-pair groups' units, each pair to opposite splits, the direction by the
+       first bit of `sha256(SEED:twin:<pair>)`;
+    2. every other policy unit, departments in order and each department's units in hash order,
+       alternating validation, test, ... and continuing across departments from step 1's count;
+    3. product units, leaves in order and each leaf's units in hash order, each to the split with
+       fewer queries so far in its department (ties: validation).
+    """
+    by_unit: dict[str, list[Record]] = defaultdict(list)
+    for r in records:
+        by_unit[r.split_unit].append(r)
+    split_of: dict[str, str] = {}
+    count = 0
+    for pair_name, units in TWIN_UNIT_PAIRS:
+        first = int(h("twin", pair_name)[0], 16) >> 3  # the first bit
+        for unit, s in zip(units, (SPLITS[first], SPLITS[1 - first]), strict=True):
+            if unit in by_unit:
+                split_of[unit] = s
+            count += 1
+    policy_units = sorted(
+        (u for u, rs in by_unit.items() if rs[0].doc_ids[0].startswith("policy-") and
+         u not in split_of),
+        key=lambda u: (by_unit[u][0].department, h("policy-unit", u)),
+    )
+    for unit in policy_units:
+        split_of[unit] = SPLITS[count % 2]
+        count += 1
+    totals: Counter = Counter()
+    for unit, s in split_of.items():
+        totals[(by_unit[unit][0].department, s)] += len(by_unit[unit])
+    leaf_units = sorted((u for u in by_unit if u not in split_of),
+                        key=lambda u: (inputs.products[u[2:]].leaf, h("unit-split", u)))
+    for unit in leaf_units:
+        dept = by_unit[unit][0].department
+        s = min(SPLITS, key=lambda s: (totals[(dept, s)], SPLITS.index(s)))
+        split_of[unit] = s
+        totals[(dept, s)] += len(by_unit[unit])
+    return split_of
+
+
+def assign_stratum(rec: Record, by_id: dict[str, Record], members: list[Record],
+                   vectors: dict[str, list[float]]) -> str:
+    """design.md §2.4, first match wins: D, B-within, B-cross, A, C."""
+    kinds = {d.split("-", 1)[0] for d in rec.doc_ids}
+    if {"product", "policy"} <= kinds:
+        return "D"
+    if rec.pair_of:
+        target = by_id[rec.pair_of]
+        if rec.probe_kind == "condition-department" or target.product_id == rec.product_id:
+            return "B-within"
+        return "B-cross"
+    best = max(
+        (corpus_gate.cosine(vectors[rec.qa_id], vectors[m.qa_id]) for m in members
+         if m.qa_id != rec.qa_id),
+        default=-1.0,
+    )
+    return "A" if best >= corpus_gate.SIM_FLOOR else "C"
+
+
+def rank(records: list[Record]) -> list[Record]:
+    """design.md §2.6: per record, stratified. Inside a split, each stratum's records in
+    `sha256(SEED:rank:qa_id)` order; at every position the stratum furthest below its share of
+    records so far goes next (exact fractions; ties in STRATUM_ORDER). Every prefix holds each
+    stratum's count within one of its share."""
+    by = {s: sorted((r for r in records if r.stratum == s), key=lambda r: h("rank", r.qa_id))
+          for s in STRATUM_ORDER}
+    n = len(records)
+    taken: Counter = Counter()
+    out = []
+    for pos in range(1, n + 1):
+        live = [s for s in STRATUM_ORDER if taken[s] < len(by[s])]
+        best = max(live, key=lambda s: (Fraction(len(by[s]) * pos, n) - taken[s],
+                                        -STRATUM_ORDER.index(s)))
+        out.append(by[best][taken[best]])
+        taken[best] += 1
+    for i, r in enumerate(out, 1):
+        r.popularity_rank = i
+    return out
+
+
+def nearest_foreign(records: list[Record], vectors: dict[str, list[float]]) -> None:
+    """design.md §3, review M3: per record, the highest cosine to a same-split query with other
+    `doc_ids`, and whether that query is about the same product. The traps nobody built."""
+    norms = {r.qa_id: corpus_gate._norm(vectors[r.qa_id]) for r in records}
+    for s in SPLITS:
+        group = [r for r in records if r.split == s]
+        best: dict[str, tuple[float, Record | None]] = {r.qa_id: (-1.0, None) for r in group}
+        for i, a in enumerate(group):
+            for b in group[i + 1:]:
+                if set(a.doc_ids) == set(b.doc_ids):
+                    continue
+                sim = corpus_gate._cosine_with_norms(vectors[a.qa_id], vectors[b.qa_id],
+                                                     norms[a.qa_id], norms[b.qa_id])
+                for x, y in ((a, b), (b, a)):
+                    if sim > best[x.qa_id][0]:
+                        best[x.qa_id] = (sim, y)
+        for r in group:
+            sim, other = best[r.qa_id]
+            if other is not None:
+                r.nearest_foreign_cos = round(sim, 4)
+                r.nearest_foreign_same_product = (
+                    r.product_id is not None and other.product_id == r.product_id
+                )
+
+
+@dataclass
+class Workload:
+    records: list[Record]  # validation by rank, then test by rank
+    split_of: dict[str, str]
+    drops: Counter
+    leaks: dict = field(default_factory=dict)
+
+
+def cross_split_leaks(records: list[Record], vectors: dict[str, list[float]]) -> dict:
+    """design.md §2.5 and U9: the leak the split leaves. The highest cosine between two queries
+    on one document in different splits, and between a D query and a `term` query of its policy
+    document in different splits."""
+    on_doc: dict[str, list[Record]] = defaultdict(list)
+    for r in records:
+        for d in r.doc_ids:
+            on_doc[d].append(r)
+    same_doc = d_term = -1.0
+    for rs in on_doc.values():
+        for i, a in enumerate(rs):
+            for b in rs[i + 1:]:
+                if a.split == b.split:
+                    continue
+                sim = corpus_gate.cosine(vectors[a.qa_id], vectors[b.qa_id])
+                same_doc = max(same_doc, sim)
+                if {a.role, b.role} & {"d"} and any(":term" in x.qa_id for x in (a, b)):
+                    d_term = max(d_term, sim)
+    return {"same_document_max_cosine": round(same_doc, 4) if same_doc >= 0 else None,
+            "d_against_term_max_cosine": round(d_term, 4) if d_term >= 0 else None}
+
+
+def build(inputs: Inputs, layer: dict[str, dict], vectors: dict[str, dict]) -> Workload:
+    """Pure: model layer and vectors in, the ranked and split workload out. Stops (never re-draws)
+    on any failed check."""
+    records, drops = construct(inputs, layer)
+    stale = [r.qa_id for r in records
+             if r.qa_id not in vectors or vectors[r.qa_id]["question"] != r.question]
+    if stale:
+        raise WorkloadStop(f"{len(stale)} quer(y|ies) have no current vector; run workload-embed")
+    vec = {r.qa_id: vectors[r.qa_id]["vector"] for r in records}
+    split_of = assign_split(records, inputs)
+    by_id = {r.qa_id: r for r in records}
+    clusters: dict[str, list[Record]] = defaultdict(list)
+    for r in records:
+        r.split = split_of[r.split_unit]
+        clusters[r.cluster_id].append(r)
+    for r in records:
+        r.stratum = assign_stratum(r, by_id, clusters[r.cluster_id], vec)
+    nearest_foreign(records, vec)
+    ranked = [r for s in SPLITS for r in rank([x for x in records if x.split == s])]
+    check_workload(inputs, ranked)
+    return Workload(ranked, split_of, drops, cross_split_leaks(ranked, vec))
+
+
+def check_workload(inputs: Inputs, records: list[Record]) -> None:
+    """W1, W2, W5 (the gate's own shape check), W6 and W16. A failure stops the build."""
+    queries = [corpus_gate.Query(r.qa_id, r.question, r.doc_ids, r.product_id or "", r.stratum,
+                                 "", r.split, r.cluster_id, r.pair_of or "", r.probe_kind or "")
+               for r in records]
+    shape = corpus_gate.check_workload_shape(queries)
+    problems = list(shape.detail)
+    for r in records:
+        if r.product_id is not None and r.product_id not in inputs.products:
+            problems.append(f"{r.qa_id}: product_id is not a selected product (W6)")
+        for d in r.doc_ids:
+            if d not in inputs.products and d not in inputs.policies:
+                problems.append(f"{r.qa_id}: doc_id {d} is not in the corpus (W6)")
+        policy_lane = any(d.startswith("policy-") for d in r.doc_ids)
+        if policy_lane and r.product_id and inputs.products[r.product_id].risky:
+            problems.append(f"{r.qa_id}: names a risky product in a policy or D query (W6)")
+    for dept in sorted({r.department for r in records}):
+        for s in SPLITS:
+            if not any(r.department == dept and r.split == s for r in records):
+                problems.append(f"department {dept} has no query in {s} (W16)")
+    for axis in CONDITION_AXIS_NAMES:
+        for s in SPLITS:
+            if not any(r.axis == axis and r.split == s for r in records):
+                problems.append(f"condition axis {axis} has no query in {s} (W16)")
+    for s in SPLITS:
+        twins = sum(1 for r in records if r.split == s and r.probe_kind in MINIMAL_PAIR_KINDS)
+        if twins < MIN_TWINS_PER_SPLIT:
+            problems.append(f"{s} holds {twins} minimal-pair twins, below {MIN_TWINS_PER_SPLIT}"
+                            " (W16, T19)")
+    if problems:
+        raise WorkloadStop("the workload fails its checks:\n  " + "\n  ".join(problems[:20]))
+
+
+# --- what the runs will see (design.md §2.6, review M1, L5) ----------------------------------------
+def zipf_cdf(n: int, skew: float) -> list[float]:
+    """`ask.js`'s CDF: P(rank) proportional to 1 / rank^skew over ranks 1..n."""
+    weights = [1 / (i + 1) ** skew for i in range(n)]
+    total = sum(weights)
+    out, acc = [], 0.0
+    for w in weights:
+        acc += w
+        out.append(acc / total)
+    return out
+
+
+def traffic_shares(records: list[Record], skew: float) -> dict[str, dict[str, float]]:
+    """The exact share of requests per stratum and per probe kind at one skew, from the ranks."""
+    weights = [1 / r.popularity_rank ** skew for r in records]
+    total = sum(weights)
+    strata: Counter = Counter()
+    kinds: Counter = Counter()
+    for r, w in zip(records, weights, strict=True):
+        strata[r.stratum] += w / total
+        kinds[r.probe_kind or "none"] += w / total
+    return {"stratum": {k: round(v, 4) for k, v in sorted(strata.items())},
+            "probe_kind": {k: round(v, 4) for k, v in sorted(kinds.items())}}
+
+
+def simulate_lru(records: list[Record], skew: float, requests: int = LRU_REQUESTS) -> dict:
+    """A seeded, model-free run of one split file: Zipf over its ranks (as `ask.js`), an LRU of
+    `round(0.25 x K)` entries, one entry per query. Counts Tier-1 repeats, misses that find a
+    cluster-mate cached (where Tier 2 would decide), and each probe kind requested while its
+    partner is cached (an encounter with its trap)."""
+    split = records[0].split if records else ""
+    rng = random.Random(int(h("lru", split, skew)[:16], 16))
+    cdf = zipf_cdf(len(records), skew)
+    capacity = corpus_gate.derive_capacity(len(records))
+    cache: OrderedDict[str, Record] = OrderedDict()
+    live_clusters: Counter = Counter()
+    tier1 = tier2_chance = 0
+    encounters: Counter = Counter()
+    for _ in range(requests):
+        r = records[bisect.bisect_left(cdf, rng.random())]
+        if r.qa_id in cache:
+            tier1 += 1
+            cache.move_to_end(r.qa_id)
+            continue
+        if live_clusters[r.cluster_id]:
+            tier2_chance += 1
+        if r.pair_of and r.pair_of in cache:
+            encounters[r.probe_kind] += 1
+        cache[r.qa_id] = r
+        live_clusters[r.cluster_id] += 1
+        if capacity and len(cache) > capacity:
+            _, old = cache.popitem(last=False)
+            live_clusters[old.cluster_id] -= 1
+    return {
+        "capacity": capacity,
+        "requests": requests,
+        "tier1_hit_rate": round(tier1 / requests, 4),
+        "misses_with_a_cached_cluster_mate": tier2_chance,
+        "probe_encounters": dict(sorted(encounters.items())),
+    }
+
+
+# --- outputs ---------------------------------------------------------------------------------------
+def canonical(obj: object) -> bytes:
+    return (json.dumps(obj, indent=1, ensure_ascii=True) + "\n").encode()
+
+
+def counts_of(records: list[Record]) -> dict:
+    return {
+        "records": len(records),
+        "k_distinct_queries": len({corpus_gate.normalize_t1(r.question) for r in records}),
+        "cache_capacity": corpus_gate.derive_capacity(
+            len({corpus_gate.normalize_t1(r.question) for r in records})),
+        "strata": dict(sorted(Counter(r.stratum for r in records).items())),
+        "probe_kind": dict(sorted(Counter(r.probe_kind or "none" for r in records).items())),
+        "role": dict(sorted(Counter(r.role for r in records).items())),
+        "origin": dict(sorted(Counter(r.origin for r in records).items())),
+        "department": dict(sorted(Counter(r.department for r in records).items())),
+        "axis": dict(sorted(Counter(r.axis or "none" for r in records).items())),
+        "answerable_false": sum(1 for r in records if not r.answerable),
+        "minimal_pair_twins": sum(1 for r in records if r.probe_kind in MINIMAL_PAIR_KINDS),
+        "trap_fraction": round(corpus_gate.trap_fraction(
+            [corpus_gate.Query(r.qa_id, r.question, stratum=r.stratum,
+                               probe_kind=r.probe_kind or "") for r in records]), 4),
+    }
+
+
+def make_manifest(workload: Workload, files: dict[str, bytes], inputs_digest: dict) -> dict:
+    """The tracked record (spec W9): hashes and counts only. No question, no asin, no qa_id; the
+    product units appear only as a hash of their list."""
+    units = sorted(workload.split_of)
+    product_units = [u for u in units if u.startswith("u-product-")]
+    return {
+        "stage": STAGE,
+        "workload_version": WORKLOAD_VERSION,
+        "seed": SEED,
+        "model_id": MODEL_ID,
+        "inputs": inputs_digest,
+        "outputs": {name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())},
+        "units": {
+            "product_units": len(product_units),
+            "policy_units": len(units) - len(product_units),
+            "unit_list_sha256": hashlib.sha256(canonical(units)).hexdigest(),
+            "assignment_sha256": hashlib.sha256(
+                canonical(sorted(workload.split_of.items()))).hexdigest(),
+        },
+        "counts": {
+            "whole": counts_of(workload.records),
+            **{s: counts_of([r for r in workload.records if r.split == s]) for s in SPLITS},
+        },
+        "drops": dict(sorted(workload.drops.items())),
+        "cross_split": workload.leaks,
+    }
+
+
+def output_files(workload: Workload) -> dict[str, bytes]:
+    whole = [r.to_json() for r in workload.records]
+    files = {f"workload-{WORKLOAD_VERSION}.json": canonical(whole)}
+    for s in SPLITS:
+        files[f"workload-{WORKLOAD_VERSION}-{s}.json"] = canonical(corpus_gate.derive_split(whole, s))
+    return files
+
+
+MANIFEST_NAME = "workload-manifest.json"
+
+
+def write_outputs(files: dict[str, bytes], manifest: dict, data_dir: Path,
+                  work_dir: Path = WORK_DIR) -> None:
+    """Every file to a temporary name in the ignored work folder first (it holds PQA text, so a
+    crash must not leave it where git can see it), then into place, the manifest last: a run that
+    dies half way leaves a manifest that no longer matches, and `workload-verify` says so."""
+    work_dir.mkdir(parents=True, exist_ok=True)
+    tmp = {name: work_dir / f".tmp-{os.getpid()}-{name}" for name in [*files, MANIFEST_NAME]}
+    try:
+        for name, data in files.items():
+            tmp[name].write_bytes(data)
+        tmp[MANIFEST_NAME].write_bytes(canonical(manifest))
+        for name in [*files, MANIFEST_NAME]:
+            os.replace(tmp[name], data_dir / name)
+    finally:
+        for path in tmp.values():
+            path.unlink(missing_ok=True)
+
+
+def verify_outputs(inputs: Inputs, data_dir: Path) -> list[str]:
+    """`make workload-verify`: re-hash the three files against the manifest, re-derive the split
+    files (the gate's own check), and re-run the shape, W6 and W16 checks on what is on disk."""
+    manifest_path = data_dir / MANIFEST_NAME
+    if not manifest_path.is_file():
+        return [f"no {MANIFEST_NAME}"]
+    manifest = json.loads(manifest_path.read_text())
+    problems = []
+    for name, digest in manifest["outputs"].items():
+        path = data_dir / name
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            problems.append(f"{name} is missing or differs from the manifest")
+    if problems:
+        return problems
+    whole = data_dir / f"workload-{WORKLOAD_VERSION}.json"
+    split_files = corpus_gate.check_split_files(whole)
+    problems += split_files.detail
+    records = [
+        Record(r["qa_id"], r["question"], tuple(r["doc_ids"]), r["product_id"], r["cluster_id"],
+               r["split_unit"], r["role"], r["origin"], r["answerable"], r["r2_answerable"],
+               _department(inputs, r), r["pair_of"], r["probe_kind"], _axis(inputs, r),
+               r["stratum"], r["split"], r["popularity_rank"])
+        for r in json.loads(whole.read_text())
+    ]
+    try:
+        check_workload(inputs, records)
+    except WorkloadStop as e:
+        problems.append(str(e))
+    return problems
+
+
+def _department(inputs: Inputs, r: dict) -> str:
+    d = r["doc_ids"][0]
+    return inputs.products[d].department if d in inputs.products else inputs.policies[d]["category"]
+
+
+def _axis(inputs: Inputs, r: dict) -> str | None:
+    for d in r["doc_ids"]:
+        cond = inputs.policies.get(d, {}).get("condition")
+        if cond and len(r["doc_ids"]) == 1:
+            return cond["axis"]
+    return None
+
+
+def embed_all(inputs: Inputs, layer: dict[str, dict],
+              embed: Callable[[str], list[float]]) -> dict[str, dict]:
+    """The only model call: every query's vector under the frozen query path (`search_query: `),
+    keyed by qa_id with its text, so a changed question cannot reuse an old vector. `embed` is
+    injected; tests pass a fake."""
+    records, _ = construct(inputs, layer)
+    return {r.qa_id: {"question": r.question, "vector": embed(r.question)}
+            for r in sorted(records, key=lambda r: r.qa_id)}
+
+
+def build_report(workload: Workload, manifest: dict) -> str:
+    """evidence/build.md: counts only -- no question, no asin, no qa_id."""
+    lines = ["# Build report — item 3.4 (written by `make workload-build`)", ""]
+    for name in ("whole", *SPLITS):
+        c = manifest["counts"][name]
+        lines += [
+            f"## {name}", "",
+            (
+                f"- records {c['records']} · K {c['k_distinct_queries']} · capacity "
+                f"{c['cache_capacity']} · unanswerable {c['answerable_false']} · minimal-pair "
+                f"twins {c['minimal_pair_twins']} · trap fraction {c['trap_fraction']}"
+            ),
+            f"- strata {c['strata']}",
+            f"- probe kinds {c['probe_kind']}",
+            f"- departments {c['department']} · axes {c['axis']}",
+            f"- roles {c['role']} · origins {c['origin']}",
+            "",
+        ]
+    for s in SPLITS:
+        recs = [r for r in workload.records if r.split == s]
+        lines += [f"## {s}: what a run sees", ""]
+        for skew in SKEWS:
+            sim = simulate_lru(recs, skew)
+            shares = traffic_shares(recs, skew)
+            lines += [
+                f"- skew {skew}: traffic by stratum {shares['stratum']}",
+                f"  by probe kind {shares['probe_kind']}",
+                (
+                    f"  LRU ({sim['requests']} requests, capacity {sim['capacity']}): Tier-1 hit "
+                    f"rate {sim['tier1_hit_rate']}, misses with a cached cluster-mate "
+                    f"{sim['misses_with_a_cached_cluster_mate']}, probe encounters "
+                    f"{sim['probe_encounters']}"
+                ),
+            ]
+        lines.append("")
+    lines += ["## Cosines", ""]
+    for s in STRATA:
+        vals = sorted(r.nearest_foreign_cos for r in workload.records
+                      if r.stratum == s and r.nearest_foreign_cos is not None)
+        if vals:
+            lines.append(f"- {s}: nearest foreign cosine min {vals[0]} · median "
+                         f"{vals[len(vals) // 2]} · max {vals[-1]} · ≥ 0.85: "
+                         f"{sum(v >= corpus_gate.SIM_FLOOR for v in vals)}")
+    lines += [f"- across the splits: {workload.leaks}"]
+    lines += ["", "## Drops (rules.md §8)", ""]
+    lines += [f"- {k}: {v}" for k, v in sorted(workload.drops.items())] or ["- none"]
+    return "\n".join(lines) + "\n"
+
+
+# =================================================================================================
 # CLI
 # =================================================================================================
 def rules_sha256_committed(rules_path: Path = RULES_PATH) -> str:
@@ -1487,6 +2168,31 @@ def read_inputs(selection: Path, draft_dir: Path, policy_dir: Path) -> Inputs:
         return load_inputs(select_pqa.iter_selection(selection, draft_dir), policy_dir)
     except select_pqa.SelectionMismatch as e:
         raise WorkloadStop(f"the 3.2 drafts do not match their manifest: {e}") from e
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def inputs_digest(selection: Path, policy_dir: Path, layer_path: Path, vectors_path: Path,
+                  rules_sha: str) -> dict:
+    policies = sorted((p.name, sha256_file(p)) for p in policy_dir.glob("*.json"))
+    return {
+        "selection_sha256": sha256_file(selection),
+        "policies_sha256": hashlib.sha256(canonical(policies)).hexdigest(),
+        "rules_sha256": rules_sha,
+        "model_layer_sha256": sha256_file(layer_path),
+        "vectors_sha256": sha256_file(vectors_path),
+    }
+
+
+MEMORY_RED = 4  # kern.memorystatus_vm_pressure_level: critical
+
+
+def memory_level() -> int | None:
+    out = subprocess.run(["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+                         capture_output=True, text=True, check=False)
+    return int(out.stdout) if out.returncode == 0 and out.stdout.strip().isdigit() else None
 
 
 def status_lines(inputs: Inputs, layer: dict[str, dict]) -> Iterator[str]:
@@ -1515,6 +2221,9 @@ def main(argv: list[str] | None = None) -> int:
     ip = sub.add_parser("import", help="check a rows file and append its valid rows")
     ip.add_argument("rows", type=Path)
     ip.add_argument("--model", default=MODEL_ID)
+    sub.add_parser("embed", help="embed every query with the frozen model (Ollama)")
+    sub.add_parser("build", help="build the workload files and the manifest (no model)")
+    sub.add_parser("verify", help="re-hash and re-check the workload files (no model)")
     args = ap.parse_args(argv)
 
     try:
@@ -1524,7 +2233,50 @@ def main(argv: list[str] | None = None) -> int:
             for line in status_lines(inputs, layer):
                 print(line)
             return 0
+        if args.command == "verify":
+            problems = verify_outputs(inputs, DATA_DIR)
+            for line in problems:
+                print(f"  FAIL {line}")
+            if problems:
+                return 2
+            manifest = json.loads((DATA_DIR / MANIFEST_NAME).read_text())
+            for name in ("whole", *SPLITS):
+                c = manifest["counts"][name]
+                print(f"  {name:<10} K={c['k_distinct_queries']} capacity={c['cache_capacity']}")
+            print("workload-verify: PASS")
+            return 0
         rules_sha = rules_sha256_committed()
+        if args.command == "embed":
+            level = memory_level()
+            print(f"memory pressure level: {level} (record it in evidence/memory.md)")
+            if level is None or level >= MEMORY_RED:
+                raise WorkloadStop("memory pressure is red or unknown; no model is loaded")
+            # Imported here, so no other command needs Ollama or the rag package.
+            from rag.embedding import OllamaEmbedding
+
+            embedder = OllamaEmbedding()
+            vectors = embed_all(inputs, layer, embedder.get_query_embedding)
+            WORK_DIR.mkdir(parents=True, exist_ok=True)
+            VECTORS_PATH.write_bytes(canonical(vectors))
+            print(f"{len(vectors)} vectors -> {VECTORS_PATH} (sha256 {sha256_file(VECTORS_PATH)[:16]})")
+            return 0
+        if args.command == "build":
+            if not VECTORS_PATH.is_file():
+                raise WorkloadStop("no vectors; run make workload-embed first")
+            vectors = json.loads(VECTORS_PATH.read_text())
+            workload = build(inputs, layer, vectors)
+            files = output_files(workload)
+            digest = inputs_digest(args.selection, args.policy_dir, args.layer, VECTORS_PATH,
+                                   rules_sha)
+            manifest = make_manifest(workload, files, digest)
+            write_outputs(files, manifest, DATA_DIR)
+            BUILD_REPORT_PATH.write_text(build_report(workload, manifest))
+            for name in ("whole", *SPLITS):
+                c = manifest["counts"][name]
+                print(f"  {name:<10} records={c['records']} K={c['k_distinct_queries']} "
+                      f"capacity={c['cache_capacity']} twins={c['minimal_pair_twins']}")
+            print(f"manifest sha256 {sha256_file(DATA_DIR / MANIFEST_NAME)}")
+            return 0
         if args.command == "sheets":
             paths = write_sheets(inputs, layer, args.round, args.out, rules_sha)
             n = len(open_tasks(inputs, layer, args.round))

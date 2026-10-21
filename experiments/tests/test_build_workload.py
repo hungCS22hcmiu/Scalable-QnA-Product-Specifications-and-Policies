@@ -7,37 +7,60 @@ synthetic (invented names, no PQA text); the policy documents are the tracked, a
 `data/policies-v1/`, read as test_check_policies reads them.
 """
 
+import hashlib
 import json
+import math
+import os
 import re
+import subprocess
+import sys
 
+import build_workload
+import corpus_gate
 import pytest
 from build_workload import (
     CONSTANTS,
     POLICY_DIR,
     REPLACED,
+    ROUNDS,
     RULES_PATH,
     SHAPES,
     TWIN_WORDINGS_DEPT,
+    Record,
     WorkloadStop,
+    assign_split,
+    assign_stratum,
     blind_key,
+    build,
+    canonical,
     check_tasks,
     claude_fields,
+    construct,
+    derived,
+    embed_all,
     first_labels,
     import_rows,
     label_tasks,
     load_inputs,
     load_layer,
+    make_manifest,
     make_units,
     names_product,
     natural_candidates,
     open_tasks,
+    output_files,
     plan_cells,
     policy_sections,
+    rank,
     read_inputs,
+    simulate_lru,
     swap_directions,
+    swap_kind,
     swap_leftover,
     swap_question,
     token_set,
+    verify_outputs,
+    write_outputs,
     write_sheets,
     write_tasks,
 )
@@ -675,3 +698,422 @@ def test_rules_md_states_every_constant():
 def test_a_missing_or_changed_selection_stops_before_anything_is_read(tmp_path):
     with pytest.raises(WorkloadStop, match="do not match their manifest"):
         read_inputs(tmp_path / "pqa-selection.json", tmp_path / "drafts", POLICY_DIR)
+
+
+# =================================================================================================
+# Plan step 6: the build. A complete synthetic model layer, written straight into the layer the
+# way the import stores rows (the import's checks are tested above), and a fake embedder.
+# =================================================================================================
+EVIDENCE = {
+    "product-phones-z1:1": ("Up to 2 days.", "battery lasts up to 2 days"),
+    "product-phones-z1:2": ("Yes.", "Works with Windows 7 for file transfer"),
+    "product-phones-z1:4": ("6.2 inches.", "6.2 inch display with 64GB"),
+    "product-phones-k5:1": ("32GB.", "5.8 inch display with 32GB of storage"),
+    "product-phones-k5:2": ("Up to 1 day.", "Battery lasts up to 1 day"),
+    "product-laptops-o14:1": ("Yes.", "Backlit keyboard with two brightness levels"),
+    "product-laptops-v15:1": ("15.6 inches.", "Full HD screen of 15.6 inches"),
+    "product-electronics-b3:1": ("Yes.", "Folds flat into the hard case"),
+    "product-electronics-s7:1": ("20 hours.", "20 hours of playback"),
+    "product-furniture-h1:1": ("Yes, by 8 cm.", "Arms adjust up and down by 8 cm"),
+    "product-furniture-m2:1": ("Up to 100 kg.", "Holds up to 100 kg"),
+}
+
+
+def _tag(key):
+    return hashlib.sha256(key.encode()).hexdigest()[:6]
+
+
+def _cond_word(inputs, doc_id):
+    cond = inputs.policies[doc_id].get("condition")
+    return corpus_gate.CONDITION_AXES[cond["axis"]][cond["value"]][0] if cond else ""
+
+
+def _auto_row(task, inputs, layer):
+    """A valid row for any task, the way a careful writer would fill it."""
+    key, t, c = task.key, task.type, task.context
+    names = build_workload.short_names(layer)
+    if t == "name":
+        return {"key": key, "type": t, "name": NAMES[task.group]}
+    if t in ("label", "relabel"):
+        ans = EVIDENCE.get(c["ref"])
+        return {"key": key, "type": t, "answerable": bool(ans), "answer": ans[0] if ans else "",
+                "evidence": ans[1] if ans else ""}
+    if t == "policy":
+        return {"key": key, "type": t, "assign": "policy-warranty-phones-domestic",
+                "shape": "term", "variant": "", "kind": None}
+    if t == "natural":
+        ev = "Works with Windows 7 for file transfer"
+        return {"key": key, "type": t, "mark": "different", "a_answer": "Yes.", "a_evidence": ev,
+                "b_answer": "No.", "b_evidence": ev}
+    if t in ("seed", "para"):
+        return {"key": key, "type": t,
+                "question": f"What about the {names[task.group]}, case {_tag(key)}?"}
+    if t == "lookalike":
+        ev = inputs.products[task.group].fields[-1][1]
+        return {"key": key, "type": t, "question": f"Is the {names[task.group]} {_tag(key)}?",
+                "attribute": "other", "answer": "No.", "evidence": ev}
+    if t == "d":
+        doc = inputs.policies[c["policy"]]
+        return {"key": key, "type": t,
+                "question": f"What about the {_cond_word(inputs, doc['doc_id'])} "
+                            f"{names[task.group]} {_tag(key)}?",
+                "answer": f"It is {doc['terms'][0]}.",
+                "evidence": inputs.products[task.group].fields[-1][1]}
+    if t == "cell":
+        cell = c["cell"]
+        word = _cond_word(inputs, cell.doc_id)
+        doc = inputs.policies[cell.doc_id]
+        stem = f"For {doc['policy_kind']} {cell.shape} {cell.variant} {doc['category']}".strip()
+        if cell.variant == "dept":
+            ws = [f"{stem}, what applies to a {word} laptop, case {i}?" for i in range(cell.wordings)]
+        else:
+            ws = [f"{stem}, what applies to the {{name}}" + (f" when {word}" if word else "") + "?"]
+        return {"key": key, "type": t, "wordings": ws, "origin": "claude", "source": None}
+    if t == "blind":
+        target = layer[c["target"]]
+        labels = first_labels(layer)
+        if target["type"] == "lookalike":
+            return {"key": key, "type": t, "answerable": True, "answer": "No.",
+                    "evidence": target["evidence"]}
+        ref = target["ref"]
+        if target["type"] == "seed" and target["role"] == "natural":
+            nat = next(r for r in layer.values() if r["type"] == "natural" and ref in (r["a"], r["b"]))
+            side = "a" if nat["a"] == ref else "b"
+            return {"key": key, "type": t, "answerable": True, "answer": "x",
+                    "evidence": nat[f"{side}_evidence"]}
+        label = labels[ref]
+        return {"key": key, "type": t, "answerable": label["answerable"],
+                "answer": label["answer"], "evidence": label["evidence"]}
+    if t == "swap":
+        return {"key": key, "type": t, "answerable": True, "answer": "Maybe.",
+                "evidence": inputs.products[task.group].fields[-1][1], "same_answer": False}
+    raise ValueError(t)
+
+
+def _auto_layer(inputs):
+    layer = {}
+    for round_ in ROUNDS:
+        while True:
+            tasks = build_workload.open_tasks(inputs, layer, round_)
+            if not tasks:
+                break
+            for task in tasks:
+                row = _auto_row(task, inputs, layer)
+                layer[task.key] = {**row, **derived(task, inputs), "_batch": "t", "_round": round_}
+    return layer
+
+
+def _fake_embed(text):
+    digest = hashlib.sha256(text.encode()).digest()
+    return [b / 255 - 0.5 for b in digest[:8]]
+
+
+@pytest.fixture
+def complete(inputs, monkeypatch):
+    """A complete layer and its vectors. Nine products cannot reach 30 minimal-pair twins a
+    split, so the floor is lowered here; T19 tests it at its real value."""
+    monkeypatch.setattr(build_workload, "MIN_TWINS_PER_SPLIT", 1)
+    layer = _auto_layer(inputs)
+    return layer, embed_all(inputs, layer, _fake_embed)
+
+
+def test_t1_every_record_has_one_stratum_one_split_and_one_cluster(inputs, complete):
+    workload = build(inputs, *complete)
+    assert workload.records
+    for r in workload.records:
+        assert r.stratum in corpus_gate.STRATA and r.split in corpus_gate.SPLITS and r.cluster_id
+
+
+def test_t3_a_question_changed_after_embedding_stops_the_build(inputs, complete):
+    layer, vectors = complete
+    key = next(k for k, r in layer.items() if r["type"] == "seed")
+    layer[key] = {**layer[key], "question": layer[key]["question"].replace("case", "item")}
+    with pytest.raises(WorkloadStop, match="no current vector"):
+        build(inputs, layer, vectors)
+
+
+def test_t3_the_build_needs_every_round_complete(inputs, complete):
+    layer, vectors = complete
+    del layer[next(k for k, r in layer.items() if r["type"] == "blind")]
+    with pytest.raises(WorkloadStop, match="round check has 1 open task"):
+        build(inputs, layer, vectors)
+
+
+DRIVER = """
+import json, sys, hashlib
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import build_workload as b
+b.MIN_TWINS_PER_SPLIT = 1
+inputs = b.load_inputs(iter(json.load(open(sys.argv[2]))), b.POLICY_DIR)
+w = b.build(inputs, b.load_layer(Path(sys.argv[3])), json.load(open(sys.argv[4])))
+files = b.output_files(w)
+blob = b"".join(files[k] for k in sorted(files)) + b.canonical(b.make_manifest(w, files, {}))
+print(hashlib.sha256(blob).hexdigest())
+"""
+
+
+def test_t4_outputs_are_byte_identical_under_two_hash_seeds(tmp_path, inputs, complete):
+    """W4: no set or dict order may reach an output."""
+    layer, vectors = complete
+    (tmp_path / "items.json").write_text(json.dumps([list(i) for i in _items()]))
+    (tmp_path / "layer.jsonl").write_text("".join(json.dumps(r) + "\n" for r in layer.values()))
+    (tmp_path / "vectors.json").write_text(json.dumps(vectors))
+    scripts = os.path.dirname(build_workload.__file__)
+    digests = set()
+    for seed in ("0", "1"):
+        out = subprocess.run(
+            [sys.executable, "-c", DRIVER, scripts, str(tmp_path / "items.json"),
+             str(tmp_path / "layer.jsonl"), str(tmp_path / "vectors.json")],
+            capture_output=True, text=True, env={**os.environ, "PYTHONHASHSEED": seed}, check=False,
+        )
+        assert out.returncode == 0, out.stderr
+        digests.add(out.stdout.strip())
+    assert len(digests) == 1
+
+
+def test_t5_two_records_with_one_tier1_form_stop_the_build(inputs, complete):
+    layer, vectors = complete
+    seeds = [k for k, r in layer.items() if r["type"] == "seed" and r["role"] == "seed"]
+    first = layer[seeds[0]]["question"]
+    layer[seeds[1]] = {**layer[seeds[1]], "question": first.upper()}
+    vectors = embed_all(inputs, layer, _fake_embed)
+    with pytest.raises(WorkloadStop, match="Tier-1 form"):
+        build(inputs, layer, vectors)
+
+
+def test_t6_a_risky_product_or_an_unknown_doc_id_stops_the_check(inputs, complete):
+    workload = build(inputs, *complete)
+    rec = next(r for r in workload.records if r.doc_ids[0].startswith("policy-") and r.product_id)
+    rec.product_id = "product-phones-r1"  # "Renewed" in the title
+    with pytest.raises(WorkloadStop, match="risky product"):
+        build_workload.check_workload(inputs, workload.records)
+    rec.product_id = None
+    rec.doc_ids = ("policy-return-nowhere",)
+    with pytest.raises(WorkloadStop, match="not in the corpus"):
+        build_workload.check_workload(inputs, workload.records)
+
+
+def _strings(node):
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for k, v in node.items():
+            yield k
+            yield from _strings(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _strings(v)
+
+
+def test_t7_the_manifest_holds_no_question_no_doc_id_and_no_qa_id(inputs, complete):
+    """W9: the tracked manifest is hashes and counts only."""
+    workload = build(inputs, *complete)
+    files = output_files(workload)
+    manifest = make_manifest(workload, files, {"selection_sha256": "a" * 64})
+    questions = {r.question for r in workload.records}
+    for s in _strings(manifest):
+        assert "product-" not in s and not s.startswith("q-") and s not in questions, s
+        assert "z1" not in s and "k5" not in s, s
+
+
+def test_t8_the_rank_holds_every_prefix_within_one_of_its_share():
+    """W11, review L5: each stratum's count in any prefix is within one of its share, and the
+    order inside a stratum is the hash, not the order the records were built in."""
+    sizes = {"A": 9, "C": 5, "B-within": 3, "B-cross": 2, "D": 1}
+    recs = [Record(f"q{s}{i}", "?", ("product-x",), "product-x", "c", "u", "seed", "pqa", True,
+                   None, "phones", stratum=s) for s, n in sizes.items() for i in range(n)]
+    ranked = rank(recs)
+    n = len(ranked)
+    for k in range(1, n + 1):
+        prefix = ranked[:k]
+        for s, size in sizes.items():
+            assert abs(sum(r.stratum == s for r in prefix) - size * k / n) < 1, (s, k)
+    a_order = [r.qa_id for r in ranked if r.stratum == "A"]
+    assert a_order == sorted(a_order, key=lambda q: build_workload.h("rank", q))
+    assert [r.popularity_rank for r in ranked] == list(range(1, n + 1))
+    assert [r.stratum for r in ranked[:4]] != ["A"] * 4
+
+
+def _rec(qa_id, product, cluster, pair_of=None, kind=None, doc_ids=None):
+    return Record(qa_id, "?", tuple(doc_ids or [product or "policy-x"]), product, cluster, "u",
+                  "seed", "pqa", True, None, "phones", pair_of=pair_of, probe_kind=kind)
+
+
+def test_t9_stratum_precedence_one_case_each_and_a_cosine_of_exactly_085():
+    a, b = [1.0, 0.0], [0.85, math.sqrt(1 - 0.85 ** 2)]
+    assert corpus_gate.cosine(a, b) == 0.85  # the fixture's own edge
+    target = _rec("t", "p1", "c1")
+    cases = {
+        "D": _rec("d", "p1", "c9", doc_ids=["product-p1", "policy-x"]),
+        "B-within": _rec("w", "p1", "c2", pair_of="t", kind="spec-attribute"),
+        "B-cross": _rec("x", "p2", "c3", pair_of="t", kind="name-swap"),
+        "A": _rec("a", "p1", "c1"),
+    }
+    dept = _rec("dw", None, "c4", pair_of="t", kind="condition-department")
+    by_id = {r.qa_id: r for r in [target, dept, *cases.values()]}
+    vectors = {"t": a, "a": b, "d": a, "w": a, "x": a, "dw": a}
+    for want, rec in cases.items():
+        assert assign_stratum(rec, by_id, [target, rec], vectors) == want, want
+    assert assign_stratum(dept, by_id, [dept], vectors) == "B-within"
+    vectors["a"] = [0.84, math.sqrt(1 - 0.84 ** 2)]
+    assert assign_stratum(cases["A"], by_id, [target, cases["A"]], vectors) == "C"
+
+
+def test_t11_the_split_pairs_the_minimal_pair_groups_and_alternates_the_rest(inputs, complete):
+    records, _ = construct(inputs, complete[0])
+    split_of = assign_split(records, inputs)
+    assert split_of == assign_split(records, inputs)  # determinism
+    assert split_of["u-phones-term"] != split_of["u-phones-return-remedy"]
+    assert split_of["u-furniture-term"] != split_of["u-laptops-term"]
+    paired = {u for _, us in build_workload.TWIN_UNIT_PAIRS for u in us}
+    dept = {r.split_unit: r.department for r in records}
+    rest = sorted((u for u in split_of if not u.startswith("u-product-") and u not in paired),
+                  key=lambda u: (dept[u], build_workload.h("policy-unit", u)))
+    assert [split_of[u] for u in rest] == [corpus_gate.SPLITS[i % 2] for i in range(4, 4 + len(rest))]
+
+
+def test_t11_every_axis_and_department_lands_in_both_splits(inputs, complete):
+    workload = build(inputs, *complete)
+    for axis in ("packaging", "grade", "region"):
+        assert {r.split for r in workload.records if r.axis == axis} == set(corpus_gate.SPLITS)
+
+
+def test_t12_a_name_swap_sits_in_its_targets_unit(inputs, complete):
+    """B-cross is built inside a product-pair unit, so the split can never separate a swap from
+    the seed it imitates."""
+    workload = build(inputs, *complete)
+    by_id = {r.qa_id: r for r in workload.records}
+    swaps = [r for r in workload.records if r.probe_kind in ("name-swap", "name-swap-same")]
+    assert swaps
+    for r in swaps:
+        assert r.split_unit == by_id[r.pair_of].split_unit and r.stratum == "B-cross"
+
+
+def test_t13_twins_only_where_the_answers_differ(tmp_path, inputs):
+    layer = load_layer(_complete_label_round(tmp_path, inputs))
+    cells = {c.cell_id: c for c in plan_cells(inputs, layer)}
+    assert cells["policy-return-phones-opened:term"].twin_group is None  # 14 days both: no twin
+    assert cells["policy-return-phones-opened:term:fee"].twin_group == "phones-returns-term-fee"
+    assert cells["policy-return-phones-opened:remedy"].twin_group == "phones-returns-remedy"
+    assert cells["policy-return-electronics:what"].twin_group is None
+
+
+def test_t16_a_windows_7_and_8_pair_marked_different_is_never_one_cluster(inputs, complete):
+    workload = build(inputs, *complete)
+    nat = [r for r in workload.records if r.probe_kind == "natural"]
+    assert len(nat) == 2 and nat[0].cluster_id != nat[1].cluster_id
+    assert {nat[0].pair_of, nat[1].pair_of} == {nat[0].qa_id, nat[1].qa_id}
+    assert all(r.stratum == "B-within" for r in nat)
+
+
+def test_t19_the_build_stops_below_30_minimal_pair_twins_a_split(inputs, complete, monkeypatch):
+    monkeypatch.setattr(build_workload, "MIN_TWINS_PER_SPLIT", 30)
+    with pytest.raises(WorkloadStop, match="minimal-pair twins, below 30"):
+        build(inputs, *complete)
+
+
+@pytest.mark.parametrize(
+    "swap,seed,mark,want",
+    [
+        ("No.", "Yes.", True, "name-swap"),  # polarities decide, over the mark
+        ("Yes, it does.", "Yes.", False, "name-swap-same"),
+        ("About 3 days.", "Up to 2 days.", False, "name-swap"),  # no polarity: the mark
+        ("About 2 days.", "Up to 2 days.", True, "name-swap-same"),
+    ],
+)
+def test_t22_a_same_answer_swap_is_kept_but_never_a_trap(swap, seed, mark, want):
+    assert swap_kind(swap, seed, mark) == want
+
+
+def test_policy_queries_fill_the_cell_wording_and_point_at_their_twin(inputs, complete):
+    workload = build(inputs, *complete)
+    by_id = {r.qa_id: r for r in workload.records}
+    opened = [r for r in workload.records if r.qa_id.startswith("q-policy-return-phones-opened:term:fee")]
+    assert opened and all(by_id[r.pair_of].qa_id.startswith("q-policy-return-phones-unopened:term:fee")
+                          for r in opened)
+    assert all(r.stratum == "B-within" and r.probe_kind == "policy-condition" for r in opened)
+    dept = [r for r in workload.records if ":term:dept" in r.qa_id]
+    assert len(dept) == 2 * TWIN_WORDINGS_DEPT and all(r.product_id is None for r in dept)
+
+
+def test_outputs_verify_and_a_reordered_split_file_fails(tmp_path, inputs, complete):
+    """W15: the split files are exact projections of the whole file; verify re-derives them."""
+    workload = build(inputs, *complete)
+    files = output_files(workload)
+    data, work = tmp_path / "data", tmp_path / "work"
+    data.mkdir()
+    write_outputs(files, make_manifest(workload, files, {}), data, work)
+    assert sorted(p.name for p in data.iterdir()) == sorted([*files, "workload-manifest.json"])
+    assert not list(work.iterdir())  # no temporary file left behind
+    assert verify_outputs(inputs, data) == []
+    test_file = data / "workload-v1-test.json"
+    test_file.write_bytes(canonical(list(reversed(json.loads(test_file.read_text())))))
+    assert any("differs from the manifest" in p for p in verify_outputs(inputs, data))
+
+
+def test_the_lru_simulation_is_seeded_and_counts_trap_encounters(inputs, complete):
+    workload = build(inputs, *complete)
+    recs = [r for r in workload.records if r.split == "validation"]
+    once, again = simulate_lru(recs, 1.1), simulate_lru(recs, 1.1)
+    assert once == again and once["capacity"] == corpus_gate.derive_capacity(len(recs))
+    assert 0 <= once["tier1_hit_rate"] <= 1
+
+
+def test_w16_an_axis_in_one_split_only_stops_the_check(inputs, complete):
+    workload = build(inputs, *complete)
+    for r in workload.records:
+        if r.axis == "region":
+            r.split = "validation"
+    with pytest.raises(WorkloadStop, match="condition axis region has no query in test"):
+        build_workload.check_workload(inputs, workload.records)
+
+
+def test_a_disagreeing_blind_label_drops_the_query_and_counts_it(inputs, complete):
+    """rules.md §8 (review M5 a): a paraphrase whose own label cites other evidence is dropped; a
+    seed whose own label disagrees takes its paraphrases and its lookalike with it."""
+    layer, vectors = complete
+    para = next(k for k, r in sorted(layer.items()) if r["type"] == "para"
+                and first_labels(layer)[r["ref"]]["answerable"])
+    other = inputs.products[layer[para]["doc_id"]].fields[0][1]  # the title: not the seed's evidence
+    layer[blind_key(para)] = {**layer[blind_key(para)], "answerable": True, "evidence": other}
+    workload = build(inputs, layer, vectors)
+    assert workload.drops["paraphrase: the blind label disagrees"] == 1
+    assert not any(r.question == layer[para]["question"] for r in workload.records)
+
+    seed_key = f"seed:{layer[para]['ref']}"
+    layer[blind_key(seed_key)] = {**layer[blind_key(seed_key)], "answerable": False,
+                                  "answer": "", "evidence": ""}
+    workload = build(inputs, layer, vectors)
+    assert workload.drops["spec seed: the blind label disagrees (its cluster and probes go too)"] == 1
+    assert not any(r.cluster_id.startswith(f"c-{layer[seed_key]['doc_id']}-"
+                                           f"{seed_key.rsplit(':', 1)[1]}")
+                   for r in workload.records)
+
+
+def test_a_filled_policy_query_must_still_name_its_condition(inputs, complete):
+    layer, _ = complete
+    key = "cell:policy-return-phones-opened:what"
+    layer[key] = {**layer[key], "wordings": ["What do I send back with the {name}?"]}
+    with pytest.raises(WorkloadStop, match="does not name its condition"):
+        build(inputs, layer, embed_all(inputs, layer, _fake_embed))
+
+
+def test_a_failed_write_leaves_no_temporary_file_and_no_manifest(tmp_path, inputs, complete,
+                                                                 monkeypatch):
+    workload = build(inputs, *complete)
+    files = output_files(workload)
+    data, work = tmp_path / "data", tmp_path / "work"
+    data.mkdir()
+    real_replace, calls = os.replace, []
+
+    def failing_replace(src, dst):
+        calls.append(dst)
+        if len(calls) == 2:
+            raise OSError("disk full")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(build_workload.os, "replace", failing_replace)
+    with pytest.raises(OSError):
+        write_outputs(files, make_manifest(workload, files, {}), data, work)
+    assert not list(work.iterdir()) and not (data / "workload-manifest.json").exists()

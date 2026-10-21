@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -522,6 +522,19 @@ workload-sheets: ## Item 3.4: write one round's open tasks as sheets, OUTSIDE th
 workload-import: ## Item 3.4: check a rows file and append its valid rows to the model layer
 	@test -n "$(IN)" || { echo "usage: make workload-import IN=<rows file>"; exit 2; }
 	$(PY) experiments/scripts/build_workload.py import "$(IN)"
+
+# After the three rounds: embed (nomic-embed-text through Ollama; check memory first, never Qwen),
+# build (no model, deterministic: data/workload-v1*.json, gitignored, and the tracked
+# data/workload-manifest.json), verify (re-hash and re-check; the gate's own split-file check).
+#   make workload-embed && make workload-build && make workload-verify
+workload-embed: ## Item 3.4: embed every workload query (nomic-embed-text; memory check first)
+	$(PY) experiments/scripts/build_workload.py embed
+
+workload-build: ## Item 3.4: build data/workload-v1*.json and data/workload-manifest.json (no model)
+	$(PY) experiments/scripts/build_workload.py build
+
+workload-verify: ## Item 3.4: re-hash and re-check the workload files against the manifest
+	$(PY) experiments/scripts/build_workload.py verify
 
 mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
