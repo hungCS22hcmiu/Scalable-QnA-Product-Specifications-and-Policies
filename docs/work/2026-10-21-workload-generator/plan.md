@@ -47,6 +47,21 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
       `write_sheets` and `import_rows` with every mechanical check; `make workload-sheets`,
       `workload-import`. Tests T10, T15, T16, T20 – T23. **Commit here: everything that decides what
       the model layer may contain is in git before any sheet is read.**
+  **Step 5 result (2026-10-21).** `rules.md` (R1 – R10 with row formats, the constants, the shapes,
+  cells and twins, how the build reads the rows, A1 – A4) and `build_workload.py`'s first half: the
+  task plan for the three rounds (`label`, `write`, `check`), the sheets (refused inside the
+  repository), and the import with every mechanical check; `make workload-status`,
+  `workload-sheets`, `workload-import`; `evidence/batches.md`. `sheets` and `import` refuse to run
+  while `rules.md` is uncommitted or changed. **Ten details the design left open are fixed in
+  `rules.md` §10** (among them: `R2_UNANSWERABLE_SAMPLE = 40` per department; digits compared less
+  the short name's digits, found when a correct rewrite of a question about "Zenvo X2" was
+  rejected; a real policy question is a cell's source wording, not its own query; the product
+  choice per cell). 63 tests (synthetic products, the real policy documents), and a test that
+  `rules.md` states every constant. 25 hand mutants, all caught (two only after their tests were
+  rebuilt: R1 uniqueness, and the repository refusal, whose mutant had written fixture sheets into
+  `data/sheets/`; removed, and the test now points the root at a temporary folder). `/verify`:
+  gofmt, go vet, go build, go test, ruff, pytest (rag 15, experiments 485) and proto all **PASS**,
+  none skipped; `git status --porcelain data/` empty.
 - [ ] **6. The offline builder.** `build`, `make_units`, `assign_split`, `assign_stratum`, `rank`,
       `simulate_lru`, `write_outputs`, `verify`, `embed_all` (injected embedder); `make
       workload-embed`, `workload-build`, `workload-verify`. Tests T1, T3 – T9, T11 – T13, T19, on

@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -504,6 +504,24 @@ policy-check: ## Item 3.3: check the policy documents (schema, terms, >= 3 chunk
 
 policy-sources: ## Item 3.3: brand and risky-title counts of the 3.2 selection (counts only)
 	$(PY) experiments/scripts/check_policies.py --product-counts
+
+# Item 3.4: the workload's model layer (docs/work/2026-10-21-workload-generator/rules.md). Sheets
+# hold PQA text, so they go to a scratch directory OUTSIDE the repository (the script refuses any
+# other); the model layer is data/v1-draft/workload/model-layer.jsonl (gitignored). sheets and
+# import refuse to run while rules.md is uncommitted or changed. No model is loaded.
+#   make workload-status                                 # open tasks per round, counts only
+#   make workload-sheets ROUND=label OUT=<scratch dir>   # ROUND: label, write, check
+#   make workload-import IN=<scratch dir>/label-01.rows.jsonl
+workload-status: ## Item 3.4: open model-layer tasks per round (counts only)
+	$(PY) experiments/scripts/build_workload.py status
+
+workload-sheets: ## Item 3.4: write one round's open tasks as sheets, OUTSIDE the repository
+	@test -n "$(ROUND)" -a -n "$(OUT)" || { echo "usage: make workload-sheets ROUND=label|write|check OUT=<dir>"; exit 2; }
+	$(PY) experiments/scripts/build_workload.py sheets --round $(ROUND) --out "$(OUT)"
+
+workload-import: ## Item 3.4: check a rows file and append its valid rows to the model layer
+	@test -n "$(IN)" || { echo "usage: make workload-import IN=<rows file>"; exit 2; }
+	$(PY) experiments/scripts/build_workload.py import "$(IN)"
 
 mu-hit: ## mu_hit probe shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
