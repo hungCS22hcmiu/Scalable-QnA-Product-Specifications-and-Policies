@@ -38,6 +38,9 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
       embedded with `nomic-embed-text` through the frozen path. `evidence/pilot.md`: each pair's
       cosine against 0.85. This is the **last point** where a constant in `design.md` §2.2 may move;
       any move is written down here with its reason, before step 5.
+      ✅ *2026-10-21: 25 pairs, 38 texts; close paraphrases 0.966 – 0.994, far 0.817 – 0.959, name
+      swaps 0.668 – 0.803 (all below), same-product traps 0.831 – 0.948, unrelated 0.697 – 0.746.
+      **No constant moves** (reasons in `evidence/pilot.md`).*
 - [ ] **5. `rules.md`, the constants and the import checks.** `rules.md` in this trail holds R1 –
       R10 (`design.md` §4) with their sheet and row formats, the shape table (§2.3), the twin groups,
       the constants (§2.2), `SEED`, and the analysis rules A1 – A4 (§8). `build_workload.py`:
