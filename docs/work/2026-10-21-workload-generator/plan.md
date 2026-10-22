@@ -207,8 +207,17 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
 
 ## C. Embed, build, verify
 
-- [ ] **11. Embed.** Memory check first (record the level); `make workload-embed`
+- [x] **11. Embed.** Memory check first (record the level); `make workload-embed`
       (`nomic-embed-text` through Ollama; no Qwen). The vectors file is hashed into the manifest.
+  **Step 11 result (2026-10-22).** `make workload-embed`: **1,274 vectors**, 25 s, vectors file
+  sha256 `f721fa2f94b93f1b` (the first 16 hex digits the command prints; the file is gitignored).
+  Memory pressure was **level 2 before and after**, never red; swap went from 5.28 to 5.49 of 6.14
+  GB, and the model was stopped after the run (`evidence/memory.md`). The author said to run at
+  level 2 because the step is not a timed measurement, and embedding values do not depend on
+  pressure. The run is labelled "taken under urgent pressure"; no number from it is cited as a
+  measurement. I did not compare the 1,274 with the number of built records here: `build` does
+  that in step 12, and stops if a built record has no vector or its question text differs.
+
 - [ ] **12. Build twice and verify.** `make workload-build` twice: one manifest sha256. Then `make
       workload-verify` and `make gate-corpus STRUCTURAL=1 CORPUS_DIR=<temp: drafts + policies>`
       (W12). `evidence/build.md`: counts per stratum, `probe_kind`, split, department and axis; the
