@@ -298,7 +298,7 @@ def test_each_way_the_index_can_be_wrong_fails_and_names_its_test(
 
 
 def test_an_index_that_still_holds_dev_v0_fails_a_v1_check(world, tmp_path):
-    """Acceptance A4, and the state this item leaves Redis in afterwards (ADR-014)."""
+    """Acceptance A4, and the state this item leaves Redis in afterwards (item 3.6 design)."""
     other = _write_corpus(
         tmp_path / "devv0", policy_text="Returns are accepted for 10 days."
     )
@@ -956,3 +956,70 @@ def test_main_refuses_an_export_path_git_does_not_ignore_before_doing_any_work(
     )
     with pytest.raises(SystemExit, match="not gitignored"):
         run("--retrieval-out", str(REPO_ROOT / "experiments" / "_nope"))
+
+
+# =================================================================================================
+# /ai-review, item 3.6: a run the criteria pass can still be a run that must not be frozen
+# =================================================================================================
+def _criteria_all_green(monkeypatch):
+    """The four-query fixture cannot make 50 pairs, so G1 and G2 are forced green. The control test
+    below proves the pass branch is reached; without it the flagged-run tests could prove nothing."""
+    monkeypatch.setattr(
+        g, "check_g1", lambda pairs, scope="": g.Criterion("G1  forced", True, "forced")
+    )
+    monkeypatch.setattr(
+        g,
+        "check_g2",
+        lambda pairs, scope="": g.Criterion(f"G2  forced ({scope})", True, "forced"),
+    )
+
+
+def test_control_a_green_run_that_passes_every_criterion_prints_the_digest(
+    full_run, monkeypatch
+):
+    run, report, *_ = full_run
+    _criteria_all_green(monkeypatch)
+    code, text = run()
+    data = json.loads(report.read_text())
+    assert code == 0 and "--- FREEZE ---" in text and "NOT FROZEN" not in text
+    assert data["passed"] is True and data["flags"] == []
+    assert len(data["snapshot_digest"]) == 64
+
+
+def test_a_yellow_reading_stops_a_run_the_criteria_pass(full_run, monkeypatch):
+    run, report, *_ = full_run
+    _criteria_all_green(monkeypatch)
+    readings = iter([0, 0, 1] + [0] * 100)
+    monkeypatch.setattr(g, "memory_pressure_level", lambda: next(readings))
+    code, text = run()
+    data = json.loads(report.read_text())
+    assert code != 0 and "--- FREEZE ---" not in text
+    assert "the five criteria pass, but this run is flagged" in text
+    assert data["passed"] is False and data["snapshot_digest"] is None
+    assert data["flags"] == ["S3 memory pressure was not green"]
+
+
+def test_an_ungrounded_query_stops_a_run_the_criteria_pass(full_run, monkeypatch):
+    import rag.retrieve
+
+    run, report, *_ = full_run
+    _criteria_all_green(monkeypatch)
+    monkeypatch.setattr(rag.retrieve, "retrieve", lambda text, product_id=None: ([], 0))
+    code, text = run()
+    data = json.loads(report.read_text())
+    assert code != 0 and "--- FREEZE ---" not in text
+    assert data["passed"] is False and data["snapshot_digest"] is None
+    assert "S4" in [f[:2] for f in data["flags"]]
+
+
+def test_main_refuses_a_report_path_git_does_not_ignore_before_doing_any_work(
+    full_run, monkeypatch
+):
+    import rag.embedding
+
+    run, *_ = full_run
+    monkeypatch.setattr(
+        rag.embedding, "OllamaEmbedding", lambda: pytest.fail("work was started")
+    )
+    with pytest.raises(SystemExit, match="not gitignored"):
+        run("--report", str(REPO_ROOT / "experiments" / "_nope.json"))

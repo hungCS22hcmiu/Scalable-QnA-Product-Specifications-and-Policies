@@ -1265,7 +1265,7 @@ def require_git_ignored(path: Path, repo: Path = REPO_ROOT) -> None:
     if ignored.returncode != 0:
         raise SystemExit(
             f"FAIL — {rel} is not gitignored. The retrieval export holds qa_ids, which embed an "
-            "asin; write it under data/v1-draft/."
+            "asin, and the report lists every corpus file; write both under data/v1-draft/."
         )
 
 
@@ -1436,6 +1436,8 @@ def main() -> int:
     if args.retrieval_out:  # before ten minutes of embedding, not after
         for path in export_paths(Path(args.retrieval_out)):
             require_git_ignored(path)
+    if args.report:  # the report lists every file (an asin each) and the workload's absolute path
+        require_git_ignored(Path(args.report))
 
     print(f"corpus   {corpus_dir}")
     print(f"workload {workload_path}")
@@ -1545,7 +1547,9 @@ def main() -> int:
     g1 = check_g1([p for s in SPLITS for p in within[s]], scope="within split")
     g2s = [check_g2(within[s], scope=s) for s in SPLITS]
     criteria += [g1, *g2s]
-    passed = emit([g1, *g2s]) and all(c.passed for c in (g3, g4, g5, shape, split_files))
+    criteria_passed = emit([g1, *g2s]) and all(
+        c.passed for c in (g3, g4, g5, shape, split_files)
+    )
 
     unscoped_pairs, _ = find_pairs(queries, similar, unscoped=True)
     unscoped_within, _ = split_pairs(unscoped_pairs, queries)
@@ -1610,6 +1614,16 @@ def main() -> int:
               f"{derive_capacity(n)}")
 
     # --- freeze ------------------------------------------------------------------------------------
+    # The criteria can pass on a run that must not be frozen: yellow memory (S3), a query with no
+    # grounding (S4), a G2 met by paraphrases only (S5). Such a run prints no digest.
+    flags = []
+    if any(m != 0 for m in memory):
+        flags.append("S3 memory pressure was not green")
+    if grounding["ungrounded"] or grounding["own_chunk_missing"]:
+        flags.append("S4 a query is ungrounded or lacks its own product's chunk")
+    if any(s5.values()):
+        flags.append("S5 G2 is met by paraphrase pairs only")
+    passed = criteria_passed and not flags
     digest, per_file = snapshot_digest(freeze_files(corpus_dir, workload_path))
     if passed:
         print("\n--- FREEZE ---")
@@ -1620,6 +1634,12 @@ def main() -> int:
         print("  of each run file in data-card.md §7 and in every run manifest (the evaluation).")
         print("  G5 here is lexical: the author's read of every policy document is the other half")
         print("  of G5 (data-card.md §7), and it must be recorded before this digest is frozen.")
+    elif criteria_passed:
+        print("\n  NOT FROZEN — the five criteria pass, but this run is flagged, so no snapshot digest")
+        print("  is printed:")
+        for flag in flags:
+            print(f"    {flag}")
+        print("  Discard it, remove the cause and repeat it (spec S3 – S5).")
     else:
         print("\n  NOT FROZEN — a criterion failed, so no snapshot digest is printed.")
         print(f"  (it would have been {digest[:12]}…; fix the corpus and re-run)")
@@ -1669,6 +1689,7 @@ def main() -> int:
                     "dataset": args.version,
                     "workload": str(workload_path),
                     "passed": passed,
+                    "flags": flags,
                     "snapshot_digest": digest if passed else None,
                     "files": [{"path": p, "sha256": d} for p, d in per_file],
                     "criteria": [

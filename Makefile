@@ -446,7 +446,7 @@ gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the sna
 #   ...the same from a fresh ingest, into run2/
 #   make corpus-freeze                            # data/v1-freeze.json, once
 #   make corpus-verify
-# Once frozen, Redis holds dev-v0 again (ADR-014). Every v1 run, and every reference generation,
+# Once frozen, Redis holds dev-v0 again (item 3.6 design). Every v1 run, and every reference generation,
 # starts with `DATASET_VERSION=v1 make ingest` and `make corpus-index-check`. None of these four is
 # part of `make verify`: data/v1/ is gitignored.
 corpus-assemble: ## Item 3.6: build data/v1/ from the drafts and the policy documents (bytes, copied)

@@ -68,3 +68,29 @@ run.
 generation, set `CACHE_CAPACITY` from the run file's `K`, fix the stale `K` comment at
 `gateway/cmd/gateway/main.go:267-268`; to Phase 4 — a restore path for `data/v1/`, the epoch's source
 (ADR-008); to the author — `CLAUDE.md`'s single-`K` sentence.
+
+## Block B run and its outcome (2026-10-22)
+
+**Go for Block B** given by the author in chat ("can we start Block B?"). Run 1 stopped under **S1**: G1 failed,
+21 pairs inside a split, 29 short of the 50 needed (13 validation, 8 test). Counts in `evidence/gate-failure.md`.
+Steps 21 – 22 (run 2, freeze) were not run. **Nothing was frozen: ADR-014 ("`v1` is frozen") is not written,
+and its "to write" entries in the table above are void.** No frozen value changed; `Invalidates: none — no runs yet`
+still holds.
+
+**S3 waived for the session, by the author, in chat.** At the preflight the pressure level read 2 with no model
+loaded (1 after the LLM was unloaded, and 1 for all 53 readings of the run). The author said to start anyway:
+"we can start, since this is not session for measurement to collect the statistic". This is a deviation from S3 and
+from acceptance A10, and it is recorded here because a stop rule is changed only in this file. What it covers:
+this one stopped run. What it does not cover: any run that is to be frozen. Those need level 0, and `freeze` still
+refuses a report with a non-green reading. The numbers of this run are indicative and are not cited anywhere.
+
+**Next step after S1, chosen by the author in chat:** close this task as a recorded stop and open a new task
+about the corpus and workload. That is option (2) of S1 (reopen item 3.3 or 3.4 under its own approvals). The new
+task is not opened by this one. My reading of what it needs, for the author to decide: the name-swap probes sit at
+cosine 0.66 – 0.80, below the 0.85 floor, so they never count as G1 pairs; the policy-condition pairs are far
+above 0.85 but share chunks (J mostly 0.2 – 0.5). Neither is a change to the gate: lowering a threshold after
+seeing the data is option (3) and needs its own ADR and pre-registration.
+
+**Not touched by this task:** `.claude/settings.json` (the author's own uncommitted change, which drops the
+`Read` deny rules for `data/raw`, `data/v1-draft` and `data/v1`). Noted by `/ai-review`; it is the author's
+decision and is not part of this commit.

@@ -361,6 +361,8 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
 
 *Four jobs, not a download. Longest lead, and it can fail its own gate and need rework.* ~45 h.
 
+**Progress, 2026-10-22 (later): item 3.6 was run and stopped, and is still open.** The freeze tooling is built, tested and committed (trail `docs/work/2026-10-22-corpus-freeze/`). The first gate run on the ingested `v1` **failed G1: 21 pairs inside a split (13 validation, 8 test), 50 needed** (stop rule S1). G2 – G5, `W` and `S` pass. Nothing is frozen: no snapshot digest, no `data/v1-freeze.json`, 13 `TODO(W8)` markers open, Redis holds `dev-v0`. **Phase 3 exit is not met.** The name-swap probes sit at cosine 0.66 – 0.80, below the 0.85 floor, and the policy-condition pairs share chunks (J mostly 0.2 – 0.5). By S1 the next step is the author's: reopen 3.3 or 3.4 under its own approvals (changing the G1 statistic is its own ADR). The run was taken under yellow memory with the author's waiver, so its figures are indicative; the next run is at level 0. Counts: `evidence/gate-failure.md` in the trail.
+
 **Progress, 2026-10-22:** item 3.4 is done (**ADR-013**, trail `docs/work/2026-10-21-workload-generator/`): the workload is **1,274 queries** in three gitignored files, with the tracked `data/workload-manifest.json`, `interfaces.md` v0.15 and `data-card.md` v0.7. **Phase 3 exit is not met:** 3.6 is open (the freeze, G1 and G2 on the ingested index, `K` for each file and every §7 statistic); 13 `TODO(W8)` markers are open in `data-card.md`, and the §7 ones are 3.6's. 3.6 is next.
 
 **Carried out of 3.4 (ADR-013; `design.md` §11 has the detail).**

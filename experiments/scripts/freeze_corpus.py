@@ -12,7 +12,7 @@ gitignored per-file list from run 1 is there to name it from.)
 
 `freeze` is written once. A different freeze is a different `dataset_version` and a different file.
 `assemble` is not a restore path: it copies the sources into a clean `data/v1/` and refuses to
-touch anything else (a gap carried to Phase 4, named in ADR-014).
+touch anything else (a gap carried to Phase 4, named in the item 3.6 design, docs/work/2026-10-22-corpus-freeze/design.md).
 
 Exit codes: 0 done · 1 a check failed · 2 refused, and nothing was written.
 """
@@ -236,8 +236,8 @@ def _load_record(p: Paths) -> dict | None:
 
 def cmd_check_index(p: Paths, client=None, base_url: str | None = None) -> int:
     """Is the index in Redis the corpus on disk? The first step of every run on v1, and of every
-    reference generation (ADR-014): after this item Redis holds dev-v0, and a run on that proves
-    nothing and says nothing."""
+    reference generation (item 3.6 design): after this item Redis holds dev-v0, and a run on that
+    proves nothing and says nothing."""
     from rag import config, store
 
     record = _load_record(p)
@@ -257,12 +257,18 @@ def cmd_check_index(p: Paths, client=None, base_url: str | None = None) -> int:
             f"(DATASET_VERSION={VERSION} make ingest) and check again."
         )
         return 1
-    compared = (
-        "and compared with the record" if record else "(no freeze record yet: measured)"
-    )
+    if record:
+        checked = (
+            "ids, texts, vectors and the embedding model's digest checked and compared "
+            "with the record"
+        )
+    else:
+        checked = (
+            "ids and texts compared with the corpus, vector sizes checked; the vector "
+            "digest and the model digest are not compared (no freeze record yet: measured)"
+        )
     print(
-        f"[PASS] the index is the {VERSION} corpus: {result.chunk_count} chunks; ids, texts, "
-        f"vectors and the embedding model's digest checked {compared}"
+        f"[PASS] the index is the {VERSION} corpus: {result.chunk_count} chunks; {checked}"
     )
     return 0
 
@@ -466,6 +472,10 @@ def forbidden_content(record: dict) -> list[str]:
 def cmd_freeze(
     p: Paths, run1: Path, run2: Path, today: datetime.date | None = None
 ) -> int:
+    if run1.resolve() == run2.resolve():
+        raise Refusal(
+            "run 1 and run 2 are the same report file: a freeze needs two runs"
+        )
     r1, r2 = load_report(run1), load_report(run2)
     problems = []
     if p.record.exists():
@@ -621,6 +631,11 @@ def cmd_verify(p: Paths, ollama_get=None, base_url: str | None = None) -> int:
     except (httpx.HTTPError, KeyError, ValueError) as e:
         failures.append(f"Ollama did not answer properly ({type(e).__name__})")
     else:
+        if config.EMBEDDING_MODEL != record["embedding"]["tag"]:
+            failures.append(
+                f"the code embeds with {config.EMBEDDING_MODEL}, the record names "
+                f"{record['embedding']['tag']}"
+            )
         model_failures, _ = corpus_gate.verify_model(
             models, record["embedding"]["tag"], record["embedding"]["digest"]
         )

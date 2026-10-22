@@ -64,10 +64,10 @@ Three blocks, in this order (design §7): **code** (Redis holds `dev-v0`, `make 
   files or added tests). On a failure: one quick fix, then `/rca`.
 - [x] **14. Asin hygiene on the diff.** *Check:* a grep of every changed tracked file for the asin pattern
   and for `qa_id`s finds none.
-- [ ] **15. Commit the code** (the author asks for it, or approves it). The gate must run on a clean tree
+- [x] **15. Commit the code** (the author asks for it, or approves it). The gate must run on a clean tree
   for `rag/src`, `experiments/scripts` and `Makefile`.
 
-**Block A result, 2026-10-22.** Steps 1 – 14 done; step 15 (commit) waits for the author. Details,
+**Block A result, 2026-10-22.** Steps 1 – 15 done; the code is commit a7c1178. Details,
 commands and counts: `evidence/block-a-log.md`. `/verify` (`make verify`): lint, Go build and tests,
 23 `rag` tests and 672 `experiments` tests all pass; **no existing test was changed** (only four new
 test files were added, plus `tools/test_probe_checks.py`, 50 tests, run by hand). Proto drift: SKIPPED,
@@ -82,33 +82,33 @@ Every command below that loads a model is preceded by `sysctl kern.memorystatus_
 Every attempt is logged in `evidence/attempts.md` (time, command, memory readings, outcome), the discarded
 ones too.
 
-- [ ] **16. Preflight.** `make pqa-select-verify`, `make workload-verify`, `make redis-check`,
+- [x] **16. Preflight.** `make pqa-select-verify`, `make workload-verify`, `make redis-check`,
   `launchctl list | grep redis-stack`, Ollama up, `make env-check`'s version facts (Ollama 0.33.2),
   memory level 0 with the embedding model loaded.
   *Check:* all pass; the pressure reading is written down.
-- [ ] **17. Assemble.** `make corpus-assemble`.
+- [x] **17. Assemble.** `make corpus-assemble`.
   *Check:* A1: 152 + 12 files, each copy's sha256 equals its source's, `ls data/v1 | wc -l` is 164.
-- [ ] **18. Run 1.** `DATASET_VERSION=v1 make ingest`, then `make corpus-index-check`, then `make gate-corpus`
+- [x] **18. Run 1.** `DATASET_VERSION=v1 make ingest`, then `make corpus-index-check`, then `make gate-corpus`
   with the report and export going to `data/v1-draft/gate/run1/`.
   *Check:* the index check passes; the gate prints its result; the time is recorded (U2).
   **If memory goes above 0 at any reading, discard and repeat (S3).**
-- [ ] **19. Decision point.** Read the result.
+- [x] **19. Decision point.** *Result: S1, G1 failed (21, need 50); see `evidence/gate-failure.md`.* Read the result.
   - Any criterion fails, or `ungrounded` / `own_chunk_missing` is above 0, or S5 is raised →
     **S1/S4/S5: run step 20, write `evidence/gate-failure.md` (counts only), skip steps 21 – 22, do step 26,
     and tell the author.** Do not edit anything to make it pass.
   - All pass and no flag → go on.
-- [ ] **20. Read-only checks.** `tools/probe_checks.py` over the export (also on a failed run).
+- [x] **20. Read-only checks.** `tools/probe_checks.py` over the export (also on a failed run).
   *Check:* each output is a table of counts in `evidence/` (A8).
-- [ ] **21. Run 2.** A fresh `DATASET_VERSION=v1 make ingest`, the index check, the gate (output to `run2/`).
+- [~] **21. Run 2.** *SKIPPED (S1).* A fresh `DATASET_VERSION=v1 make ingest`, the index check, the gate (output to `run2/`).
   *Check:* A3 (i) – (v). A difference in pass/fail is an `/investigate` (S2); a difference in counts only is
   recorded and run 1 stays the figure.
-- [ ] **22. Freeze.** `make corpus-freeze`, then `make corpus-verify` and `make corpus-index-check`.
+- [~] **22. Freeze.** *SKIPPED (S1).* `make corpus-freeze`, then `make corpus-verify` and `make corpus-index-check`.
   *Check:* A4 and A5: the record exists, holds no file name, and `K` 622 / 652 and capacity 156 / 163 equal
   the gate's output. Flip one byte of a copy in a scratch directory and see `verify` fail (also a test).
 
 ## Block C — restore and close
 
-- [ ] **23. Documents.** `data-card.md`: the ten markers, the pair breakdown, the J ≤ 0.2 note, the two
+- [~] **23. Documents.** *NOT DONE (S1): every part of it records a freeze, and nothing was frozen. Carried to the successor task, which freezes (see Outcome).* `data-card.md`: the ten markers, the pair breakdown, the J ≤ 0.2 note, the two
   corrections (§7's monotonicity sentence; line 14), 3.1's skip rules. `decisions.md`: **ADR-014**
   ("`v1` is frozen": what it binds, `Invalidates: none — no runs yet`, Redis holds `dev-v0` afterwards,
   the Phase 4 restore gap, the unit check, the Claude-on-both-sides note carried from ADR-013). `architecture.md`
@@ -116,16 +116,66 @@ ones too.
   if it lists scripts, `super-plan.md` (item 3.6, the progress paragraph, the carries to P1 and Phase 4).
   *Check:* A7 `grep -n "TODO(W8)" docs/data-card.md` leaves the three not ours; a grep of the changed
   docs for asins finds none; the K and capacity integers are copied from the gate output.
-- [ ] **24. Restore `dev-v0`.** `DATASET_VERSION=dev-v0 make ingest`, then `make verify`.
+- [x] **24. Restore `dev-v0`.** `DATASET_VERSION=dev-v0 make ingest`, then `make verify`.
   *Check:* A9: green, with no test changed.
-- [ ] **25. Phase 3 exit, by hand.** Run the three clauses: the digest printed; `data-card.md` has `K`,
+  *Result (2026-10-22 23:06):* Redis holds `dev-v0` again (44 docs, 44 chunks, tag `dev-v0`). `/verify`: **PASS** —
+  `go vet`, `go build`, `go test`, ruff, 23 + 672 Python tests, none changed. Proto drift: **SKIPPED** (the stubs are gitignored).
+- [x] **25. Phase 3 exit, by hand.** *Result: NOT MET. The gate stopped at G1 (21, need 50), so no digest was printed, `data-card.md` §7 has no `K` or statistics yet, and the splits are not frozen. Nothing was frozen.* Run the three clauses: the digest printed; `data-card.md` has `K`,
   capacity and the statistics; the splits are frozen with the dataset. *Check:* each clause is a command or
   a file, not a judgement.
-- [ ] **26. Close.** `/verify`, `/ai-review`, `/done`; record the outcome, and whether scope L was honest.
+- [x] **26. Close.** `/verify`, `/ai-review`, `/done`; record the outcome, and whether scope L was honest.
   On a stopped run (step 19) `/done` records the stop as the outcome, with the numbers.
+  *Progress (2026-10-22):* `/verify` **PASS** at 23:07 (672 + 23 tests). `/ai-review` done: 9 findings, all resolved
+  (`review.md`, "Code review"); seven small code changes with 7 new tests, no existing test changed. `/verify` again:
+  **PASS**, 679 experiments tests + 23 rag tests; proto drift SKIPPED (stubs are gitignored). `/done` run; the outcome is below.
 
 ## Not in this plan
 
 Flipping the default version; `pyproject.toml`; `DATASET_EPOCH_STUB`; `CACHE_CAPACITY` wiring and the stale
 `K` comment (P1); `assemble --restore` (Phase 4); the faster scoped retriever; `CLAUDE.md` and
 `Final_Proposal.md` (the author's); any change to `reuse/`, the gateway, the corpus, the workload, or a threshold.
+
+## Outcome (2026-10-22) — closed as a stopped run (S1)
+
+**What shipped (commit `a7c1178`, and the `/ai-review` fixes after it).** The freeze tooling, built and tested, with
+nothing frozen:
+- the `DATASET_VERSION` switch (default `dev-v0` does not move) and `records_to_nodes`, proved byte-identical by the
+  golden node dump;
+- the gate's index check (five tests), digests, S3 / S4 / S5 reporting, the retrieval export and the vector comparison
+  with the 3.4 file;
+- `freeze_corpus.py` (`assemble`, `check-index`, `freeze`, `verify`) and the four Makefile targets;
+- `probe_checks.py`, the carried measurements for U10, U11, U12 and the unit check (`evidence/probe-checks.md`);
+- 679 experiments tests and 23 rag tests, none changed. `/ai-review`: 9 findings, all resolved; 7 small fixes with 7 new tests.
+
+**The result.** The first gate run on the ingested `v1` **failed G1: 21 pairs inside a split (13 validation, 8 test),
+29 short of the 50 needed.** G2 – G5, `W` and `S` pass; S4 and S5 were not raised. The query vectors equal the 3.4 file
+exactly. So `v1` has no snapshot digest, `data-card.md` §7 is not filled (13 `TODO(W8)` markers still open),
+`data/v1-freeze.json` does not exist, and **Phase 3 exit is not met**. The run was taken under yellow memory with the
+author's waiver (`approvals.md`), so its numbers are indicative and are not cited. Counts: `evidence/gate-failure.md`.
+
+**Why G1 failed (a reading, for the author).** The name-swap probes sit at cosine 0.66 – 0.80, below the 0.85 floor, so
+none of the 22 is a G1 pair. The policy-condition pairs are all above 0.936, but they share chunks (J mostly 0.2 – 0.5),
+so 2 of 120 reach J ≤ 0.2. The traps were built to differ in evidence, and the embedding does not put the swapped ones
+close enough.
+
+**Deferred, and where it goes.**
+- Run 2, the freeze, `data-card.md` §7, ADR-014 ("`v1` is frozen"), `architecture.md` and `README.md` entries for the new
+  files, and the two corrections in `data-card.md` (§7's monotonicity sentence; line 14): all to the successor task
+  that freezes. ADR-014 stays unwritten.
+- From `/ai-review`, to that task's design: a hash of `rag/src` in the freeze record; a run start time in the report and a
+  re-embedding of the 539 chunks to compare with the stored vectors; the `label_pair` rule (by `product_id` only), which
+  lets a same-source paraphrase pair count as a G2 trap.
+- Redis holds `dev-v0` again. `data/v1/` is assembled and gitignored. The first run on `v1` must be repeated at memory
+  level 0 before its figures can be cited.
+- To P1 and Phase 4: unchanged (see `approvals.md`).
+
+**Follow-up worth a new task (the author's to open).** S1 option (2): reopen item 3.4 (or 3.3) under its own approvals, to
+make traps that the embedding keeps close (cosine ≥ 0.85) and whose evidence differs (J ≤ 0.2). Option (3), changing the
+G1 statistic, needs its own ADR with its own pre-registration and is not recommended after seeing these numbers.
+
+**Was scope L honest?** Yes. The task added the first dataset-version switch to `rag/`, refactored the ingest loop, changed
+the gate that every later corpus claim rests on, and froze nothing only because the gate said no. It touched no seam,
+no `interfaces.md` value, no `.proto`, no `reuse/` and no gateway code, so nothing was larger than L, and nothing was
+smaller. The ceremony was useful: the golden node dump found the random-UUID `PREVIOUS` / `NEXT` links, and the design
+review's stop rules made the G1 failure a clean stop with no pressure to edit a threshold.
+

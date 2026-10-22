@@ -63,3 +63,29 @@ spans), and the stage 2 runtime.
    paraphrase pairs" mean. They are part of what the experiment phase approves.
 2. **M4 chose the smaller option** (drop the restore claim, carry it to Phase 4). Say if you want
    `assemble --restore` built here.
+
+
+# Code review — /ai-review, 2026-10-22
+
+Reviewer: subagent `contract-reviewer`, over `git diff 1d53949 HEAD -- gateway rag contracts experiments Makefile`
+(commit `a7c1178`, 9 code files) and the evidence of the stopped run. Scope note: the working tree held no
+uncommitted change under those directories, so the review ran on the task's commit. Findings were checked against
+the code before they were accepted. No frozen value, no seam field and no threshold is touched by the diff
+(chunk size 256, overlap 40, `top_k` 5, `nomic-embed-text`, 768, FLAT, COSINE, the chunk-id scheme and the
+`corpus::` prefix; 0.85, 0.2, 50). `records_to_nodes` is the old loop with `dataset_version` as a parameter. A scan of
+the changed and task files for asins and qa_ids found none. `gate-failure.md` agrees with `report.json`
+(G1 21 = 13 + 8, 18 across, 39 in all, 1342, K and capacity, 53 readings, 86 s, 539 chunks, 0 of 1274 vectors differ).
+
+| # | Finding | Status | Resolution |
+| :--- | :--- | :--- | :--- |
+| 1 | `verify` checked Ollama for the model tag **in the record**, not for `config.EMBEDDING_MODEL`; and it never compares the code that embeds | CONFIRMED | **Fixed (model).** `cmd_verify` now fails if `config.EMBEDDING_MODEL` differs from the record's tag; test added. **Carried (code hash):** a hash of `rag/src` in the record, so an edit to a prefix in `embedding.py` or to `retrieve.py` is caught, is a design change to the record. It matters only after a freeze, and nothing is frozen. It goes to the successor task's design |
+| 2 | Before a record exists, test 4 checks vector byte length only, but the PASS line said "vectors … checked"; `freeze` did not check that the two reports are two runs | CONFIRMED | **Fixed (wording, same file).** The line now says "vector sizes checked; the vector digest and the model digest are not compared"; `freeze` refuses the same report file twice; tests added. **Carried:** a run-start time in the report, and re-embedding the 539 chunks to compare them with the stored vectors (about 19 s). A run 2 that skipped its re-ingest is still caught only by the plan and `attempts.md`. Successor task's design |
+| 3 | All 53 readings were 1 (yellow). S3 says discard and repeat; the waiver was only in `attempts.md` | CONFIRMED | **Fixed.** The waiver is now in `approvals.md`, scoped to this stopped run. `gate-failure.md` says the numbers are indicative and not to be cited; the successor task runs the gate at level 0 |
+| 4 | G2 "pass" is 3 pairs per split, of which 1 (validation) and 2 (test) are built traps; the rest are same-source paraphrases or a coincidence. S5 fires only if all are paraphrases. `gate-failure.md` showed the G1 table only | CONFIRMED | **Fixed.** `gate-failure.md` has the G2 table and a sentence on how to read it. The labelling rule (`label_pair` by `product_id`) is the 3.4 design and is not changed here; it goes to the successor task |
+| 5 | `--report` was not checked with `require_git_ignored`, though the report holds 164 asin-bearing paths and an absolute workload path | CONFIRMED | **Fixed.** The report path gets the same guard as the export, before any work; test added |
+| 6 | Code, a Makefile comment and two test docstrings cite ADR-014, which does not exist (decisions.md ends at ADR-013) | CONFIRMED | **Fixed.** The five references now name the item 3.6 design. ADR-014 is not written, because nothing was frozen |
+| 7 | `passed` ignored memory, S4 and S5: a yellow run that passed G1 – G5 printed `--- FREEZE ---` and a digest, exit 0, and wrote `passed: true` | CONFIRMED | **Fixed.** A flagged run is `passed: false`, prints "NOT FROZEN — the five criteria pass, but this run is flagged" with the reasons, writes no digest, and the report has a `flags` list. A control test proves the pass branch is reached. `freeze` still refuses such a report on its own. Also noted, **accepted:** `own_chunk_missing` is near-vacuous, because `_ensure_own_chunk` (`retrieve.py:105-119`) splices the product's chunk in whenever `product_id` is set; the second half of S4 can only fail if the product is missing from the index, which index-check test 3 already catches. It stays as a cheap guard |
+| 8 | Evidence: the J table sums to 36 where the text says 39; "Redis holds v1" was stale; `attempts.md` had no row for the step 24 ingest or for `make verify` | CONFIRMED | **Fixed** in `gate-failure.md` and `attempts.md` |
+| 9 | Outside the diff: the uncommitted `.claude/settings.json` drops the `Read` deny rules for `data/raw`, `data/v1-draft`, `data/v1` | CONFIRMED | **Accepted, not ours.** The author's own change. Recorded in `approvals.md`; not part of this commit |
+
+No finding is left open. Findings 1 and 2 each have a part carried to the successor task, named above.

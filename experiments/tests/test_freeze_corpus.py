@@ -784,7 +784,7 @@ def test_check_index_passes_on_the_corpus_before_any_freeze(indexed, capsys):
 def test_check_index_exits_non_zero_on_an_index_that_holds_dev_v0(
     indexed, tmp_path, capsys
 ):
-    """Acceptance A4, and the state this item leaves Redis in (ADR-014)."""
+    """Acceptance A4, and the state this item leaves Redis in (item 3.6 design)."""
     world, _, _ = indexed
     stale = FakeRedis(
         {"product-phones-old001#chunk-0": "an old text"}, version="dev-v0"
@@ -847,3 +847,36 @@ def test_the_scan_patterns_do_not_fire_on_digests_or_ordinary_words():
     )
     assert not any(_scan(text).values())
     assert not re.search(fm.QA_ID, "a question about a quarter")
+
+
+# =================================================================================================
+# /ai-review, item 3.6
+# =================================================================================================
+def test_a_freeze_needs_two_report_files_not_one_read_twice(world):
+    world.save()
+    alias = world.run1.parent / "." / world.run1.name
+    with pytest.raises(fm.Refusal) as refusal:
+        fm.cmd_freeze(world.p, world.run1, alias)
+    assert "the same report file" in " | ".join(refusal.value.lines)
+    assert not world.p.record.exists()
+
+
+def test_verify_fails_when_the_code_embeds_with_another_model(
+    frozen, monkeypatch, capsys
+):
+    """The record names the model; Ollama holds that model; the code could still ask for another."""
+    from rag import config
+
+    monkeypatch.setattr(config, "EMBEDDING_MODEL", "another-embed")
+    assert _verify(frozen) == 1
+    assert "the code embeds with another-embed" in capsys.readouterr().out
+
+
+def test_check_index_before_a_record_says_the_vectors_were_not_compared(
+    indexed, capsys
+):
+    world, client, _ = indexed
+    assert fm.cmd_check_index(world.p, client=client, base_url="http://ollama") == 0
+    out = capsys.readouterr().out
+    assert "vector sizes checked" in out and "are not compared" in out
+    assert "ids, texts, vectors and the embedding model's digest checked" not in out
