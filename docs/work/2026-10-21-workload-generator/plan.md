@@ -160,7 +160,7 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   - A complete "package included" list settles what is not in the box ("no mug"). A feature
     list that leaves something out does not settle it ("no USB port").
   - A network line that names only 2G or 3G settles "is it 4G?" as no.
-- [ ] **10. The author's read** (review M6 d). A seeded sample of **30** rows across the row types,
+- [x] **10. The author's read** (review M6 d). A seeded sample of **30** rows across the row types,
       written by `make` to a gitignored sheet for the author: does each keep (paraphrase) or change
       (probe) the answer as its rule says, and does it read as a shopper's question? **Stop rule,
       fixed now:** if 3 or more of the 30 break their rule, stop; a rule change is recorded in
@@ -187,6 +187,23 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   copied into the report. `/verify`: gofmt, go vet, go build, go test, ruff, pytest (rag 15,
   experiments 526) and proto all **PASS**, none skipped. One quick fix was needed first (ruff
   ISC004).
+
+  **Step 10 result (2026-10-22). Read by Claude, at the author's instruction, not by the author.**
+  Claude had said that it wrote and blind-checked these rows, so its own read is not an
+  independent check. The author still chose it, and opened `data/v1-draft/` to Claude in
+  `settings.json` (the three `Read` denies were removed). Claude marked all 30 rows against
+  `rules.md` (R3 – R8), reading each row with its compare columns. It also checked the 5 swap
+  rows' evidence against the partner product's record, and the 5 cell rows against the policy
+  documents. **0 of 30 break their rule** (the stop is at 3): the work goes on. 1 of 30 is not a
+  shopper's question (a paraphrase using "apiece"); that mark never counted. Two things are on
+  the sheet as notes: a seed that keeps `&#65311` junk from the original question (it is the
+  compare question of a lookalike, not one of the 30), and a swap whose two answers share the
+  main material (faux leather) and differ in the legs. **What the 0 means:** the rows follow the
+  rules as Claude reads them. It cannot show that Claude's reading of a rule is wrong. The
+  batches were all written by `claude-opus-5-5`; the session's model setting during this read was
+  `claude-sonnet-5-5`, which is another model of the same family and still not an outside reader.
+  The author can mark the same sheet later: if 3 or more break, the stop rule applies as written.
+  ADR-013 and the data card must say who read.
 
 ## C. Embed, build, verify
 

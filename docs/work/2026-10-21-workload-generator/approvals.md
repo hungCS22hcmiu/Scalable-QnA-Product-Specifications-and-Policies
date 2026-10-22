@@ -49,3 +49,10 @@ Either one stops the work; changing a rule after that needs this phase approved 
 at the impact approval). It binds
 forward: after 3.6, changing the rank seed, the split unit or its seed, the A / C rule, the model
 layer or the "K per run file" rule needs a new `dataset_version` (impact).
+
+**Step 10 reader (2026-10-22).** The experiment approval names "the author's 30 rows". On
+2026-10-22 the author told Claude to do the read and removed the three `Read` denies on
+`data/raw`, `data/v1-draft` and `data/v1` in `.claude/settings.json`. Claude had advised against it
+(it wrote and blind-checked the rows). No rule, constant or stop threshold changed; only who
+reads. Result: 0 of 30 break their rule (`evidence/author-read.md`). The read is not independent,
+and ADR-013 and the data card must say so. Invalidates: none.
