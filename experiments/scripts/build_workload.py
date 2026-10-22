@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import csv
 import hashlib
 import json
 import os
@@ -2278,6 +2279,224 @@ def labels_report(inputs: Inputs, layer: dict[str, dict], batches_text: str) -> 
 
 
 # =================================================================================================
+# The author's read (plan step 10, review M6 d)
+# =================================================================================================
+AUTHOR_SHEET_PATH = WORK_DIR / "author-read.csv"  # gitignored with data/v1-draft/: it holds PQA text
+AUTHOR_REPORT_PATH = TRAIL / "evidence" / "author-read.md"
+AUTHOR_READ_TYPES = ("seed", "para", "lookalike", "swap", "d", "cell")
+AUTHOR_READ_PER_TYPE = 5  # 6 types x 5: the plan's 30 rows
+AUTHOR_READ_STOP = 3  # plan step 10: 3 or more of the 30 breaking their rule stop the task
+AUTHOR_MARKS = ("rule_ok", "shopper")
+AUTHOR_COLUMNS = ("item", "key", "type", "rule", "question", "compare_question", "compare_answer",
+                  "answer", "evidence", *AUTHOR_MARKS, "note")
+NOT_ANSWERABLE = "(not answerable)"
+AUTHOR_RULES = {
+    "seed": "A rewrite of the original question: the same meaning, the product named, no new "
+            "fact. So the answer stays the original's.",
+    "para": "A paraphrase of the compare question: it keeps the compare answer.",
+    "lookalike": "Same product, a different fact: the answer must differ from the compare answer.",
+    "name-swap": "The compare question with another product's name: its answer differs from the "
+                 "first product's (the compare answer).",
+    "name-swap-same": "The compare question with another product's name: its answer is the same "
+                      "as the first product's (the compare answer). Kept, never a trap.",
+    "d": "Needs one fact from the product record and the policy's term: the answer holds a term.",
+    "cell": "A policy question on this part of the policy: it names its own condition (when the "
+            "policy has one) and no other.",
+    "cell-twin": "A policy question that differs from the compare question only in its condition, "
+                 "so its answer differs too.",
+}
+
+
+@dataclass(frozen=True)
+class AuthorItem:
+    """One model-layer row as the author reads it: the query and what it is compared against."""
+
+    key: str
+    type: str
+    rule: str
+    question: str
+    compare_question: str
+    compare_answer: str
+    answer: str
+    evidence: str
+
+
+def author_type(record: Record, inputs: Inputs) -> str | None:
+    """The read type of a built record, from its role alone; None for a type the author does not
+    read (a natural pair is real PQA text with Claude's mark)."""
+    if record.doc_ids[0] in inputs.policies:
+        return "cell"
+    if record.role == "d":
+        return "d"
+    if record.probe_kind in ("name-swap", "name-swap-same"):
+        return "swap"
+    if record.probe_kind == "spec-attribute":
+        return "lookalike"
+    return {"seed": "seed", "paraphrase": "para"}.get(record.role)
+
+
+def author_candidates(inputs: Inputs, layer: dict[str, dict]) -> dict[str, list[AuthorItem]]:
+    """Every row of the read types whose query the build keeps (rules.md §8): the records come
+    from `construct`, so a row the build drops is never read. A row is found by the query id
+    `construct` gives it; a kept record no row matches stops, so the two cannot drift silently."""
+    records, _ = construct(inputs, layer)
+    kept = {r.qa_id: r for r in records}
+    labels, names = first_labels(layer), short_names(layer)
+    out: dict[str, list[AuthorItem]] = {t: [] for t in AUTHOR_READ_TYPES}
+
+    def blind(key: str) -> tuple[str, str]:
+        row = layer[blind_key(key)]
+        return (row["answer"] if row["answerable"] else NOT_ANSWERABLE), row["evidence"]
+
+    seeds = [(ref, "") for refs in seed_refs(inputs, layer).values() for ref in refs]
+    seeds += [(ref, "-u") for ref in unanswerable_refs(inputs, layer)]
+    for ref, u in seeds:
+        line, label = inputs.pool[ref], labels[ref]
+        stem = f"q-{line.doc_id}-{line.line_no}{u}"
+        seed_q = layer[f"seed:{ref}"]["question"]
+        first = label["answer"] if label["answerable"] else NOT_ANSWERABLE
+        if f"{stem}-seed" in kept:
+            out["seed"].append(AuthorItem(f"seed:{ref}", "seed", AUTHOR_RULES["seed"], seed_q,
+                                          line.text.strip(), first, *blind(f"seed:{ref}")))
+        for kind in ("close", "far"):
+            key = f"para:{ref}:{kind}"
+            if f"{stem}-para-{kind}" in kept:
+                out["para"].append(AuthorItem(key, "para", AUTHOR_RULES["para"],
+                                              layer[key]["question"], seed_q, first, *blind(key)))
+        row = layer.get(f"lookalike:{ref}")
+        if not u and row and f"{stem}-look" in kept:
+            out["lookalike"].append(AuthorItem(row["key"], "lookalike", AUTHOR_RULES["lookalike"],
+                                               row["question"], seed_q, first, row["answer"],
+                                               row["evidence"]))
+
+    for row in rows_of(layer, "swap"):
+        record = kept.get(f"q-{row['doc_id']}-x-{row['from']}-{inputs.pool[row['ref']].line_no}")
+        if record:
+            out["swap"].append(AuthorItem(row["key"], "swap", AUTHOR_RULES[record.probe_kind],
+                                          row["question"], layer[f"seed:{row['ref']}"]["question"],
+                                          labels[row["ref"]]["answer"], row["answer"],
+                                          row["evidence"]))
+
+    for doc_id, policy in sorted(d_assignments(inputs, layer).items()):
+        if f"q-{doc_id}-d" in kept:
+            row, doc = layer[f"d:{doc_id}"], inputs.policies[policy]
+            out["d"].append(AuthorItem(row["key"], "d", AUTHOR_RULES["d"], row["question"], "",
+                                       f"policy {policy}; terms: {' | '.join(doc['terms'])}",
+                                       row["answer"], row["evidence"]))
+
+    cells = {c.cell_id: c for c in plan_cells(inputs, layer)}
+
+    def filled(cell: Cell, product: str | None) -> str:
+        """The question as the build fills it; a department-level cell's wordings, all of them."""
+        wordings = layer[f"cell:{cell.cell_id}"]["wordings"]
+        if product is None:
+            return " / ".join(wordings)
+        return wordings[0].replace("{name}", names[product])
+
+    for cell in cells.values():
+        product = cell.products[0] if cell.products else None
+        pair = cells.get(cell.pair_cell) if cell.pair_cell else None
+        cond = inputs.policies[cell.doc_id].get("condition")
+        info = (f"policy {cell.doc_id}; part: {cell.shape}"
+                + (f" ({cell.variant})" if cell.variant else "")
+                + f"; condition: {cond['value'] if cond else 'none'}")
+        out["cell"].append(AuthorItem(f"cell:{cell.cell_id}", "cell",
+                                      AUTHOR_RULES["cell-twin" if pair else "cell"],
+                                      filled(cell, product), filled(pair, product) if pair else "",
+                                      info, "", ""))
+
+    # One read row per kept query, but one per cell (a cell's products share its wording).
+    queries = {(author_type(r, inputs), r.cluster_id if r.doc_ids[0] in inputs.policies
+                else r.qa_id) for r in records}
+    expected = Counter(t for t, _ in queries)
+    for t in AUTHOR_READ_TYPES:
+        if expected[t] != len(out[t]):
+            raise WorkloadStop(f"author read: {len(out[t])} {t} rows match {expected[t]} kept "
+                               f"queries; the query ids drifted from construct")
+    return out
+
+
+def author_sample(inputs: Inputs, layer: dict[str, dict]) -> tuple[list[AuthorItem], dict]:
+    """Per read type, the AUTHOR_READ_PER_TYPE rows first in `h("author-read", key)` order; the
+    sheet lists the types in AUTHOR_READ_TYPES order. Also returns the population per type."""
+    candidates = author_candidates(inputs, layer)
+    sample: list[AuthorItem] = []
+    for t in AUTHOR_READ_TYPES:
+        group = sorted(candidates[t], key=lambda item: h("author-read", item.key))
+        if len(group) < AUTHOR_READ_PER_TYPE:
+            raise WorkloadStop(f"author read: only {len(group)} kept {t} rows for a sample of "
+                               f"{AUTHOR_READ_PER_TYPE}")
+        sample += group[:AUTHOR_READ_PER_TYPE]
+    return sample, {t: len(candidates[t]) for t in AUTHOR_READ_TYPES}
+
+
+def write_author_sheet(sample: list[AuthorItem], path: Path, force: bool = False) -> None:
+    """A CSV for the author to mark `rule_ok` and `shopper` yes or no. It never overwrites marks
+    unless forced."""
+    if path.is_file() and not force:
+        with path.open(encoding="utf-8", newline="") as f:
+            marked = [r["item"] for r in csv.DictReader(f)
+                      if any((r.get(m) or "").strip() for m in AUTHOR_MARKS)]
+        if marked:
+            raise WorkloadStop(f"{path} already has {len(marked)} marked row(s); score it, move "
+                               f"it away, or pass FORCE=1 (the marks would be lost)")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(AUTHOR_COLUMNS)
+        for n, item in enumerate(sample, start=1):
+            writer.writerow([n, item.key, item.type, item.rule, item.question,
+                             item.compare_question, item.compare_answer, item.answer,
+                             item.evidence, "", "", ""])
+
+
+def author_report(sample: list[AuthorItem], sizes: dict, path: Path) -> tuple[str, bool]:
+    """Counts only (no question, key or note). True when the stop rule fires: AUTHOR_READ_STOP or
+    more rows marked `rule_ok: no`. `shopper: no` is counted and reported, not part of the rule."""
+    with path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    if [(r["key"], r["type"]) for r in rows] != [(i.key, i.type) for i in sample]:
+        raise WorkloadStop("the sheet's rows are not the author-read sample; regenerate it")
+    unmarked = [r["item"] for r in rows
+                if any(r[m].strip().lower() not in ("yes", "no") for m in AUTHOR_MARKS)]
+    if unmarked:
+        raise WorkloadStop(f"rows {', '.join(unmarked)} need yes or no in rule_ok and shopper")
+    counts = {t: Counter() for t in AUTHOR_READ_TYPES}
+    for r in rows:
+        c = counts[r["type"]]
+        c["read"] += 1
+        c["broken"] += r["rule_ok"].strip().lower() == "no"
+        c["not shopper"] += r["shopper"].strip().lower() == "no"
+    total = sum(counts.values(), Counter())
+    stop = total["broken"] >= AUTHOR_READ_STOP
+    verdict = (f"**STOP**: {total['broken']} rows break their rule (≥ {AUTHOR_READ_STOP}). A rule "
+               f"change is recorded in approvals.md and the experiment phase is approved again."
+               if stop else
+               f"continue: {total['broken']} rows break their rule (< {AUTHOR_READ_STOP}).")
+    sample_line = (f"Sample: per type, the first {AUTHOR_READ_PER_TYPE} kept rows in "
+                   f"`sha256(SEED:author-read:<key>)` order, from the rows the build keeps.")
+    table = [(t, sizes[t], counts[t]) for t in AUTHOR_READ_TYPES]
+    table.append(("**all**", sum(sizes.values()), total))
+    rule_line = (f"Stop rule (fixed in plan step 10): {AUTHOR_READ_STOP} or more rows breaking "
+                 f"their rule. Verdict: {verdict}")
+    lines = [
+        "# The author's read (plan step 10, review M6 d)",
+        "",
+        "Written by `make workload-author-score` from the marked sheet (gitignored); counts only.",
+        sample_line,
+        "",
+        "| Type | Kept rows | Read | Rule broken | Not a shopper's question |",
+        "| :--- | ---: | ---: | ---: | ---: |",
+        *[f"| {t} | {n} | {c['read']} | {c['broken']} | {c['not shopper']} |" for t, n, c in table],
+        "",
+        rule_line,
+        "",
+        "Notes stay on the sheet: they may quote PQA text.",
+    ]
+    return "\n".join(lines) + "\n", stop
+
+
+# =================================================================================================
 # CLI
 # =================================================================================================
 def rules_sha256_committed(rules_path: Path = RULES_PATH) -> str:
@@ -2348,6 +2567,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="open tasks per round, counts only")
     sub.add_parser("labels", help="write the pass-1 report, evidence/labels.md (counts only)")
+    ap_sheet = sub.add_parser("author-sheet", help="write the author's 30-row read sheet (gitignored)")
+    ap_sheet.add_argument("--force", action="store_true", help="overwrite a sheet that has marks")
+    sub.add_parser("author-score", help="score the marked sheet into evidence/author-read.md")
     sp = sub.add_parser("sheets", help="write the open tasks of one round as sheets")
     sp.add_argument("--round", choices=ROUNDS, required=True)
     sp.add_argument("--out", type=Path, required=True)
@@ -2373,6 +2595,21 @@ def main(argv: list[str] | None = None) -> int:
             LABELS_REPORT_PATH.write_text(text)
             print(text, end="")
             return 0
+        if args.command == "author-sheet":
+            sample, sizes = author_sample(inputs, layer)
+            write_author_sheet(sample, AUTHOR_SHEET_PATH, force=args.force)
+            print(f"kept rows per type: {sizes}")
+            print(f"{len(sample)} rows -> {AUTHOR_SHEET_PATH}. Mark rule_ok and shopper yes or no "
+                  f"in each row, then run make workload-author-score.")
+            return 0
+        if args.command == "author-score":
+            if not AUTHOR_SHEET_PATH.is_file():
+                raise WorkloadStop("no sheet; run make workload-author-sheet first")
+            sample, sizes = author_sample(inputs, layer)
+            text, stop = author_report(sample, sizes, AUTHOR_SHEET_PATH)
+            AUTHOR_REPORT_PATH.write_text(text)
+            print(text, end="")
+            return 1 if stop else 0
         if args.command == "verify":
             problems = verify_outputs(inputs, DATA_DIR)
             for line in problems:

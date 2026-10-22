@@ -1181,3 +1181,137 @@ def test_a_failed_write_leaves_no_temporary_file_and_no_manifest(tmp_path, input
     with pytest.raises(OSError):
         write_outputs(files, make_manifest(workload, files, {}), data, work)
     assert not list(work.iterdir()) and not (data / "workload-manifest.json").exists()
+
+
+# =================================================================================================
+# Plan step 10: the author's read. The sample comes from the rows the build keeps; the score counts
+# only, and stops at AUTHOR_READ_STOP broken rules.
+# =================================================================================================
+def _mark(path, rule_ok, shopper="yes", note=""):
+    """Fill the sheet's marks: `rule_ok` per row from the list (or one value for all)."""
+    import csv
+
+    with path.open(encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    for i, r in enumerate(rows):
+        r["rule_ok"] = rule_ok[i] if isinstance(rule_ok, list) else rule_ok
+        r["shopper"] = shopper
+        r["note"] = note
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=build_workload.AUTHOR_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+@pytest.fixture
+def one_per_type(monkeypatch):
+    monkeypatch.setattr(build_workload, "AUTHOR_READ_PER_TYPE", 1)
+
+
+def test_the_author_sample_takes_kept_rows_of_every_type_in_hash_order(inputs, complete,
+                                                                      one_per_type):
+    layer, _ = complete
+    sample, sizes = build_workload.author_sample(inputs, layer)
+    assert [i.type for i in sample] == list(build_workload.AUTHOR_READ_TYPES)
+    assert all(sizes[t] >= 1 for t in build_workload.AUTHOR_READ_TYPES)
+    candidates = build_workload.author_candidates(inputs, layer)
+    for item in sample:
+        first = min(candidates[item.type], key=lambda i: build_workload.h("author-read", i.key))
+        assert item == first
+    assert build_workload.author_sample(inputs, layer) == (sample, sizes)
+
+
+def test_the_author_read_shows_each_row_against_what_it_is_compared_with(inputs, complete):
+    layer, _ = complete
+    candidates = build_workload.author_candidates(inputs, layer)
+    para = candidates["para"][0]
+    ref = layer[para.key]["ref"]
+    assert para.compare_question == layer[f"seed:{ref}"]["question"]
+    assert para.compare_answer == first_labels(layer)[ref]["answer"]
+    assert para.answer == layer[blind_key(para.key)]["answer"]
+    seed = next(i for i in candidates["seed"] if i.key == f"seed:{ref}")
+    assert seed.compare_question == inputs.pool[ref].text.strip()
+    twin = next(i for i in candidates["cell"] if i.key.endswith("phones-opened:term:fee"))
+    assert twin.rule == build_workload.AUTHOR_RULES["cell-twin"] and twin.compare_question
+    assert "{name}" not in twin.question + twin.compare_question
+    dept = next(i for i in candidates["cell"] if i.key.endswith(":term:dept"))
+    assert dept.question.count(" / ") == TWIN_WORDINGS_DEPT - 1
+
+
+def test_a_row_the_build_drops_is_never_read(inputs, complete):
+    layer, _ = complete
+    para = next(k for k, r in sorted(layer.items()) if r["type"] == "para"
+                and first_labels(layer)[r["ref"]]["answerable"])
+    other = inputs.products[layer[para]["doc_id"]].fields[0][1]
+    layer[blind_key(para)] = {**layer[blind_key(para)], "answerable": True, "evidence": other}
+    keys = {i.key for i in build_workload.author_candidates(inputs, layer)["para"]}
+    assert para not in keys and keys
+
+
+def test_a_kept_query_no_row_matches_stops_the_read(inputs, complete, monkeypatch):
+    layer, _ = complete
+    real = build_workload.construct
+
+    def with_stray(inputs, layer):
+        records, drops = real(inputs, layer)
+        stray = next(r for r in records if r.probe_kind in ("name-swap", "name-swap-same"))
+        return [*records, Record(**{**stray.__dict__, "qa_id": "q-stray"})], drops
+
+    monkeypatch.setattr(build_workload, "construct", with_stray)
+    with pytest.raises(WorkloadStop, match="drifted from construct"):
+        build_workload.author_candidates(inputs, layer)
+
+
+def test_too_few_kept_rows_of_a_type_stop_the_sample(inputs, complete, monkeypatch):
+    monkeypatch.setattr(build_workload, "AUTHOR_READ_PER_TYPE", 10_000)
+    with pytest.raises(WorkloadStop, match="kept seed rows for a sample of 10000"):
+        build_workload.author_sample(inputs, complete[0])
+
+
+def test_the_author_sheet_keeps_marks_unless_forced(tmp_path, inputs, complete, one_per_type):
+    sample, _ = build_workload.author_sample(inputs, complete[0])
+    sheet = tmp_path / "author-read.csv"
+    build_workload.write_author_sheet(sample, sheet)
+    build_workload.write_author_sheet(sample, sheet)  # no marks yet: rewriting is safe
+    _mark(sheet, "yes")
+    with pytest.raises(WorkloadStop, match="already has 6 marked row"):
+        build_workload.write_author_sheet(sample, sheet)
+    build_workload.write_author_sheet(sample, sheet, force=True)
+    assert "yes" not in sheet.read_text().splitlines()[1].split(",")[-3:]
+
+
+@pytest.mark.parametrize(("broken", "stop"), [(2, False), (3, True)])
+def test_the_stop_rule_counts_broken_rules_only(tmp_path, inputs, complete, one_per_type,
+                                                broken, stop):
+    sample, sizes = build_workload.author_sample(inputs, complete[0])
+    sheet = tmp_path / "author-read.csv"
+    build_workload.write_author_sheet(sample, sheet)
+    _mark(sheet, ["no"] * broken + ["yes"] * (len(sample) - broken), shopper="no")
+    text, stopped = build_workload.author_report(sample, sizes, sheet)
+    assert stopped is stop
+    assert f"| **all** | {sum(sizes.values())} | 6 | {broken} | 6 |" in text
+    assert ("**STOP**" in text) is stop
+
+
+def test_the_score_refuses_an_unmarked_or_foreign_sheet(tmp_path, inputs, complete, one_per_type):
+    sample, sizes = build_workload.author_sample(inputs, complete[0])
+    sheet = tmp_path / "author-read.csv"
+    build_workload.write_author_sheet(sample, sheet)
+    with pytest.raises(WorkloadStop, match="need yes or no"):
+        build_workload.author_report(sample, sizes, sheet)
+    build_workload.write_author_sheet(list(reversed(sample)), sheet)
+    _mark(sheet, "yes")
+    with pytest.raises(WorkloadStop, match="not the author-read sample"):
+        build_workload.author_report(sample, sizes, sheet)
+
+
+def test_the_author_report_holds_no_question_no_key_and_no_note(tmp_path, inputs, complete,
+                                                                one_per_type):
+    sample, sizes = build_workload.author_sample(inputs, complete[0])
+    sheet = tmp_path / "author-read.csv"
+    build_workload.write_author_sheet(sample, sheet)
+    _mark(sheet, "yes", note="a private remark")
+    text, _ = build_workload.author_report(sample, sizes, sheet)
+    assert "a private remark" not in text
+    assert not [i for i in sample if i.key in text or i.question in text]
+    assert not [d for d in inputs.products if d in text]

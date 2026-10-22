@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -525,6 +525,17 @@ workload-import: ## Item 3.4: check a rows file and append its valid rows to the
 
 workload-labels: ## Item 3.4: write the pass-1 report, evidence/labels.md (counts only)
 	$(PY) experiments/scripts/build_workload.py labels
+
+# Plan step 10, the author's read: 30 kept rows (5 per type) in a gitignored CSV under
+# data/v1-draft/workload/; the author marks rule_ok and shopper yes or no, then the score writes
+# evidence/author-read.md (counts only) and exits 1 when 3 or more rows break their rule.
+#   make workload-author-sheet            # FORCE=1 overwrites a sheet that already has marks
+#   make workload-author-score
+workload-author-sheet: ## Item 3.4: write the author's 30-row read sheet (gitignored)
+	$(PY) experiments/scripts/build_workload.py author-sheet $(if $(FORCE),--force,)
+
+workload-author-score: ## Item 3.4: score the marked read sheet into evidence/author-read.md
+	$(PY) experiments/scripts/build_workload.py author-score
 
 # After the three rounds: embed (nomic-embed-text through Ollama; check memory first, never Qwen),
 # build (no model, deterministic: data/workload-v1*.json, gitignored, and the tracked

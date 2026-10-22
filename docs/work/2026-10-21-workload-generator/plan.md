@@ -166,6 +166,27 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
       fixed now:** if 3 or more of the 30 break their rule, stop; a rule change is recorded in
       `approvals.md` and needs the experiment phase approved again. Counts only into
       `evidence/author-read.md`.
+  **Step 10 setup (2026-10-22; the read itself is the author's).** The plan named no command, so I
+  added two, as in step 8. `make workload-author-sheet` writes
+  `data/v1-draft/workload/author-read.csv` (gitignored: it holds PQA text). `make
+  workload-author-score` writes `evidence/author-read.md` (counts only) and exits 1 when the stop
+  rule fires. Details fixed here, before any mark:
+  - **5 rows for each of 6 types:** seed, para, lookalike, swap, d, cell. Per type, the first 5
+    in `sha256(SEED:author-read:<key>)` order.
+  - **Only rows the build keeps.** The rows come from `construct`, so a row that a blind
+    disagreement drops is never read. A kept query that no row matches stops the command.
+  - **A cell is one row.** Its wording is filled with its first product; a department-level cell
+    shows all 8 wordings. Natural pairs are not read: their questions are real PQA text, and only
+    the mark is Claude's.
+  - **Only `rule_ok: no` counts for the stop rule.** `shopper: no` is counted and reported, but
+    it does not count.
+
+  Kept rows per type: seed 245, para 441, lookalike 99, swap 22, d 69, cell 74. The exact drop
+  counts come with the build (step 12). 10 new tests (104 in the file); 4 hand mutants, all
+  caught: the kept filter removed, the stop threshold at `>`, the drift guard removed, a note
+  copied into the report. `/verify`: gofmt, go vet, go build, go test, ruff, pytest (rag 15,
+  experiments 526) and proto all **PASS**, none skipped. One quick fix was needed first (ruff
+  ISC004).
 
 ## C. Embed, build, verify
 
