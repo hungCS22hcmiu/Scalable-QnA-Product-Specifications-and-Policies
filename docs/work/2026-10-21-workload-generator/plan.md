@@ -305,8 +305,34 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   for the future or corrected in the docs (F4, F5, F9), 2 recorded without a change and with a
   reason (F3, F8). Code changed (`verify_outputs` checks the inputs and recomputes the counts;
   `make workload-import MODEL=`; `.gitignore`), so `/verify` ran again: **PASS, 528 tests**.
-- [ ] **17.** `/verify`, then `/ai-review`, then `/done`.
+- [x] **17.** `/verify`, then `/ai-review`, then `/done`.
 
 **Not in this plan:** building `data/v1/`, ingesting, G1 / G2 on the real index, the freeze, `K` in
 `data-card.md` §7 (3.6); any change to `ask.js`, `mu_hit.js` or `rag/`; reference answers; any Qwen
 call.
+
+## Outcome (`/done`, 2026-10-22)
+
+**Scope was honest.** Opened at L; it touched `interfaces.md` (a contract, bumped to v0.15) and
+nothing else on the L list: no `reuse/`, no Go, no `rag/`, no `.proto` change. `approvals.md` says
+`Invalidates: none — no runs exist`.
+
+**Shipped.**
+- `experiments/scripts/build_workload.py` (sheets, import, labels, embed, build, verify, the author-read sheet and score) and the gate changes in `corpus_gate.py` (checks `W` and `S`, G1 within split, G2 per split, scoped stage 2, the digest over three files). `make verify` passes, 528 experiments tests, nothing skipped.
+- The workload: **1,274 queries**, validation 622 and test 652, manifest sha256 `7ee717a8…`, two builds identical. The structural gate (G3, G4, G5, `W`, `S`) passes.
+- `interfaces.md` v0.15, ADR-013, `data-card.md` v0.7, `architecture.md`, both READMEs, `super-plan.md` (3.4 ✅).
+- 10 review findings, all resolved (`review.md`).
+
+**Deferred (not this task).**
+- Item 3.6: build `data/v1/`, G1 and G2 on the ingested index, the freeze, `K` for each run file, and the 13 `TODO(W8)`s left in `data-card.md`. Phase 3 exit is **not met**: `make gate-corpus` stops with "no *.json records under data/v1".
+- P1: the comment at `gateway/cmd/gateway/main.go:267-268` and the run's choice of run file.
+
+**For the author.**
+- Mark the 30-row sheet yourself if you want the independent read (`data/v1-draft/workload/author-read.csv`); it covers 6 of the 7 row types, not the natural pairs.
+- Confirm or reverse the narrowed contract sentence (one of the two split files), and edit the single-`K` text in `CLAUDE.md`.
+- Decide before the 3.6 freeze whether B-cross needs a better construction: none of its 22 probes can be reached at τ ≥ 0.85 (review F3). After the freeze a change needs a new `dataset_version`.
+- Decide whether `rules.md` A2 should read only pairs whose partner cosine is at least τ (needs `/approve experiment` again).
+- `.claude/settings.json` still has the three `Read` denies removed; it is uncommitted.
+
+**Follow-up tasks worth opening.** (a) An S task: add a `natural` type to the author read. (b) Before 3.6: a decision task on B-cross reachability.
+
