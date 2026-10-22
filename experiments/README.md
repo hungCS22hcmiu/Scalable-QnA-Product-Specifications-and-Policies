@@ -2,7 +2,7 @@
 
 | Dir | Contents |
 | :--- | :--- |
-| `scripts/` | corpus gate (`corpus_gate.py`) · envelope check (`env_check.py`, `make env-check`, ADR-003) · Amazon-PQA builder (`build_pqa.py`, `make pqa-fetch` / `pqa-build` / `pqa-verify`, item 3.1) · ad-hoc load burst · admission self-check. ⚠️ **The workload generator, replay harness, judge harness and figure generators do NOT exist yet** — this row claimed all four until 2026-09-21. They are `super-plan.md` items 3.4, 5.1 and 5.4; `make figures` invokes a script that is not there |
+| `scripts/` | corpus gate (`corpus_gate.py`) · envelope check (`env_check.py`, `make env-check`, ADR-003) · Amazon-PQA builder (`build_pqa.py`, `make pqa-fetch` / `pqa-build` / `pqa-verify`, item 3.1) · workload generator (`build_workload.py`, `make workload-*`, item 3.4) · ad-hoc load burst · admission self-check. ⚠️ **The replay harness, judge harness and figure generators do NOT exist yet** — this row claimed all four until 2026-09-21, and the workload generator was missing until item 3.4. They are `super-plan.md` items 5.1 and 5.4; `make figures` invokes a script that is not there |
 | `k6/` | load scenarios, run **co-hosted** (ADR-001: no second machine exists; co-hosted figures are bounds, never ceilings) |
 | `results/{run_id}/` | `manifest.yaml` (required) · `raw/` (**write-once**, **gitignored** since 2026-10-06: `requests.jsonl` and `raw/answers/{answer_sha256}.txt`, ADR-005) · `figures/` (regenerated, gitignored) |
 

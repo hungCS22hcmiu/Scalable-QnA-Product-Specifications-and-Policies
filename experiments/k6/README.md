@@ -31,7 +31,7 @@ k6 run -e GATEWAY_URL=http://localhost:8080 \
 | Var | Default | Notes |
 | :--- | :--- | :--- |
 | `GATEWAY_URL` | `http://localhost:8080` | The co-hosted case, which is the supported one (ADR-001). Point it elsewhere only if a second machine ever exists |
-| `WORKLOAD` | *(built-in smoke set)* | JSON array of `{question, stratum?, product_id?}`. Without it the script runs five hard-coded questions — enough to prove the harness works, **never** something to report |
+| `WORKLOAD` | *(built-in smoke set)* | JSON array of records. Each needs `question`; `stratum` and `product_id` are sent when present, and every other field is ignored. The built workload is `data/workload-v1.json` or one of its split files, `-validation` and `-test` (item 3.4, `data-card.md` §3); a run takes `K` and its cache capacity from the file it uses. Without it the script runs five hard-coded questions — enough to prove the harness works, **never** something to report |
 | `ZIPF_SKEW` | `1.1` | The redundancy knob. Protocol §6 sweeps three levels; `manifest.yaml` records it |
 | `RATE_RPS`, `VUS`, `DURATION` | `10`, `20`, `2m` | Recorded in `manifest.yaml` as `k6_scenario` |
 

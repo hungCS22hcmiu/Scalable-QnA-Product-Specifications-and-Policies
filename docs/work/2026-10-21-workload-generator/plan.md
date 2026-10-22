@@ -249,12 +249,26 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
 
 ## D. Records
 
-- [ ] **13.** `data-card.md` §2 (natural against built B-within, with the real count, U16), §3
+- [x] **13.** `data-card.md` §2 (natural against built B-within, with the real count, U16), §3
       (rewrite policy, per-stratum counts; the "/ask carries no product context" line), §4
       (clusters, lookalikes, the model id and `rules.md`'s sha256), §6 (the "no splits" line), §7
       (the shape check, scoped stage 2, G1 / G2 per split, the digest over three files), Schemas (the
       QA pair); `experiments/k6/README.md:34`; `experiments/README.md:5`; `architecture.md` (the
       script, the files, the targets). Remove only the `TODO(W8)`s this item fills.
+  **Step 13 result (2026-10-22).** Edited `data-card.md` (v0.7), `experiments/k6/README.md`,
+  `experiments/README.md` and `architecture.md`. **Data card:** four `TODO(W8)`s filled and
+  removed (17 → 13): the natural against constructed B-within count, the built workload (counts,
+  origins, rewrite policy), the clusters, lookalikes, writer and `rules.md` sha256 (§4), and the
+  QA pair schema. Also changed: the "`/ask` carries no product context" line (it is stale since
+  `interfaces.md` v0.8), the "no splits" line in §6 (true for the judged set only), and a new
+  block in §7 for the four gate changes (checks `W` and `S`, G1 within split and G2 per split,
+  scoped stage 2, the digest over three files). **U16:** the card now says 10 of the 272
+  B-within records are natural, none of the 163 policy ones, so the first sentence of that
+  bullet reads thinner than before. **Still open on purpose:** the §7 statistics and `K` (3.6),
+  and the three `TODO`s of other items. **Two forward references:** the card names ADR-013
+  (step 15) and the k6 README says a run takes `K` from its own file (the sentence of step 14);
+  both are written in the next steps of this task. `pytest` on the two test files that read the
+  card: 207 passed. The full `/verify` is step 17.
 - [ ] **14.** `interfaces.md` §D: the one sentence defining `K` per run file, v0.15 — **only after
       the contract phase is approved**.
 - [ ] **15. ADR-013 (data)** with the real counts: the rules and the model layer, the model id, the

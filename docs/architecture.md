@@ -81,9 +81,10 @@ thesis/
 │   ├── README.md
 │   ├── scripts/                    corpus_gate (G1–G5; G5 lexical, items 3.3 / 3.5) · env_check · build_pqa
 │   │                               · select_pqa · answerability_check (item 3.2) · check_policies (item 3.3)
+│   │                               · build_workload (item 3.4: make workload-embed / -build / -verify)
 │   │                               · loadgen_footprint · load_burst (not citable) · verify_admission.sh
-│   │                               NOT BUILT: workload generator, replay, judge, figures
-│   │                               → super-plan items 3.4, 5.1, 5.4
+│   │                               NOT BUILT: replay, judge, figures
+│   │                               → super-plan items 5.1, 5.4
 │   ├── k6/                         ask.js · mu_hit.js — run co-hosted (ADR-001)
 │   ├── tests/                      pytest for the scripts
 │   └── results/{run_id}/
@@ -110,9 +111,13 @@ thesis/
     │   ├── products/                 select_pqa.py's 152 draft records, product-{department}-{asin}.json (item 3.2)
     │   ├── question-pool.jsonl       every kept question of those products, tagged; read only through iter_selection
     │   ├── generic-tokens.json       each leaf's common title words (R2's generic set)
-    │   └── audit/                    the blind audit sheet the author marks (item 3.2)
+    │   ├── audit/                    the blind audit sheet the author marks (item 3.2)
+    │   └── workload/                 item 3.4: the model layer, the vectors and the author-read sheet
     ├── pqa-manifest.json           TRACKED: hashes and counts of the 3.1 interim files, no PQA text. NOT the v1 snapshot digest (item 3.6)
     ├── pqa-selection.json          TRACKED: counts and digests of the 3.2 drafts, no PQA text, no asin. NOT the v1 snapshot digest
+    ├── workload-manifest.json      TRACKED: hashes and counts of the item 3.4 build, no PQA text, no asin. NOT the v1 snapshot digest
+    ├── workload-v1*.json           gitignored (PQA text): the whole workload and its -validation and -test files.
+    │                               Outside v1/ on purpose: rag.ingest globs that folder
     └── raw/                        gitignored permanently, never redistributed
         ├── pqa/                      Amazon-PQA source files (ADR-002)
         └── epqa/                     ePQA CSVs at a pinned commit, for the answerability check only (CDLA-Sharing-1.0)
@@ -238,9 +243,9 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 
 | State | Packages |
 | :--- | :--- |
-| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) · `experiments/scripts/select_pqa.py` and `answerability_check.py` (item 3.2; the selection ran 2026-10-20: 152 draft products) |
+| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) · `experiments/scripts/select_pqa.py` and `answerability_check.py` (item 3.2; the selection ran 2026-10-20: 152 draft products) · `experiments/scripts/build_workload.py` (item 3.4; the draft build ran 2026-10-22: 1,274 queries) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
-| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the epoch guard on write-back (item 4.2) · `data/v1/` (the 3.2 drafts are in `data/v1-draft/`; the policy documents are item 3.3, in `data/policies-v1/`) · the workload generator, replay harness, judge harness and figure generators (`experiments/scripts/` — items 3.4, 5.1, 5.4) |
+| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the epoch guard on write-back (item 4.2) · `data/v1/` (the 3.2 drafts are in `data/v1-draft/`; the policy documents are item 3.3, in `data/policies-v1/`) · the replay harness, judge harness and figure generators (`experiments/scripts/` — items 5.1, 5.4) |
 
 ## 6. Invariants that fail silently
 
