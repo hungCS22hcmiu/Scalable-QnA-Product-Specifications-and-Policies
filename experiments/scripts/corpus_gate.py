@@ -65,7 +65,10 @@ import json
 import math
 import operator
 import re
+import struct
+import subprocess
 import sys
+import time
 import unicodedata
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
@@ -862,6 +865,461 @@ def check_g2(pairs: list[Pair], scope: str = "") -> Criterion:
 
 
 # =================================================================================================
+# Item 3.6 -- is the index the corpus, what the report records, the export, who made each pair
+# (docs/work/2026-10-22-corpus-freeze/design.md §2.4 and §2.5)
+# =================================================================================================
+# Nothing here changes a threshold, a pair rule or a statistic. The gate hashed files but measured
+# whatever Redis held, and nothing checked that the two were the same corpus: a stale, partial or
+# wrong-version index gave a clean-looking G1 and G2 on the wrong data. This section closes that,
+# and writes down what the measurement ran on.
+GIT_PATHS = ("rag/src", "experiments/scripts", "Makefile")  # the code that makes the measurement
+PACKAGES = (
+    "llama-index-core",
+    "tiktoken",
+    "nltk",
+    "llama-index-vector-stores-redis",
+    "redisvl",
+)
+PAIR_TYPES = ("pair_of", "same_cluster", "other")  # a built trap · a paraphrase · anything else
+DOC_RELATIONS = ("same_docs", "different_docs")
+# A message that names an id would put an asin on a terminal and, pasted, in a tracked file.
+# Every message below counts. The ids are in the gitignored export.
+
+
+def _hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _text(value: object) -> str:
+    """A Redis reply as text: bytes decoded, None as empty, anything else by `str`."""
+    if value is None:
+        return ""
+    return value.decode() if isinstance(value, bytes) else str(value)
+
+
+def manifest_digest(rows: Iterable[tuple[str, str]]) -> str:
+    """sha256 over sorted `key  value` lines: a row missing, added or changed each moves it."""
+    return hashlib.sha256("\n".join(f"{k}  {v}" for k, v in sorted(rows)).encode()).hexdigest()
+
+
+def text_digest(chunks: dict[str, str]) -> str:
+    """The digest of `(chunk_id, sha256(text))`. The ids and the texts are not stored in it."""
+    return manifest_digest((cid, _hex(text.encode())) for cid, text in chunks.items())
+
+
+def vector_digest(vectors: dict[str, bytes]) -> str:
+    return manifest_digest((cid, _hex(raw)) for cid, raw in vectors.items())
+
+
+def offline_chunks(corpus_dir: Path, dataset_version: str) -> dict[str, str]:
+    """`chunk_id -> text` of every node `rag.ingest` writes for this corpus.
+
+    It calls ingest's own split function, so it cannot drift from what is ingested. Imported here,
+    not at module scope, so `--structural-only` needs no LlamaIndex.
+    """
+    from llama_index.core.schema import MetadataMode
+    from rag.ingest import load_records, records_to_nodes
+
+    nodes = records_to_nodes(load_records(corpus_dir), dataset_version)
+    return {n.id_: n.get_content(MetadataMode.NONE) for n in nodes}
+
+
+def chunk_digest(corpus_dir: Path, dataset_version: str) -> tuple[str, int]:
+    """`(digest, chunk count)` over the chunk ids and texts of the corpus, with no Redis."""
+    chunks = offline_chunks(corpus_dir, dataset_version)
+    return text_digest(chunks), len(chunks)
+
+
+@dataclass
+class StoredChunk:
+    chunk_id: str
+    text: str
+    dataset_version: str
+    vector: bytes
+
+
+@dataclass
+class IndexState:
+    """What Redis holds: the index's own counters, its vector field, and every corpus hash."""
+
+    num_docs: int
+    hash_indexing_failures: int
+    indexing: int
+    percent_indexed: float
+    vector_field: dict[str, str]
+    rows: list[StoredChunk]
+
+
+class IndexUnreadable(Exception):
+    """FT.INFO failed: the index does not exist, or this is not the Redis we think it is."""
+
+
+def _info_number(info: dict, key: str) -> float:
+    try:
+        return float(_text(info[key]))
+    except (KeyError, ValueError):
+        return -1.0
+
+
+def read_index(client, index_name: str, key_prefix: str) -> IndexState:
+    """Read the index's counters and every `corpus:*` hash. `client` is a redis-py client."""
+    from redis.exceptions import RedisError
+
+    try:
+        raw = client.execute_command("FT.INFO", index_name)
+    except RedisError as e:  # an unknown index is a ResponseError
+        raise IndexUnreadable(f"FT.INFO failed ({type(e).__name__})") from e
+    info = {_text(raw[i]): raw[i + 1] for i in range(0, len(raw), 2)}
+
+    vector_field: dict[str, str] = {}
+    for attribute in info.get("attributes", []):
+        cells = [_text(c) for c in attribute]
+        fields = dict(zip(cells[::2], cells[1::2], strict=False))
+        if fields.get("type") == "VECTOR" and fields.get("identifier") == "vector":
+            vector_field = fields
+
+    rows = []
+    for key in client.scan_iter(match=f"{key_prefix}*"):
+        chunk_id, text, version, vector = client.hmget(
+            key, ["chunk_id", "text", "dataset_version", "vector"]
+        )
+        rows.append(StoredChunk(_text(chunk_id), _text(text), _text(version), vector or b""))
+    return IndexState(
+        num_docs=int(_info_number(info, "num_docs")),
+        hash_indexing_failures=int(_info_number(info, "hash_indexing_failures")),
+        indexing=int(_info_number(info, "indexing")),
+        percent_indexed=_info_number(info, "percent_indexed"),
+        vector_field=vector_field,
+        rows=rows,
+    )
+
+
+def verify_index(
+    state: IndexState,
+    expected: dict[str, str],
+    dataset_version: str,
+    dim: int,
+    recorded_vector_digest: str | None = None,
+) -> tuple[list[str], str]:
+    """Tests 1 – 4 of design §2.4 (A). Returns `(failures, digest of the stored vectors)`.
+
+    Pure: the I/O is `read_index`. Every failure names its test by number and carries counts only.
+    """
+    failures: list[str] = []
+
+    # 1 -- the index itself
+    if state.num_docs != len(expected):
+        failures.append(
+            f"test 1: the index counts {state.num_docs} document(s); the corpus gives "
+            f"{len(expected)} chunks"
+        )
+    if state.hash_indexing_failures != 0:
+        failures.append(f"test 1: {state.hash_indexing_failures} hash(es) failed to index")
+    if state.indexing != 0 or state.percent_indexed != 1.0:
+        failures.append(
+            f"test 1: the index is not fully built (indexing={state.indexing}, "
+            f"percent_indexed={state.percent_indexed})"
+        )
+    for name, want in (("algorithm", "FLAT"), ("dim", str(dim)), ("distance_metric", "COSINE")):
+        have = state.vector_field.get(name)
+        if have != want:
+            failures.append(f"test 1: the vector field's {name} is {have!r}, expected {want!r}")
+
+    # 2 -- every hash belongs to this version, and the hashes are the documents
+    foreign = sum(r.dataset_version != dataset_version for r in state.rows)
+    if foreign:
+        failures.append(
+            f"test 2: {foreign} of {len(state.rows)} stored chunk(s) are not tagged "
+            f"dataset_version {dataset_version!r}"
+        )
+    if len(state.rows) != state.num_docs:
+        failures.append(
+            f"test 2: {len(state.rows)} hash(es) under the corpus prefix; the index counts "
+            f"{state.num_docs}"
+        )
+    ids = [r.chunk_id for r in state.rows]
+    if len(ids) != len(set(ids)):
+        failures.append(f"test 2: {len(ids) - len(set(ids))} chunk id(s) stored more than once")
+
+    # 3 -- the stored ids and texts are the corpus's
+    stored = {r.chunk_id: r.text for r in state.rows}
+    if text_digest(stored) != text_digest(expected):
+        missing = len(expected.keys() - stored.keys())
+        extra = len(stored.keys() - expected.keys())
+        changed = sum(1 for k in expected.keys() & stored.keys() if expected[k] != stored[k])
+        failures.append(
+            f"test 3: the stored chunks are not the corpus's: {missing} missing, {extra} not in "
+            f"the corpus, {changed} with changed text"
+        )
+
+    # 4 -- the stored vectors: the right size, and the recorded digest once there is one
+    vectors = {r.chunk_id: r.vector for r in state.rows}
+    wrong_size = sum(len(v) != dim * 4 for v in vectors.values())
+    if wrong_size:
+        failures.append(f"test 4: {wrong_size} stored vector(s) are not {dim} float32 values")
+    digest = vector_digest(vectors)
+    if recorded_vector_digest is not None and digest != recorded_vector_digest:
+        failures.append("test 4: the stored vectors differ from the recorded digest")
+    return failures, digest
+
+
+def verify_model(
+    models: list[dict], tag: str, recorded_digest: str | None = None
+) -> tuple[list[str], str]:
+    """Test 5: the embedding model Ollama would load is installed and, once a digest is recorded,
+    the recorded one. `models` is the `models` list of Ollama's `/api/tags`."""
+    by_name = {m["name"]: m["digest"] for m in models}
+    digest = by_name.get(tag) or by_name.get(f"{tag}:latest")
+    if digest is None:
+        return [f"test 5: the embedding model {tag!r} is not installed in Ollama"], ""
+    if recorded_digest is not None and digest != recorded_digest:
+        return ["test 5: the embedding model's digest differs from the recorded one"], digest
+    return [], digest
+
+
+def ollama_get(base_url: str, path: str) -> dict:
+    import httpx
+
+    response = httpx.get(f"{base_url}{path}", timeout=10.0)
+    response.raise_for_status()
+    return response.json()
+
+
+@dataclass
+class IndexCheck:
+    failures: list[str]
+    chunk_count: int = 0
+    chunk_digest: str = ""
+    stored_vector_digest: str = ""
+    model_tag: str = ""
+    model_digest: str = ""
+    ollama_version: str = ""
+    vector_field: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def passed(self) -> bool:
+        return not self.failures
+
+
+def index_check(
+    client,
+    corpus_dir: Path,
+    dataset_version: str,
+    base_url: str,
+    recorded_vector_digest: str | None = None,
+    recorded_model_digest: str | None = None,
+) -> IndexCheck:
+    """Design §2.4 (A): is the index in Redis the corpus on disk, and the model the recorded one.
+
+    One function, called at the start of stage 2 (before any embedding) and by
+    `freeze_corpus.py check-index`. Before a freeze nothing is recorded, so the two digests are
+    measured and returned; after it they are compared. Needs Redis and Ollama's tag list; it loads
+    no model.
+    """
+    from rag import config
+
+    expected = offline_chunks(corpus_dir, dataset_version)
+    result = IndexCheck(
+        failures=[],
+        chunk_count=len(expected),
+        chunk_digest=text_digest(expected),
+        model_tag=config.EMBEDDING_MODEL,
+    )
+    try:
+        state = read_index(client, config.CORPUS_INDEX_NAME, config.CORPUS_KEY_PREFIX)
+    except IndexUnreadable as e:
+        result.failures.append(f"test 1: {e}")
+        return result
+    result.vector_field = state.vector_field
+    failures, result.stored_vector_digest = verify_index(
+        state, expected, dataset_version, config.EMBEDDING_DIM, recorded_vector_digest
+    )
+    result.failures += failures
+
+    import httpx
+
+    try:
+        models = ollama_get(base_url, "/api/tags")["models"]
+        result.ollama_version = ollama_get(base_url, "/api/version")["version"]
+    except (httpx.HTTPError, KeyError, ValueError) as e:
+        result.failures.append(f"test 5: Ollama did not answer properly ({type(e).__name__})")
+        return result
+    failures, result.model_digest = verify_model(models, config.EMBEDDING_MODEL, recorded_model_digest)
+    result.failures += failures
+    return result
+
+
+# --- what the measurement ran on ------------------------------------------------------------------
+def memory_pressure_level() -> int | None:
+    """`kern.memorystatus_vm_pressure_level`: 0 green, 1 yellow, 2 urgent (CLAUDE.md). The gate
+    reads it itself, so a run's validity is not left to the person who started it. None when it
+    cannot be read, and the freeze counts that as not green."""
+    try:
+        out = subprocess.run(
+            ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        )
+        return int(out.stdout.strip())
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+def git_state(repo: Path = REPO_ROOT, paths: tuple[str, ...] = GIT_PATHS) -> dict:
+    """The commit, and whether the code that makes the measurement is exactly that commit."""
+
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=30, check=False
+        )
+
+    head = git("rev-parse", "HEAD")
+    status = git("status", "--porcelain", "--", *paths)
+    commit = head.stdout.strip() if head.returncode == 0 else None
+    clean = commit is not None and status.returncode == 0 and status.stdout.strip() == ""
+    return {"commit": commit, "tree_clean": clean, "paths": list(paths)}
+
+
+def package_versions(names: tuple[str, ...] = PACKAGES) -> dict[str, str | None]:
+    from importlib import metadata
+
+    out: dict[str, str | None] = {}
+    for name in names:
+        try:
+            out[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            out[name] = None
+    return out
+
+
+def grounding_counts(queries: list[Query]) -> dict[str, int]:
+    """S4's two counts, on the scoped retrieval a run does. `ungrounded`: a query that retrieved
+    nothing. `own_chunk_missing`: a query with a `product_id` whose retrieval holds no chunk of that
+    product (a retrieval that cannot find the product the question is about)."""
+    from rag.chunkid import parse_chunk_id
+
+    ungrounded = sum(1 for q in queries if not q.retrieved)
+    own_missing = sum(
+        1
+        for q in queries
+        if q.product_id and not any(parse_chunk_id(c)[0] == q.product_id for c in q.retrieved)
+    )
+    return {"ungrounded": ungrounded, "own_chunk_missing": own_missing}
+
+
+# --- the G1 and G2 breakdown (design §2.5) -------------------------------------------------------
+def pair_type(a: Query, b: Query) -> str:
+    """Who made the pair. `pair_of`: one is the other's built target. `same_cluster`: a
+    paraphrase. `other`: neither. (3.4 never puts a probe in its target's cluster, so the first two
+    do not overlap; if one ever did, the built trap is the stronger fact and wins.)"""
+    if a.pair_of == b.qa_id or b.pair_of == a.qa_id:
+        return "pair_of"
+    if a.cluster_id and a.cluster_id == b.cluster_id:
+        return "same_cluster"
+    return "other"
+
+
+def docs_relation(a: Query, b: Query) -> str:
+    return "same_docs" if sorted(a.doc_ids) == sorted(b.doc_ids) else "different_docs"
+
+
+def pair_breakdown(pairs: list[Pair], by_id: dict[str, Query]) -> dict[str, dict[str, int]]:
+    """`{pair type: {same_docs: n, different_docs: n}}`, every cell present, so a missing kind of
+    pair reads as 0 and not as an absent key."""
+    table = {t: {r: 0 for r in DOC_RELATIONS} for t in PAIR_TYPES}
+    for p in pairs:
+        a, b = by_id[p.left], by_id[p.right]
+        table[pair_type(a, b)][docs_relation(a, b)] += 1
+    return table
+
+
+def paraphrase_only(g2_pairs: list[Pair], by_id: dict[str, Query]) -> bool:
+    """S5: G2 holds in this split, and every pair that makes it hold is a paraphrase. That is a
+    pass by definition, with no built trap behind it, and the author must see it before a freeze."""
+    within = [p for p in g2_pairs if p.label == "B-within"]
+    return bool(within) and all(
+        pair_type(by_id[p.left], by_id[p.right]) == "same_cluster" for p in within
+    )
+
+
+# --- the export and the vector comparison ---------------------------------------------------------
+def vector_sha256(vector: list[float]) -> str:
+    """sha256 of the vector's float64 bytes: two runs agree on it only when every value is equal."""
+    return _hex(struct.pack(f"<{len(vector)}d", *vector))
+
+
+def require_git_ignored(path: Path, repo: Path = REPO_ROOT) -> None:
+    """The export holds qa_ids, and a qa_id embeds an asin. Inside the repo it is written only
+    where git ignores it; outside the repo (a scratch directory) it is not asked."""
+    try:
+        rel = path.resolve().relative_to(repo)
+    except ValueError:
+        return
+    ignored = subprocess.run(
+        ["git", "-C", str(repo), "check-ignore", "-q", "--", str(rel)],
+        capture_output=True,
+        check=False,
+    )
+    if ignored.returncode != 0:
+        raise SystemExit(
+            f"FAIL — {rel} is not gitignored. The retrieval export holds qa_ids, which embed an "
+            "asin; write it under data/v1-draft/."
+        )
+
+
+def export_paths(out_dir: Path) -> list[Path]:
+    return [out_dir / f"retrieval-{split}.json" for split in SPLITS]
+
+
+def write_retrieval_export(out_dir: Path, queries: list[Query]) -> list[Path]:
+    """One file per split: for each query its ordered scoped ids, its ordered unscoped ids, both
+    set sizes and the sha256 of its query vector, in workload order."""
+    written = []
+    for split, path in zip(SPLITS, export_paths(out_dir), strict=True):
+        require_git_ignored(path)
+        rows = [
+            {
+                "qa_id": q.qa_id,
+                "scoped": list(q.retrieved),
+                "unscoped": list(q.retrieved_unscoped),
+                "n_scoped": len(q.retrieved),
+                "n_unscoped": len(q.retrieved_unscoped),
+                "vector_sha256": vector_sha256(q.embedding),
+            }
+            for q in queries
+            if q.split == split
+        ]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(rows, indent=1))
+        written.append(path)
+    return written
+
+
+def compare_vectors(queries: list[Query], vectors_path: Path) -> dict[str, float | int]:
+    """The gate's query vectors against the vectors file item 3.4 embedded (acceptance A3 (i)):
+    how many differ at all, and the largest difference."""
+    stored = json.loads(vectors_path.read_text())
+    missing = differing = 0
+    largest = 0.0
+    for q in queries:
+        entry = stored.get(q.qa_id)
+        if entry is None:
+            missing += 1
+        elif entry["vector"] != q.embedding:
+            differing += 1
+            if len(entry["vector"]) == len(q.embedding):
+                largest = max(largest, max(abs(x - y) for x, y in zip(entry["vector"], q.embedding)))
+    return {
+        "compared": len(queries) - missing,
+        "missing": missing,
+        "differing": differing,
+        "max_abs_diff": largest,
+    }
+
+
+# =================================================================================================
 # Snapshot
 # =================================================================================================
 def snapshot_digest(paths: list[Path]) -> tuple[str, list[tuple[str, str]]]:
@@ -949,6 +1407,19 @@ def main() -> int:
         "while authoring the corpus.",
     )
     ap.add_argument("--report", default=None, help="also write the full result as JSON here")
+    ap.add_argument(
+        "--retrieval-out",
+        default=None,
+        help="write the per-split retrieval export here: each query's ordered scoped and unscoped "
+        "chunk ids, both set sizes and its query-vector sha256. It holds qa_ids, so the directory "
+        "must be gitignored (data/v1-draft/gate/run1).",
+    )
+    ap.add_argument(
+        "--vectors",
+        default=None,
+        help="the vectors file item 3.4 embedded (data/v1-draft/workload/vectors.json): the report "
+        "counts how many of this run's query vectors differ from it, and by how much.",
+    )
     args = ap.parse_args()
 
     corpus_dir = Path(args.corpus_dir) if args.corpus_dir else REPO_ROOT / "data" / args.version
@@ -961,6 +1432,10 @@ def main() -> int:
     if not workload_path.is_file():
         print(f"FAIL — no workload at {workload_path}")
         return 1
+
+    if args.retrieval_out:  # before ten minutes of embedding, not after
+        for path in export_paths(Path(args.retrieval_out)):
+            require_git_ignored(path)
 
     print(f"corpus   {corpus_dir}")
     print(f"workload {workload_path}")
@@ -998,10 +1473,39 @@ def main() -> int:
     from rag.embedding import OllamaEmbedding
     from rag.retrieve import make_retriever, retrieve
 
+    from rag import config as rag_config
+    from rag import store
+
+    memory = [memory_pressure_level()]
+    git_start = git_state()
+
+    # Is the index in Redis this corpus? Asked before any embedding: a gate that measures the wrong
+    # index gives a clean-looking G1 and G2 about the wrong data. A failure is a precondition
+    # (re-ingest and run again), not S1.
+    index = index_check(
+        store.get_redis_client(), corpus_dir, args.version, rag_config.OLLAMA_BASE_URL
+    )
+    if not index.passed:
+        print()
+        for line in index.failures:
+            print(f"  [FAIL] I   {line}")
+        print(f"\n  STOP — the index in Redis is not the {args.version} corpus. Re-ingest it "
+              f"(DATASET_VERSION={args.version} make ingest) and run the gate again. This is a "
+              "precondition, not S1.")
+        return 1
+    print(f"\n  [PASS] I   the index is the corpus: {index.chunk_count} chunks, ids, texts and "
+          f"vectors checked; embedding model digest {index.model_digest[:12]}…")
+
     print("\nembedding the workload and retrieving, scoped and unscoped "
           "(frozen path: nomic-embed-text + FLAT)...")
     embedder = OllamaEmbedding()
     unscoped_retriever = make_retriever()
+    started = time.monotonic()
+
+    def progress(message: str) -> None:
+        print(message)
+        memory.append(memory_pressure_level())
+
     retrieve_all(
         queries,
         embed=embedder.get_query_embedding,
@@ -1009,12 +1513,31 @@ def main() -> int:
         # queries, and still the path a run takes. A faster scoped retriever is its own rag/ task.
         retrieve_scoped=lambda text, pid: [c.chunk_id for c in retrieve(text, product_id=pid)[0]],
         retrieve_unscoped=lambda text: [c.chunk_id for c in unscoped_retriever(text)],
+        progress=progress,
     )
+    stage2_seconds = time.monotonic() - started
+    memory.append(memory_pressure_level())
+    print(f"\nstage 2 took {stage2_seconds:.0f} s · memory pressure readings: {len(memory)}, "
+          f"not green: {sum(1 for m in memory if m != 0)}")
+    if any(m != 0 for m in memory):
+        print("  S3 — memory pressure was not green (or could not be read). Discard this run, "
+              "close apps and repeat it.")
 
-    ungrounded = [q.qa_id for q in queries if not q.retrieved]
-    if ungrounded:
-        print(f"\n  WARNING — {len(ungrounded)} quer(y|ies) retrieved NOTHING: {ungrounded[:10]}")
-        print("            They cannot contribute to G1 and are usually an un-ingested corpus.")
+    # Counts only: a qa_id embeds an asin. The ids are in the retrieval export.
+    grounding = grounding_counts(queries)
+    if grounding["ungrounded"] or grounding["own_chunk_missing"]:
+        print(f"\n  S4 — {grounding['ungrounded']} quer(y|ies) retrieved NOTHING and "
+              f"{grounding['own_chunk_missing']} lack a chunk of their own product.")
+        print("       They cannot contribute to G1. The index check passed, so this is a finding.")
+
+    vectors_vs_file = compare_vectors(queries, Path(args.vectors)) if args.vectors else None
+    if vectors_vs_file:
+        print(f"query vectors against the 3.4 file: {vectors_vs_file['differing']} of "
+              f"{vectors_vs_file['compared']} differ, largest difference "
+              f"{vectors_vs_file['max_abs_diff']:.2e}")
+    if args.retrieval_out:
+        for written in write_retrieval_export(Path(args.retrieval_out), queries):
+            print(f"  export -> {written}")
 
     similar = similar_pairs(queries)
     pairs, overlaps = find_pairs(queries, similar)
@@ -1026,6 +1549,16 @@ def main() -> int:
 
     unscoped_pairs, _ = find_pairs(queries, similar, unscoped=True)
     unscoped_within, _ = split_pairs(unscoped_pairs, queries)
+
+    # Who made each counted pair (design §2.5). G1 and G2 are as defined above; this table shows
+    # whether they pass on built traps or on paraphrases.
+    by_id = {q.qa_id: q for q in queries}
+    g1_breakdown = {s: pair_breakdown(within[s], by_id) for s in SPLITS}
+    g2_breakdown = {
+        s: pair_breakdown([p for p in within[s] if p.label == "B-within"], by_id) for s in SPLITS
+    }
+    s5 = {s: paraphrase_only(within[s], by_id) for s in SPLITS}
+    low_overlap = sum(1 for o in overlaps if o <= JACCARD_CEILING)
 
     # --- the statistics data-card.md §7 records at freeze -----------------------------------------
     mean_overlap = sum(overlaps) / len(overlaps) if overlaps else 0.0
@@ -1055,6 +1588,19 @@ def main() -> int:
     for label, count in histogram(overlaps):
         if count:
             print(f"      J {label}: {count}")
+    print(f"      J <= {JACCARD_CEILING}: {low_overlap} of {len(overlaps)} "
+          "(across the splits too; a J of exactly 0.2 sits in the 0.2-0.3 bucket above)")
+    print("  who made the counted pairs (pair type: same docs | different docs):")
+    for s in SPLITS:
+        for label, table in (("G1", g1_breakdown[s]), ("G2", g2_breakdown[s])):
+            cells = " · ".join(
+                f"{t} {table[t]['same_docs']}|{table[t]['different_docs']}" for t in PAIR_TYPES
+            )
+            print(f"      {s:<10} {label}: {cells}")
+    for s in SPLITS:
+        if s5[s]:
+            print(f"  S5 — G2 in {s} is met only by same-cluster (paraphrase) pairs: a pass by "
+                  "definition, with no built trap behind it. Do not freeze; show the author.")
     for s in SPLITS:
         print(f"  {s:<10} per-stratum counts              : {strata[s]}")
         print(f"  {s:<10} trap fraction                   : {trap_fraction(in_split[s]):.3f}")
@@ -1077,6 +1623,42 @@ def main() -> int:
     else:
         print("\n  NOT FROZEN — a criterion failed, so no snapshot digest is printed.")
         print(f"  (it would have been {digest[:12]}…; fix the corpus and re-run)")
+
+    git_end = git_state()
+    provenance = {
+        "git": {
+            "commit": git_end["commit"],
+            "tree_clean": git_start["tree_clean"]
+            and git_end["tree_clean"]
+            and git_start["commit"] == git_end["commit"],
+            "paths": git_end["paths"],
+        },
+        "embedding": {
+            "tag": index.model_tag,
+            "digest": index.model_digest,
+            "ollama_version": index.ollama_version,
+        },
+        "retrieval": {
+            "top_k": rag_config.TOP_K,
+            "index": index.vector_field.get("algorithm"),
+            "metric": index.vector_field.get("distance_metric"),
+            "dim": rag_config.EMBEDDING_DIM,
+            "data_type": index.vector_field.get("data_type"),
+        },
+        "splitter": {
+            "chunk_size": rag_config.CHUNK_SIZE,
+            "chunk_overlap": rag_config.CHUNK_OVERLAP,
+        },
+        "packages": package_versions(),
+        "chunk_digest": index.chunk_digest,
+        "chunk_count": index.chunk_count,
+        "stored_vector_digest": index.stored_vector_digest,
+        "index_check": {"passed": index.passed, "tests": 5},
+        "grounding": grounding,
+        "memory_pressure": {"readings": memory},
+        "stage2_seconds": round(stage2_seconds, 1),
+        "query_vectors_vs_file": vectors_vs_file,
+    }
 
     if args.report:
         report_path = Path(args.report)
@@ -1134,7 +1716,11 @@ def main() -> int:
                         },
                         "g5_split_families": g5_counts["split_families"],
                         "g5_offending_documents": g5_counts["offending_documents"],
+                        "low_overlap_pairs": low_overlap,
+                        "pair_breakdown": {"g1": g1_breakdown, "g2": g2_breakdown},
+                        "s5": s5,
                     },
+                    **provenance,
                 },
                 indent=2,
             )

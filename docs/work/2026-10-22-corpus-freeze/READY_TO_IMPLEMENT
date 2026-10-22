@@ -1,0 +1,5 @@
+Approved: 2026-10-22
+Task: 2026-10-22-corpus-freeze (scope L)
+Approved phases: impact (2026-10-22), experiment (2026-10-22), implementation (2026-10-22)
+Not required: contract (impact.md section 6)
+Scope of this unlock: plan.md Block 0 and Block A (steps 1-15). Block B (measurement) waits for the author's separate go.

@@ -35,7 +35,7 @@ OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -51,7 +51,11 @@ spike: ## Feasibility spike — measure the memory envelope. SPENT: already froz
 	@echo "hardware change, and re-freeze deliberately if the numbers move."
 	@echo "Baseline:"; vm_stat | head -4; sysctl hw.memsize; sysctl vm.swapusage
 
-ingest: ## Build the index from the current corpus
+# Loads nomic-embed-text: check `sysctl kern.memorystatus_vm_pressure_level` = 0 first, every time.
+# The corpus is data/$$DATASET_VERSION (default dev-v0); item 3.6 ingests v1 with
+#   DATASET_VERSION=v1 make ingest
+# This is NOT Make's VERSION (that one is v1 for the gate, and would flip the default by accident).
+ingest: ## Build the index from the corpus in data/$DATASET_VERSION (default dev-v0). Memory check first
 	cd $(RAG) && $(PY) -m rag.ingest
 
 env-check: ## Verify the frozen envelope against the LIVE runner (ADR-003) -- loads both models, ~2.1 GB
@@ -197,7 +201,9 @@ demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing
 	 fi
 	@echo "  flushing both tiers and the corpus index (FLUSHALL)"
 	@redis-cli FLUSHALL >/dev/null
-	@$(MAKE) --no-print-directory ingest
+	@# Pinned: rag.config reads DATASET_VERSION from the environment (item 3.6), and an exported
+	@# DATASET_VERSION=v1 would otherwise leak in and rehearse the demo on the frozen corpus.
+	@DATASET_VERSION=dev-v0 $(MAKE) --no-print-directory ingest
 	@t1=$$(redis-cli --scan --pattern 't1:*' | wc -l | tr -d ' '); \
 	 t2=$$(redis-cli --scan --pattern 't2:*' | wc -l | tr -d ' '); \
 	 c=$$(redis-cli --scan --pattern 'corpus:*' | wc -l | tr -d ' '); \
@@ -408,10 +414,17 @@ load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 #                                          # the policies), before data/v1 exists; never frozen
 # The workload's two split files are found by name beside WORKLOAD (workload-v1-validation.json,
 # workload-v1-test.json), re-derived from it, and hashed with it.
+#
+# Stage 2 first checks that the index in Redis is the corpus on disk, then loads nomic-embed-text.
+# Check `sysctl kern.memorystatus_vm_pressure_level` = 0 before it, every time: the gate reads the
+# level itself and writes every reading to the report, and a run with a reading above 0 is discarded.
+#   REPORT=<file>        also write the full result as JSON
+#   RETRIEVAL_OUT=<dir>  write each split's retrieval (ids and sets, no text) -- under data/v1-draft/
+#   VECTORS=<file>       compare this run's query vectors with item 3.4's (data/v1-draft/workload/vectors.json)
 VERSION ?= v1
 WORKLOAD ?= data/workload-$(VERSION).json
 CORPUS_DIR ?=
-gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the snapshot hash
+gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the snapshot hash. Memory check first
 	@test -d "$(or $(CORPUS_DIR),data/$(VERSION))" || { \
 	   echo "FAIL -- no corpus at $(or $(CORPUS_DIR),data/$(VERSION))"; exit 1; }
 	@test -f "$(WORKLOAD)" || { \
@@ -421,7 +434,36 @@ gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the sna
 	   exit 1; }
 	$(PY) experiments/scripts/corpus_gate.py --version $(VERSION) --workload $(WORKLOAD) \
 	  $(if $(CORPUS_DIR),--corpus-dir "$(CORPUS_DIR)",) \
-	  $(if $(STRUCTURAL),--structural-only,) $(if $(REPORT),--report $(REPORT),)
+	  $(if $(STRUCTURAL),--structural-only,) $(if $(REPORT),--report $(REPORT),) \
+	  $(if $(RETRIEVAL_OUT),--retrieval-out $(RETRIEVAL_OUT),) $(if $(VECTORS),--vectors $(VECTORS),)
+
+# Item 3.6: freezing v1 (docs/work/2026-10-22-corpus-freeze/design.md 2.2). In order:
+#   make corpus-assemble                          # data/v1/ from the drafts and the policy documents
+#   DATASET_VERSION=v1 make ingest                # memory check first
+#   make corpus-index-check                       # is the index the corpus?
+#   make gate-corpus REPORT=data/v1-draft/gate/run1/report.json RETRIEVAL_OUT=data/v1-draft/gate/run1 \
+#        VECTORS=data/v1-draft/workload/vectors.json
+#   ...the same from a fresh ingest, into run2/
+#   make corpus-freeze                            # data/v1-freeze.json, once
+#   make corpus-verify
+# Once frozen, Redis holds dev-v0 again (ADR-014). Every v1 run, and every reference generation,
+# starts with `DATASET_VERSION=v1 make ingest` and `make corpus-index-check`. None of these four is
+# part of `make verify`: data/v1/ is gitignored.
+corpus-assemble: ## Item 3.6: build data/v1/ from the drafts and the policy documents (bytes, copied)
+	$(PY) experiments/scripts/freeze_corpus.py assemble
+
+# Reads Redis and Ollama's tag list. Loads no model, so there is no memory check.
+corpus-index-check: ## Item 3.6: is the index in Redis the v1 corpus on disk? (Redis and Ollama up)
+	$(PY) experiments/scripts/freeze_corpus.py check-index
+
+RUN1 ?= data/v1-draft/gate/run1/report.json
+RUN2 ?= data/v1-draft/gate/run2/report.json
+corpus-freeze: ## Item 3.6: write data/v1-freeze.json from two passing gate runs (once; never overwritten)
+	$(PY) experiments/scripts/freeze_corpus.py freeze --run1 $(RUN1) --run2 $(RUN2)
+
+# Reads Ollama's tag list. Loads no model, so there is no memory check.
+corpus-verify: ## Item 3.6: do the v1 files, chunks, model and config still match data/v1-freeze.json?
+	$(PY) experiments/scripts/freeze_corpus.py verify
 
 # Item 3.1: the Amazon-PQA builder (docs/data-card.md 1, ADR-002). The builder has NO network code.
 # pqa-fetch is the only step that touches the network, and it only downloads: the builder verifies

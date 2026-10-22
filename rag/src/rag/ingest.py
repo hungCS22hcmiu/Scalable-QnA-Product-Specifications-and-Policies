@@ -8,7 +8,7 @@ from pathlib import Path
 
 from llama_index.core import StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.schema import Document
+from llama_index.core.schema import BaseNode, Document
 
 from rag import chunkid, config, store
 from rag.embedding import OllamaEmbedding
@@ -70,10 +70,12 @@ def record_to_document(record: dict) -> Document:
     )
 
 
-def main() -> None:
-    records = load_records(DATA_DIR)
-    print(f"loaded {len(records)} records from {DATA_DIR}")
+def records_to_nodes(records: list[dict], dataset_version: str) -> list[BaseNode]:
+    """Split records into chunks with their stable ids and metadata.
 
+    The one split loop: `main` writes these nodes, and the corpus gate's chunk digest reads them,
+    so the digest cannot drift from what is ingested.
+    """
     splitter = SentenceSplitter(chunk_size=config.CHUNK_SIZE, chunk_overlap=config.CHUNK_OVERLAP)
 
     all_nodes = []
@@ -84,10 +86,18 @@ def main() -> None:
             node.id_ = chunkid.make_chunk_id(record["doc_id"], ordinal)
             node.metadata["chunk_id"] = node.id_
             node.metadata["ordinal"] = ordinal
-            node.metadata["dataset_version"] = config.DATASET_VERSION
+            node.metadata["dataset_version"] = dataset_version
             node.excluded_embed_metadata_keys = list(node.metadata.keys())
             node.excluded_llm_metadata_keys = list(node.metadata.keys())
         all_nodes.extend(nodes)
+    return all_nodes
+
+
+def main() -> None:
+    records = load_records(DATA_DIR)
+    print(f"loaded {len(records)} records from {DATA_DIR}")
+
+    all_nodes = records_to_nodes(records, config.DATASET_VERSION)
 
     print(f"split into {len(all_nodes)} chunks")
 
