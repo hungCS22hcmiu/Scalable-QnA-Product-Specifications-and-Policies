@@ -218,13 +218,34 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   measurement. I did not compare the 1,274 with the number of built records here: `build` does
   that in step 12, and stops if a built record has no vector or its question text differs.
 
-- [ ] **12. Build twice and verify.** `make workload-build` twice: one manifest sha256. Then `make
+- [x] **12. Build twice and verify.** `make workload-build` twice: one manifest sha256. Then `make
       workload-verify` and `make gate-corpus STRUCTURAL=1 CORPUS_DIR=<temp: drafts + policies>`
       (W12). `evidence/build.md`: counts per stratum, `probe_kind`, split, department and axis; the
       minimal-pair twins per split; `K_validation`, `K_test`, `K_total`; the trap fraction by records
       and the exact traffic shares per skew; the LRU simulation per skew; the cosine distribution per
       stratum; the highest cross-split cosine between same-document queries (U9) and between D and
       `term` queries. A failed check stops the build; the seed is not re-drawn.
+
+  **Step 12 result (2026-10-22).** Two builds gave **one manifest sha256**,
+  `7ee717a846a2110890944539e12bd29c4d0902aa7b4f9b1c4566109e8fb178f0`; the three workload files,
+  the manifest and `build.md` had the same hash both times. `make workload-verify`: **PASS**.
+  `make gate-corpus STRUCTURAL=1` on a temporary folder of the 152 product drafts and the 12 policy
+  documents (164 files): G3, G4, G5, the workload shape and the split files all **PASS**. G1 and G2
+  were not run (structural mode, as planned). G5 here is lexical only; the author's read of the
+  documents is its other half. **Counts** (`evidence/build.md`): 1,274 records, the same as the
+  1,274 vectors; K 1,274 whole, 622 validation, 652 test; capacity 318, 156, 163. Strata: A 761,
+  B-within 272, C 150, D 69, B-cross 22. 94 unanswerable. Minimal-pair twins 136 (56 validation,
+  80 test; the floor is 30 each). Trap fraction 0.2229 (0.2074, 0.2377).
+  **Drops** (`rules.md` §8): spec seed 16 and unanswerable seed 5 (the blind label disagrees); 40 and
+  5 queries went with them; lookalike 17; paraphrase 2; natural pair 10 (and 190 marked
+  unanswerable, never built); swap 47 (the partner's record cannot answer) and 5 (its seed was
+  dropped). **U9, recorded and not limited** (an accepted limit): the highest cosine between
+  same-document queries in different splits is 0.9648; between D and `term` queries, 0.9374.
+  **Two things for the data card.** B-cross is small: 22 records (12 name-swap, 10
+  name-swap-same), against the design's upper bound of 152, because 47 of the 74 swaps were
+  dropped; intervals on it will be wide. All 16 `condition-department` records are in validation
+  and none in test, so the test split reads RQ2a from `policy-condition` (80) alone. The temporary
+  folder lives in the scratchpad, not in the repository.
 
 ## D. Records
 

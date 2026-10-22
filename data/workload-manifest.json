@@ -1,0 +1,191 @@
+{
+ "stage": "3.4-workload",
+ "workload_version": "v1",
+ "seed": "v1-item-3.4",
+ "model_id": "claude-opus-5-5",
+ "inputs": {
+  "selection_sha256": "5033ad968988689a8d59940a453f8db7c9f5f69262e6d7c6e744eefd87e3bff6",
+  "policies_sha256": "3cfea5cf500efc6279335cdda2bc4c4ed336290dbb961cac235259bb58dc46ed",
+  "rules_sha256": "f4035be73a5637c26e26bfd3604bb4bbd7aa2de4bb23d626ac015db9e9f92663",
+  "model_layer_sha256": "c21c7edeea408fc06799e9a1270d75522711ab471401b0ed737cbe04861241dd",
+  "vectors_sha256": "f721fa2f94b93f1b716978a1a254460f4726a8b07000694a1e48cf76e060721a"
+ },
+ "outputs": {
+  "workload-v1-test.json": "0112889aea7a087f3a6e2da61818bf279eba9e8286efa7499b6b1d3330a809b7",
+  "workload-v1-validation.json": "3a686613fe86b0d44777cbc2542a57365672ed627516c6f051a76eaa966e8dff",
+  "workload-v1.json": "59ccbe43b145b5a26a4d8bdaafa2973ac8dc3448dab947fa7c6a8aeb9b8a1a41"
+ },
+ "units": {
+  "product_units": 74,
+  "policy_units": 44,
+  "unit_list_sha256": "923a866dd3273d19f3ee91d6dbe2adfc1d7784fa9a1d0e5273bf29a3f84353f9",
+  "assignment_sha256": "a376c40fa72b546894be44008cca8f47a28eb2060ba218a835da5a9a3ba236e9"
+ },
+ "counts": {
+  "whole": {
+   "records": 1274,
+   "k_distinct_queries": 1274,
+   "cache_capacity": 318,
+   "strata": {
+    "A": 761,
+    "B-cross": 22,
+    "B-within": 272,
+    "C": 150,
+    "D": 69
+   },
+   "probe_kind": {
+    "condition-department": 16,
+    "name-swap": 12,
+    "name-swap-same": 10,
+    "natural": 10,
+    "none": 980,
+    "policy-condition": 120,
+    "policy-kind": 9,
+    "policy-region": 18,
+    "spec-attribute": 99
+   },
+   "role": {
+    "d": 69,
+    "natural": 54,
+    "paraphrase": 555,
+    "probe": 294,
+    "seed": 302
+   },
+   "origin": {
+    "claude": 871,
+    "pqa": 309,
+    "pqa-template": 94
+   },
+   "department": {
+    "electronics": 226,
+    "furniture": 326,
+    "laptops": 338,
+    "phones": 384
+   },
+   "axis": {
+    "grade": 46,
+    "none": 1012,
+    "packaging": 180,
+    "region": 36
+   },
+   "answerable_false": 94,
+   "minimal_pair_twins": 136,
+   "trap_fraction": 0.2229
+  },
+  "validation": {
+   "records": 622,
+   "k_distinct_queries": 622,
+   "cache_capacity": 156,
+   "strata": {
+    "A": 371,
+    "B-cross": 11,
+    "B-within": 124,
+    "C": 83,
+    "D": 33
+   },
+   "probe_kind": {
+    "condition-department": 16,
+    "name-swap": 5,
+    "name-swap-same": 6,
+    "natural": 4,
+    "none": 487,
+    "policy-condition": 40,
+    "policy-kind": 6,
+    "policy-region": 6,
+    "spec-attribute": 52
+   },
+   "role": {
+    "d": 33,
+    "natural": 22,
+    "paraphrase": 281,
+    "probe": 135,
+    "seed": 151
+   },
+   "origin": {
+    "claude": 422,
+    "pqa": 147,
+    "pqa-template": 53
+   },
+   "department": {
+    "electronics": 105,
+    "furniture": 154,
+    "laptops": 162,
+    "phones": 201
+   },
+   "axis": {
+    "grade": 22,
+    "none": 506,
+    "packaging": 82,
+    "region": 12
+   },
+   "answerable_false": 40,
+   "minimal_pair_twins": 56,
+   "trap_fraction": 0.2074
+  },
+  "test": {
+   "records": 652,
+   "k_distinct_queries": 652,
+   "cache_capacity": 163,
+   "strata": {
+    "A": 390,
+    "B-cross": 11,
+    "B-within": 148,
+    "C": 67,
+    "D": 36
+   },
+   "probe_kind": {
+    "name-swap": 7,
+    "name-swap-same": 4,
+    "natural": 6,
+    "none": 493,
+    "policy-condition": 80,
+    "policy-kind": 3,
+    "policy-region": 12,
+    "spec-attribute": 47
+   },
+   "role": {
+    "d": 36,
+    "natural": 32,
+    "paraphrase": 274,
+    "probe": 159,
+    "seed": 151
+   },
+   "origin": {
+    "claude": 449,
+    "pqa": 162,
+    "pqa-template": 41
+   },
+   "department": {
+    "electronics": 121,
+    "furniture": 172,
+    "laptops": 176,
+    "phones": 183
+   },
+   "axis": {
+    "grade": 24,
+    "none": 506,
+    "packaging": 98,
+    "region": 24
+   },
+   "answerable_false": 54,
+   "minimal_pair_twins": 80,
+   "trap_fraction": 0.2377
+  }
+ },
+ "drops": {
+  "lookalike: the blind label disagrees": 17,
+  "name swap: its seed was dropped": 5,
+  "name swap: the partner's record cannot answer it": 47,
+  "natural pair: a blind label disagrees": 10,
+  "natural pair: marked unanswerable": 190,
+  "paraphrase: the blind label disagrees": 2,
+  "spec query dropped with its seed": 40,
+  "spec seed: the blind label disagrees (its cluster and probes go too)": 16,
+  "unanswerable query dropped with its seed": 5,
+  "unanswerable seed: the blind label finds an answer": 5
+ },
+ "cross_split": {
+  "same_document_max_cosine": 0.9648,
+  "d_against_term_max_cosine": 0.9374
+ }
+}
