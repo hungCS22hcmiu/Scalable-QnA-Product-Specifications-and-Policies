@@ -286,8 +286,13 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   the labeller-is-not-the-judge rule, and "separate population". It says plainly that the 30-row
   read was done by Claude and that the blind check is not independent. `Invalidates: none — no runs
   yet`; it lists what binds forward. The data-card §4 carries the same sentence about the read.
-- [ ] **16.** `super-plan.md`: the 3.4 row and the Phase 3 progress paragraph; the carries to 3.6,
+- [x] **16.** `super-plan.md`: the 3.4 row and the Phase 3 progress paragraph; the carries to 3.6,
       5.1, 5.2, 6.1 / 6.3, 7.2 and P1 (`design.md` §11).
+  **Step 16 result (2026-10-22).** `super-plan.md`: item 3.4 is marked done, with the counts and the
+  limits; 3.6 reads "3.4 ✅"; a "Progress, 2026-10-22" paragraph and a "Carried out of 3.4"
+  list (3.6, 5.1 / 5.2, 6.1 / 6.3, 7.2, P1) sit above the 2026-10-21 paragraph. The open
+  `TODO(W8)` count is 13. The old row said the split was by seed-question cluster; the built one is
+  by unit, a union of whole clusters, and the row says so.
 - [ ] **17.** `/verify`, then `/ai-review`, then `/done`.
 
 **Not in this plan:** building `data/v1/`, ingesting, G1 / G2 on the real index, the freeze, `K` in
