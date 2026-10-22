@@ -69,3 +69,7 @@ characters of the file's sha256), the model id and the first 16 characters of `r
 | 2026-10-22T01:41:16+00:00 | `check-12.rows.jsonl` | `9b15ed8e490f70bf` | claude-opus-5-5 | `f4035be73a5637c2` | blind 41, swap 4 | 0 | 0 |
 | 2026-10-22T01:42:41+00:00 | `check-13.rows.jsonl` | `1310f15e6e42e81c` | claude-opus-5-5 | `f4035be73a5637c2` | blind 60, swap 4 | 0 | 0 |
 | 2026-10-22T01:43:58+00:00 | `check-14.rows.jsonl` | `ae8b267bde1969c3` | claude-opus-5-5 | `f4035be73a5637c2` | blind 44, swap 3 | 0 | 0 |
+| 2026-10-22T01:45:28+00:00 | `check-15.rows.jsonl` | `76c2ddb8f24653a9` | claude-opus-5-5 | `f4035be73a5637c2` | blind 57, swap 3 | 0 | 0 |
+| 2026-10-22T01:47:34+00:00 | `check-16.rows.jsonl` | `751dfaaf87fdd5c0` | claude-opus-5-5 | `f4035be73a5637c2` | blind 73, swap 5 | 0 | 0 |
+| 2026-10-22T01:48:59+00:00 | `check-17.rows.jsonl` | `121b53df2e78848f` | claude-opus-5-5 | `f4035be73a5637c2` | blind 53, swap 6 | 0 | 0 |
+| 2026-10-22T01:50:15+00:00 | `check-18.rows.jsonl` | `44a6ad3325eca55c` | claude-opus-5-5 | `f4035be73a5637c2` | blind 47, swap 5 | 0 | 0 |
