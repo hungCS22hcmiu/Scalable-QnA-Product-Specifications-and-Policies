@@ -127,30 +127,39 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   labels outside the natural candidates; 52 unanswerable seeds. The design says these counts are
   expectations, not targets, so nothing is changed to reach 304. `/verify`: gofmt, go vet, go
   build, go test, ruff, pytest (rag 15, experiments 516) and proto all **PASS**, none skipped.
-- [ ] **9. Pass 2 — writing.** The script picks the seeds from the labels (deterministic) and writes
+- [x] **9. Pass 2 — writing.** The script picks the seeds from the labels (deterministic) and writes
       the pass-2 sheets. Claude writes R3, R4, R5 (with answers and evidence), R6 labels, R7 built
       policy questions (from pool wording first), R8, and labels every written query on its own
       (R2, without its seed). Import and batch records as in step 7.
-  **Step 9 status (in progress, 2026-10-21; handoff for the next session).** The write round is
-  complete: 22 sheets, 1,097 rows imported (350 seed, 480 para, 124 lookalike, 69 D, 74 cell).
-  One reject: a paraphrase used "hard", a record word ("Hard Drive"), which R4 forbids. It was
-  re-done as `write-10b` and the reject stays counted in `batches.md`. Before each import, rows went
-  through a read-only pre-check (`tools/precheck.py`), which calls `build_workload.check_row` on
-  the record text the sheet shows. That is why rejects are near zero: the reject count measures
-  little, and the step-9 result must say so. Conventions kept: D questions name their condition
-  ("unopened", "new", "US version"); twin cells are minimal pairs that differ only in the condition
-  word; identical originals get different Tier-1 forms ("this X" against "the X"); `pqa-template`
-  only where a real pool question fits the cell, `claude` otherwise. **Not started: the check
-  round**, 1,028 tasks (954 blind, 74 swap). Regenerate the sheets with `make workload-sheets
-  ROUND=check OUT=<scratchpad>/sheets-check`. A blind label agrees only with the same answerable
-  flag and, when answerable, evidence that overlaps the reference span (pass-1 evidence for seed and
-  para, the lookalike's own evidence); a disagreement drops the query. Limit to report: Claude wrote
-  the queries and labels them blind in the same session, so the blind check is less independent;
-  step 10 (the author's read) is the outside check. **Resume point (checked at the stop):**
-  `make workload-status` shows `blind 0/954, swap 0/74`; the last import is `write-22.rows.jsonl`;
-  no check-round row exists. The session stopped for its usage limit before any check-round
-  labelling, so the next session starts at check sheet 1, labelling each query from the record
-  alone.
+  **Step 9 result (2026-10-22).** Both rounds are complete; `make workload-status` shows every task
+  done. **Write round:** 22 sheets, 1,097 rows imported (350 seed, 480 para, 124 lookalike, 69 D,
+  74 cell). One reject: a paraphrase used "hard", a record word ("Hard Drive"), which R4 forbids.
+  It was re-done as `write-10b` and the reject stays counted in `batches.md`. **Check round:** 18
+  sheets, 1,028 rows, 0 rejects. Blind: 826 answerable, 128 not answerable (954). Swap: 23
+  answerable (10 `same_answer`, 13 not), 51 not answerable (74); the build drops the 51. **The
+  reject counts measure little.** Before each import, rows went through a read-only pre-check:
+  `tools/precheck.py` (write round, `build_workload.check_row`) and `tools/precheck_check.py`
+  (check round, `check_label`), both on the record text the sheet shows. The check-round pre-check
+  tests only the shape and the evidence span; it never shows the reference label. **How many blind
+  labels disagree is not counted here.** `construct` counts it, and `make workload-build` writes
+  it into `evidence/build.md` (step 12); no extra read of the drafts was made for it.
+  **Independence:** the check round ran in a new context window after a compaction, so no
+  write-round or pass-1 sheet was in view, except that the swap sheets show the first product's
+  answer by design (R6). It is still the same model with the same habits, so the blind check is
+  not an independent labeller; step 10 is the outside check. **Conventions in the check round,
+  for the author's read:**
+  - The blind labels are **stricter than step 7 on country questions**. "Works worldwide", "any
+    GSM network around the world" and "all worldwide GSM networks" still make a country
+    answerable. A hedged claim ("most GSM SIM cards in U.S. and world", "Global 4G LTE",
+    "US + Global") now does not. About 20 blind country queries (Galaxy J7 Pro, J4 Core, A50 and
+    A51) are labelled not answerable for this reason, so the build will drop them as
+    disagreements. They were left as labelled: changing them after reading the step-7 convention
+    would no longer be blind.
+  - A record that contradicts itself makes the question not answerable: 6th against 7th
+    generation, polyester against nylon seat, 5000 against 3000 mAh, T-Mobile yes against no.
+  - A complete "package included" list settles what is not in the box ("no mug"). A feature
+    list that leaves something out does not settle it ("no USB port").
+  - A network line that names only 2G or 3G settles "is it 4G?" as no.
 - [ ] **10. The author's read** (review M6 d). A seeded sample of **30** rows across the row types,
       written by `make` to a gitignored sheet for the author: does each keep (paraphrase) or change
       (probe) the answer as its rule says, and does it read as a shopper's question? **Stop rule,
