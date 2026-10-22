@@ -210,7 +210,7 @@ is still the design this row is built toward, with θ the missing term.
   miss time. The key a Tier-2 serve promotes is a second pointer at the same entry, and neither the
   trim nor a future purge can find it (item 4.3).
 - **The trim does nothing by default.** `CACHE_CAPACITY` unset or `0` means unbounded, so hit rates
-  today are an upper bound. It is set to `round(0.25 × K)` once `K` is frozen (item 3.6).
+  today are an upper bound. It is set to `round(0.25 × K)`, with the `K` of the run file, once `K` is frozen (item 3.6).
 
 **Where the contributions live:** C1 → `reuse/` · C2 → `deps/` (+ the epoch check in `ragclient/` and
 write-back) · resource governance → `admission/` · the measurement protocol → `experiments/`.

@@ -37,9 +37,10 @@ data/v1-draft/
 data/raw/
 # The workload (item 3.4): the whole file and its two split files hold Amazon-PQA question text,
 # so they are the same unresolved licence. Ignored before the first one is written. The tracked
-# record is data/workload-manifest.json (sha256s and counts, no text), which this pattern does not
-# match; regenerate the files with the workload-* make targets.
-data/workload-v1*.json
+# record is data/workload-manifest.json (sha256s and counts, no text), re-included below; regenerate
+# the files with the workload-* make targets. Every version is covered, not only v1 (review F7).
+data/workload-*.json
+!data/workload-manifest.json
 
 # --- Build output --------------------------------------------------------------
 # Generated protobuf stubs (regenerate with `make proto`)

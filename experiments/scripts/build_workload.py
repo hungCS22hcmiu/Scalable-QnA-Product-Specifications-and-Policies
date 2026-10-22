@@ -2043,9 +2043,12 @@ def write_outputs(files: dict[str, bytes], manifest: dict, data_dir: Path,
             path.unlink(missing_ok=True)
 
 
-def verify_outputs(inputs: Inputs, data_dir: Path) -> list[str]:
+def verify_outputs(inputs: Inputs, data_dir: Path, inputs_now: dict | None = None) -> list[str]:
     """`make workload-verify`: re-hash the three files against the manifest, re-derive the split
-    files (the gate's own check), and re-run the shape, W6 and W16 checks on what is on disk."""
+    files (the gate's own check), re-run the shape, W6 and W16 checks on what is on disk, and
+    recompute the counts of each file (so K and the capacity are not just read back). Given
+    `inputs_now`, the current hashes of the selection, the policies, rules.md, the model layer and
+    the vectors, it also fails when an input no longer matches the manifest (review F6)."""
     manifest_path = data_dir / MANIFEST_NAME
     if not manifest_path.is_file():
         return [f"no {MANIFEST_NAME}"]
@@ -2055,6 +2058,9 @@ def verify_outputs(inputs: Inputs, data_dir: Path) -> list[str]:
         path = data_dir / name
         if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             problems.append(f"{name} is missing or differs from the manifest")
+    if inputs_now is not None:
+        problems += [f"input {key} differs from the manifest: the build is out of date"
+                     for key, digest in manifest["inputs"].items() if inputs_now.get(key) != digest]
     if problems:
         return problems
     whole = data_dir / f"workload-{WORKLOAD_VERSION}.json"
@@ -2071,6 +2077,10 @@ def verify_outputs(inputs: Inputs, data_dir: Path) -> list[str]:
         check_workload(inputs, records)
     except WorkloadStop as e:
         problems.append(str(e))
+    for name in ("whole", *SPLITS):
+        rs = records if name == "whole" else [r for r in records if r.split == name]
+        if counts_of(rs) != manifest["counts"][name]:
+            problems.append(f"the counts of {name} (K, capacity, strata, ...) differ from the manifest")
     return problems
 
 
@@ -2323,7 +2333,8 @@ class AuthorItem:
 
 def author_type(record: Record, inputs: Inputs) -> str | None:
     """The read type of a built record, from its role alone; None for a type the author does not
-    read (a natural pair is real PQA text with Claude's mark)."""
+    read (a natural pair is a PQA question rewritten to name its product, with Claude's mark; it
+    is not in the 30-row read, ADR-013)."""
     if record.doc_ids[0] in inputs.policies:
         return "cell"
     if record.role == "d":
@@ -2611,7 +2622,9 @@ def main(argv: list[str] | None = None) -> int:
             print(text, end="")
             return 1 if stop else 0
         if args.command == "verify":
-            problems = verify_outputs(inputs, DATA_DIR)
+            now = inputs_digest(args.selection, args.policy_dir, args.layer, VECTORS_PATH,
+                                hashlib.sha256(RULES_PATH.read_bytes()).hexdigest())
+            problems = verify_outputs(inputs, DATA_DIR, now)
             for line in problems:
                 print(f"  FAIL {line}")
             if problems:

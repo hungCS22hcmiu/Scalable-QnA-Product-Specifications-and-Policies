@@ -76,3 +76,35 @@ a reused answer naming the wrong product, or a same-polarity "Yes." · U16 real 
 split families rarely state a condition, so policy B-within will be about 100 % Claude-written, and
 natural spec B-within with an answerable probe is probably tens at most: say so now, so
 `data-card.md:148`'s claim is not found thin later.
+
+---
+
+## Implementation review (`/ai-review`), 2026-10-22
+
+**Scope:** `git diff 8bba413^..HEAD` (32 commits; no Go, `rag/` or `.proto` change). **Reviewer:**
+`contract-reviewer`, read-only, with the whole trail and the contract docs to read. It did not run
+`pytest` or `make workload-verify`. **I re-computed F1, F3, F5, F6, F8 and F9 from the files before
+acting** (`tools/partner_cosine.py` → `evidence/partner-cosine.md`; the numbers match the reviewer's
+to the digit). Most severe first. Every finding is resolved below, either fixed or accepted with a
+reason.
+
+| # | Sev | Finding | Status | Resolution |
+| :-: | :-: | :--- | :--- | :--- |
+| F1 | High | The whole file is named as a run file, but its popularity ranks restart at the split boundary (`ask.js` would put 17 %, 6.4 % and 1.6 % of traffic on test records at skews 0.8, 1.1, 1.4), so a whole-file run measures mostly validation and records K 1,274 / capacity 318 as valid | CONFIRMED | **Fixed.** `interfaces.md` §D, the v0.15 note and history row, `k6/README.md`, ADR-013 and `data-card.md` now say a run draws from one of the two split files; the whole file is the gate's input. This **narrows a sentence the author approved** on 2026-10-21 (`approvals.md`). A global rank order was not taken: it would change the workload files and the manifest hash |
+| F2 | High | Single-`K` instructions remain; the live `TODO(W8): K` line would have 3.6 record one K and set 318 for a validation run (right: 156); ADR-013 said a whole-file capacity "evicts nothing" (318 / 622 = 0.51, so it does evict) | CONFIRMED | **Fixed:** `data-card.md` lines 8 and the K `TODO`, `architecture.md`, `k6/README.md`, the 3.6 row, ADR-013. **Not changed, on purpose:** `CLAUDE.md` (project instructions; the author's to edit; reported), `decisions.md` inherited-state row (the log is append-only; ADR-013 supersedes it), the comment in `main.go:267-268` (carried to P1) |
+| F3 | High | 182 of the 284 traps are reachable (partner cosine ≥ 0.85): 0.143 of records against the trap fraction 0.2229. None of the 22 B-cross probes reaches 0.85 (max 0.804) | CONFIRMED | **Recorded**, not changed: `evidence/partner-cosine.md`, `data-card.md` §3, ADR-013, `super-plan.md`. The pre-registered rule A2 in `rules.md` is **not** changed (it needs `/approve experiment` again); A1's bins by logged pair similarity already read the reachable cases. **Open for the author, carried to 6.1:** whether A2 should read only pairs whose partner cosine is at least τ |
+| F4 | Med | The model id is a constant: `workload-import` passes no `--model`, so all 66 batches say `claude-opus-5-5` whoever wrote them (the session model was `claude-sonnet-5-5` at the step 10 read) | CONFIRMED (code path) | **Fixed for the future** (`make workload-import MODEL=<id>`); **the past is recorded as nominal** in the data card and ADR-013. The batches already written cannot be corrected |
+| F5 | Med | The 64 natural-pair queries are Claude rewrites (none equals the pool text), not real PQA text; the 30-row read left them out on that wrong belief, so the 10 natural traps were not read | CONFIRMED | **Docs corrected** (data card, ADR-013, a docstring). The gap in the read is recorded. A `natural` type was not added to the read: the sheet belongs to the author's later read, and adding a type now would change the sample after the fact |
+| F6 | Med | `workload-verify` re-hashed only the outputs: it never compared the inputs to the manifest, and printed K and capacity read back from it | CONFIRMED | **Fixed in code:** `verify_outputs(..., inputs_now)` compares the five input hashes and recomputes the counts of each file. Two new tests; two hand mutants (the input check and the counts check removed), both caught; `make workload-verify` passes on the real files (106 tests in the file) |
+| F7 | Med | `.gitignore` covered only `workload-v1*.json`; a v2 build would put PQA text in a tracked path on a public remote | CONFIRMED | **Fixed:** `data/workload-*.json` with `!data/workload-manifest.json`; six names checked with `git check-ignore` |
+| F8 | Low | 74 policy-cell pairs and 8 pairs with a D query sit on one policy document in different splits at cosine ≥ 0.85; the manifest keeps only the maximum | CONFIRMED | **Recorded** (data card §7, ADR-013, `partner-cosine.md`). D's unit is **not** changed: moving D would change the split and the hash, and `design.md` §2.5 chose to report this cosine instead |
+| F9 | Low | `pqa-template` includes the 22 name swaps, not only policy wording; the A3 row "origin in pqa, pqa-template" therefore includes B-cross probes | CONFIRMED | **Docs corrected.** The origin stays: a swap is real spec wording re-targeted, which is what A3 asks for |
+| F10 | Low | The capacity tie rule is unstated: Python `round(318.5)` is 318, Go `math.Round` gives 319 | CONFIRMED | **Fixed:** v0.15 says the gate prints the integer (Python `round`, halves to even) and the run copies it. Only the whole file differs, and it is no longer a run file |
+
+**Checked and clean** (the reviewer's list): the seam fields (`source_chunk_ids`, `t1_key`,
+`dataset_epoch`) are untouched; the Go claim in v0.15 (`CACHE_CAPACITY` read at `main.go:272`,
+trimmed at `cache/capacity.go:61`; the gateway never computes `K`); every count in the docs against
+the files, the drops, the Wilson intervals and all hashes; the split files are exact projections and
+no cluster, `pair_of` or unit crosses; A and C recomputed from the vectors; `rules.md` unchanged
+since `98c4689`; no policy or D query names one of the 16 risky products.
+

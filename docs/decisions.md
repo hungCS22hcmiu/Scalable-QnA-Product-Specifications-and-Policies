@@ -1203,8 +1203,9 @@ rules (`rules.md`, sha256 `f4035be73a56…`) and every constant were committed (
 the first sheet was read**, after a pilot on synthetic text. The split is by whole **units**:
 pairs of products for spec queries, and (shape group, department) for policy queries. The four
 minimal-pair groups put their two sides in opposite splits. The popularity rank is per record and
-stratified. **`K` is the distinct-query count of the file a run draws from**, so there are three:
-1,274, 622 and 652, with capacity `round(0.25 × K)` = 318, 156 and 163. The gate counts G1 inside
+stratified. **`K` is the distinct-query count of the file a run draws from**, and a run draws from a
+split file: 622 and 652, with capacity `round(0.25 × K)` = 156 and 163. The whole file (1,274; 318)
+is the gate's input, not a run file. The gate counts G1 inside
 a split, requires G2 inside each split, retrieves scoped by `product_id` as a run does, and hashes
 the whole file with its two split files. The 94 queries the record cannot answer ride in the run
 files with `answerable: false`: ADR-011's "separate stratum" is read as **"separate population"**.
@@ -1223,7 +1224,9 @@ human-verified pairs are not Claude-marked.
     run would hold the trap. A product-free policy unit also stops the same question about two
     products reaching both splits. Each split holds at least 30 minimal-pair twins (56 and 80).
   - **`K` per file, because a run draws from one file.** A capacity taken from the whole file
-    would be about twice too large for a split run, and nothing would be evicted.
+    would be about twice too large for a split run (318 against 156 or 163). The whole file is not a
+    run file at all: its popularity ranks restart at the split boundary, so `ask.js` would put 17 %,
+    6.4 % and 1.6 % of its traffic on test records at skews 0.8, 1.1 and 1.4.
   - **G1 within split and G2 per split** (stricter than the table in `data-card.md` §7), because a
     pair across the splits is never in one run.
   - **Unanswerable queries stay in the run files** because shoppers ask them, so the cache should
@@ -1268,6 +1271,32 @@ human-verified pairs are not Claude-marked.
   - **The reject counts of the import measure little.** Rows went through a read-only pre-check
     first, so the import rejected 1 of 1,097 write rows and none of 1,028 check rows. The drop
     counts above are the measure.
+  - **Found at the `/ai-review` of 2026-10-22 (trail `review.md`, F1 – F10), and recorded here:**
+    - **Not every trap can fire.** Only 182 of the 284 traps have a cosine of at least 0.85 with
+      their partner: the reachable fraction is 0.143 (validation 0.119, test 0.166) against the
+      trap fraction 0.2229. None of the 22 B-cross probes reaches 0.85 (the highest is 0.804);
+      23 of 99 lookalikes, 4 of 10 natural traps and 1 of 9 `policy-kind` probes do; all 154
+      condition and region twins do. B-cross is labelled by construction, not measured as A and C
+      are. The analysis reads results by the logged pair similarity (`rules.md` A1) and reports
+      the reachable fraction beside the trap fraction (`evidence/partner-cosine.md`). The twin
+      floor of 30 counts records: validation has 56 (28 pairs), test 80 (40 pairs).
+    - **Natural pairs are rewrites.** The 64 natural-pair queries were rewritten to name their
+      product (R3); none equals the pool text. The 30-row read left them out on the wrong belief that
+      they are real text, so none of the 64 (including the 10 natural traps) was read.
+    - **The model id is nominal.** `claude-opus-5-5` in `batches.md` and the manifest is the
+      importer's default and was never checked against the model that wrote a batch. `make
+      workload-import MODEL=<id>` now records a real one. "Written by `claude-opus-5-5`" above means
+      "recorded as".
+    - **Cross-split near-duplicates on policy documents:** 74 pairs of policy-cell queries and 8
+      pairs with a D query are on one policy document in different splits at cosine ≥ 0.85. The
+      policy unit keeps one cell in one split, not the different shapes of one document, and not D.
+    - **`pqa-template` covers 22 name swaps** (spec wording re-targeted) as well as 72 policy
+      queries, so the A3 row "origin in pqa, pqa-template" includes the B-cross probes.
+    - **`workload-verify` now recomputes** the counts of each file and compares the current input
+      hashes with the manifest; before, it re-hashed only the outputs.
+    - **The contract sentence was narrowed:** `interfaces.md` v0.15 says a run draws from one of the
+      two split files (the approved wording also allowed the whole file). `CLAUDE.md` still gives the
+      single-`K` meaning ("the frozen workload's distinct-query count"); it is the author's to edit.
   - **Carried forward** (`design.md` §11): to 3.6, the digest over three files, `K` for each file,
     G1 and G2 per split on the ingested `v1` (scoped, with unscoped beside), and per-probe retrieval
     checks; to 5.1 and 5.2, the judge rule and the rubric for a wrong-product answer; to 6.1 and

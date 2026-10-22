@@ -56,3 +56,12 @@ layer or the "K per run file" rule needs a new `dataset_version` (impact).
 (it wrote and blind-checked the rows). No rule, constant or stop threshold changed; only who
 reads. Result: 0 of 30 break their rule (`evidence/author-read.md`). The read is not independent,
 and ADR-013 and the data card must say so. Invalidates: none.
+
+**Contract sentence narrowed at `/ai-review` (2026-10-22).** The author approved on 2026-10-21 the
+wording "the distinct-query count of the workload file the run draws from (the whole file or one
+split)". The review (F1) showed the whole file cannot be a run file: its popularity ranks restart at
+the split boundary. `interfaces.md` v0.15 now says "one of the two split files". This removes an
+option and adds none; no value, wire shape or earlier run is affected. **The author should confirm
+or reverse it.** `CLAUDE.md` still gives the single-`K` meaning and is left to the author.
+Invalidates: none.
+

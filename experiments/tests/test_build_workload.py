@@ -1116,6 +1116,38 @@ def test_outputs_verify_and_a_reordered_split_file_fails(tmp_path, inputs, compl
     assert any("differs from the manifest" in p for p in verify_outputs(inputs, data))
 
 
+def _written_outputs(tmp_path, inputs, complete, digest):
+    """Build, write the three files and the manifest (with this `inputs` digest), return the folder."""
+    workload = build(inputs, *complete)
+    files = output_files(workload)
+    data, work = tmp_path / "data", tmp_path / "work"
+    data.mkdir()
+    write_outputs(files, make_manifest(workload, files, digest), data, work)
+    return data
+
+
+def test_verify_fails_when_an_input_no_longer_matches_the_manifest(tmp_path, inputs, complete):
+    """Review F6: verify used to re-hash only the outputs, so a model layer or vectors file changed
+    after the build passed unnoticed. Given the current input hashes it compares them."""
+    digest = {"vectors_sha256": "aa", "model_layer_sha256": "bb"}
+    data = _written_outputs(tmp_path, inputs, complete, digest)
+    assert verify_outputs(inputs, data, dict(digest)) == []
+    problems = verify_outputs(inputs, data, {**digest, "vectors_sha256": "cc"})
+    assert len(problems) == 1 and "vectors_sha256" in problems[0]
+
+
+def test_verify_recomputes_k_and_the_capacity_instead_of_reading_them_back(tmp_path, inputs,
+                                                                           complete):
+    """Review F6: the K and the capacity that verify prints must come from the files."""
+    data = _written_outputs(tmp_path, inputs, complete, {})
+    path = data / "workload-manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["counts"]["validation"]["cache_capacity"] += 1
+    path.write_text(json.dumps(manifest))
+    problems = verify_outputs(inputs, data)
+    assert len(problems) == 1 and "validation" in problems[0]
+
+
 def test_the_lru_simulation_is_seeded_and_counts_trap_encounters(inputs, complete):
     workload = build(inputs, *complete)
     recs = [r for r in workload.records if r.split == "validation"]

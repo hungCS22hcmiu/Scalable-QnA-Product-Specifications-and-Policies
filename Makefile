@@ -519,9 +519,9 @@ workload-sheets: ## Item 3.4: write one round's open tasks as sheets, OUTSIDE th
 	@test -n "$(ROUND)" -a -n "$(OUT)" || { echo "usage: make workload-sheets ROUND=label|write|check OUT=<dir>"; exit 2; }
 	$(PY) experiments/scripts/build_workload.py sheets --round $(ROUND) --out "$(OUT)"
 
-workload-import: ## Item 3.4: check a rows file and append its valid rows to the model layer
+workload-import: ## Item 3.4: import a rows file (MODEL=<id> records the writer; the default is nominal)
 	@test -n "$(IN)" || { echo "usage: make workload-import IN=<rows file>"; exit 2; }
-	$(PY) experiments/scripts/build_workload.py import "$(IN)"
+	$(PY) experiments/scripts/build_workload.py import "$(IN)" $(if $(MODEL),--model "$(MODEL)",)
 
 workload-labels: ## Item 3.4: write the pass-1 report, evidence/labels.md (counts only)
 	$(PY) experiments/scripts/build_workload.py labels

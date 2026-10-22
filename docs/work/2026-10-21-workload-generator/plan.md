@@ -204,6 +204,11 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   `claude-sonnet-5-5`, which is another model of the same family and still not an outside reader.
   The author can mark the same sheet later: if 3 or more break, the stop rule applies as written.
   ADR-013 and the data card must say who read.
+  **Correction (2026-10-22, review F5).** The setup note above says natural pairs "are real PQA
+  text". They are not: all 64 natural-pair queries are rewritten to name their product (R3), and
+  none equals the pool text. So the read left out the 10 natural traps without a good reason. The
+  gap is recorded in ADR-013 and the data card; the author's later read of the sheet does not
+  cover them either.
 
 ## C. Embed, build, verify
 
@@ -293,6 +298,13 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   list (3.6, 5.1 / 5.2, 6.1 / 6.3, 7.2, P1) sit above the 2026-10-21 paragraph. The open
   `TODO(W8)` count is 13. The old row said the split was by seed-question cluster; the built one is
   by unit, a union of whole clusters, and the row says so.
+  **Step 17 so far (2026-10-22).** `/verify` PASS (gofmt, go vet, go build, go test, ruff, pytest rag
+  15 and experiments 526, proto drift; none skipped). `/ai-review` (`contract-reviewer`, read-only,
+  over `8bba413^..HEAD`) gave **10 findings** (3 High, 4 Medium, 3 Low); I recomputed the main ones
+  from the files, and every one is resolved in `review.md`: 5 fixed (F1, F2, F6, F7, F10), 3 fixed
+  for the future or corrected in the docs (F4, F5, F9), 2 recorded without a change and with a
+  reason (F3, F8). Code changed (`verify_outputs` checks the inputs and recomputes the counts;
+  `make workload-import MODEL=`; `.gitignore`), so `/verify` ran again: **PASS, 528 tests**.
 - [ ] **17.** `/verify`, then `/ai-review`, then `/done`.
 
 **Not in this plan:** building `data/v1/`, ingesting, G1 / G2 on the real index, the freeze, `K` in
