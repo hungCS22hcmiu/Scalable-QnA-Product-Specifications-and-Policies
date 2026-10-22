@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.14 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-14
+**Status:** Draft v0.15 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-22
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -76,6 +76,16 @@
 > present"* must select on `cache` instead (see the field note). **A log written before the F-H commit has
 > null on those `ABANDONED` and `GENERATION_FAILED` records, and their `t_generate_ms` is not comparable
 > across it.**
+
+> **v0.15 changes.** **One sentence in §D: what `K` means** (**ADR-013**, super-plan item 3.4). `K` was
+> "the frozen workload's distinct-query count". It is now **the distinct-query count of the workload
+> file the run draws from**: the whole file, or one of its two splits (validation, test). Each file has
+> its own `K` and its own capacity `round(0.25 × K)`, derived at the corpus freeze (item 3.6) and
+> recorded in `data-card.md` §7 and in every run manifest. **The ratio `C / K = 0.25` is unchanged**,
+> so the frozen list below still reads true. **No wire shape, §A, §B, §H or `.proto` change, and no Go
+> change:** the gateway never computes `K`. It reads an absolute count, `CACHE_CAPACITY`, and trims to
+> it, so the run that starts the gateway must take `CACHE_CAPACITY` from its own run file's `K`.
+> **Invalidates: none.** No run exists yet.
 
 > **v0.14 changes.** **The support gate has an on/off switch** (**ADR-010**, super-plan item 2.4).
 > Configuration 4 is two ablation arms, the gate **off** and **on**, chosen per gateway process by the
@@ -358,7 +368,7 @@ Both provenance (C1) and source-aware invalidation (C2) key on chunk IDs, so the
 
 ## D. Cache-entry schema (Redis)
 
-Bounded, LRU (proposal §6.3). **Capacity is `round(0.25 × K)`**, where `K` is the frozen workload's distinct-query count — the ratio is frozen study-wide, the absolute is derived at corpus freeze and recorded per run. An absolute capacity was rejected because at `C ≥ K` nothing is ever evicted and the redundancy sweep collapses to a constant.
+Bounded, LRU (proposal §6.3). **Capacity is `round(0.25 × K)`**, where `K` is the distinct-query count of the workload file the run draws from (the whole file or one split, ADR-013) — the ratio is frozen study-wide, the absolute is derived at corpus freeze for each file and recorded per run. An absolute capacity was rejected because at `C ≥ K` nothing is ever evicted and the redundancy sweep collapses to a constant.
 
 > ⚠️ **Eviction policy is a correctness constraint, not a tuning knob.** `allkeys-lru` evicts *any* key under pressure — **including the `dep:{chunk_id}` sets of §E**. An evicted dependency record makes its entries permanently unpurgeable, so invalidation completeness fails silently and non-reproducibly. Therefore:
 >
@@ -685,10 +695,11 @@ Field notes:
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.14** (2026-10-14).
+**Current version: v0.15** (2026-10-22).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.15** | 2026-10-22 | **`K` is per run file** (**ADR-013**, item 3.4). §D's definition of `K` changes from "the frozen workload's distinct-query count" to "the distinct-query count of the workload file the run draws from (the whole file or one split)", and the absolute capacity is derived at the freeze for each file. The ratio `C / K = 0.25` is unchanged. No wire shape, §A, §B, §H or `.proto` change; no Go change (the gateway reads an absolute `CACHE_CAPACITY`). No earlier run exists to invalidate. |
 | **v0.14** | 2026-10-14 | **The support gate has an on/off switch** (**ADR-010**, item 2.4). `SUPPORT_GATE=on\|off` (unset = on; anything else stops the process at start) chooses the arm of configuration 4 for a gateway process. §H gains one required key, **`support_gate`** (`"on"` \| `"off"`, on every record, never null, no `omitempty`), the reading table for old logs, invariants I7, I8 and I9 (I5 restated), the arm filter on the refusal-rate denominator, the sentence *Joins name their arm*, the clause that rule 10 checks the gate-on arm only, and run rule 11 (a measured run starts on a cache it wrote itself). **The served Tier-2 rule is now per arm** (on: similarity ∧ namespace ∧ support; off: similarity ∧ namespace). **A configuration-4 run is identified by `(config_id, mutation, support_gate)`.** No wire shape, §A, §B, §D or `.proto` change. A log with neither `refusal_cause` nor `support_gate` is from before the 2.3 commit and is **neither arm**; a log with `refusal_cause` and no `support_gate` is gate-on; do not pool either with an off-arm log |
 | **v0.13** | 2026-10-14 | **The support gate is served** (**ADR-009**, item 2.3). The served Tier-2 rule becomes similarity ∧ namespace ∧ support. §H gains five keys (`refusal_cause`, `support_lex`, `support_numeric_ok`; extensions `candidate_entry_id`, `candidate_sources`), the cause `NOT_SCORED`, null rules, an order of causes, invariants I1–I6 and run rule 10; on a refused record `entry_id` and `entry_sources` name the entry the miss wrote, not the candidate. §A: a MISS can carry an overlap, and `similarity` is null on a zero-chunk retrieval. No wire shape, §B field or `.proto` changes. `cache = TIER2_HIT`, `entered_band`, `source_overlap` on a MISS and `t_search_ms` on a zero-chunk retrieval **change meaning under the same keys**: a log from before the 2.3 commit lacks the five keys and must not share a figure with one from after |
 | **v0.12** | 2026-10-06 | **Doc-only.** §H's `t_generate_ms` is stated precisely: non-null iff the request's own `Answer` call was attempted, successful or not (for a record with a non-empty `cache`), so it is now also non-null on ABANDONED and GENERATION_FAILED leaders that reached `Answer` (**ADR-006**, finding F-H). The example comment is rewritten and a field note added with the per-statistic selection rule. No field, key, wire shape, `.proto` or frozen value changes. The field's presence no longer identifies a MISS. ABANDONED and GENERATION_FAILED records' `t_generate_ms` is not comparable across the F-H commit |

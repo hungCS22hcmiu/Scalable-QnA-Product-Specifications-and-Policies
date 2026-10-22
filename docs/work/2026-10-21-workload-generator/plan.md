@@ -269,13 +269,23 @@ sheet is read** (W8, W18). Nothing here starts before `/approve implementation`,
   (step 15) and the k6 README says a run takes `K` from its own file (the sentence of step 14);
   both are written in the next steps of this task. `pytest` on the two test files that read the
   card: 207 passed. The full `/verify` is step 17.
-- [ ] **14.** `interfaces.md` §D: the one sentence defining `K` per run file, v0.15 — **only after
+- [x] **14.** `interfaces.md` §D: the one sentence defining `K` per run file, v0.15 — **only after
       the contract phase is approved**.
-- [ ] **15. ADR-013 (data)** with the real counts: the rules and the model layer, the model id, the
+  **Step 14 result (2026-10-22).** `interfaces.md` is **v0.15**: the §D sentence now reads "`K` is
+  the distinct-query count of the workload file the run draws from (the whole file or one split,
+  ADR-013)", with the header, a "v0.15 changes" note and a history row. No wire shape, §A, §B, §H or
+  `.proto` change, and no Go change (checked: the gateway reads `CACHE_CAPACITY` at `main.go:272` and
+  trims at `capacity.go:61`; it never computes `K`). The contract was approved 2026-10-21.
+- [x] **15. ADR-013 (data)** with the real counts: the rules and the model layer, the model id, the
       PQA-to-Anthropic flow, the units and the minimal-pair pairing, the stratified rank, `K` per run
       file, G1 / G2 per split and scoped, the labeller-is-not-the-judge rule, Claude on both sides as
       a threat with its controls, ADR-011's "separate stratum" read as "separate population".
       `Invalidates: none — no runs yet`, and what binds forward.
+  **Step 15 result (2026-10-22).** ADR-013 is in `decisions.md` (summary row and entry), with the
+  real counts, the PQA-to-Anthropic flow, the units, the rank, `K` per file, G1 / G2 per split,
+  the labeller-is-not-the-judge rule, and "separate population". It says plainly that the 30-row
+  read was done by Claude and that the blind check is not independent. `Invalidates: none — no runs
+  yet`; it lists what binds forward. The data-card §4 carries the same sentence about the read.
 - [ ] **16.** `super-plan.md`: the 3.4 row and the Phase 3 progress paragraph; the carries to 3.6,
       5.1, 5.2, 6.1 / 6.3, 7.2 and P1 (`design.md` §11).
 - [ ] **17.** `/verify`, then `/ai-review`, then `/done`.

@@ -52,6 +52,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 has run, `docs/work/2026-10-14-real-answer-sample/`) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
 | ADR-011 | `v1`'s 152 products are drawn by one pre-registered rule; R2 is a pre-filter, not a label | in force (3.4 re-labels every R2-answerable workload query) | none — no runs yet; replaces the 3.1 manifest `bf0feb48…` with `741d52e3…` |
 | ADR-012 | `v1`'s policy corpus is 12 authored documents, one per condition, written to rules fixed before the text; G5 is a lexical scan plus the author's read | in force (item 3.3 done 2026-10-21; 3.6 inherits five checks; 3.4 avoids 10 products) | none — no runs yet; replaces ADR-002's "14 / 30 / 30 / 90" return windows |
+| ADR-013 | `v1`'s workload is 1,274 queries written by Claude under rules fixed before the text, split by unit, with `K` per run file | in force (item 3.4 done 2026-10-22; 3.6 inherits the gate changes; the Phase 5 judge is not Claude) | none — no runs yet; reads ADR-011's "separate stratum" as "separate population" |
 
 ---
 
@@ -1186,3 +1187,97 @@ author, and each document is written to be true on its own.
     documents (F7), and its wiring into the gate is tested (F8).
 - **Invalidates:** none — no runs yet. `v1` is not frozen, and `data/dev-v0/` is untouched. As a
   record, ADR-002's return windows are replaced.
+
+
+### ADR-013 — `v1`'s workload is 1,274 queries written by Claude under rules fixed before the text, split by unit, with `K` per run file
+**Decided (data)** · 2026-10-22 · *`data-card.md` §3, §4, §6, §7 and Schemas; `contracts/interfaces.md` §D (v0.15); `experiments/scripts/build_workload.py`, `corpus_gate.py`; `data/workload-manifest.json`; trail `docs/work/2026-10-21-workload-generator/`*
+
+`v1`'s query workload is **1,274 queries** (validation 622, test 652), built by
+`experiments/scripts/build_workload.py`. The script uses no model and is deterministic: two builds
+gave one manifest sha256, `7ee717a846a2…`. It reads a **model layer** that Claude
+(`claude-opus-5-5`) wrote in this session from sheets that a script prepared: which spec questions
+the product text answers, one short name per product, the rewrites of the seeds, and the
+paraphrases, lookalikes, name swaps, D questions and policy wordings. Claude then labelled every
+written spec query again, **blind, without its seed**, and a disagreement drops the query. The
+rules (`rules.md`, sha256 `f4035be73a56…`) and every constant were committed (`98c4689`) **before
+the first sheet was read**, after a pilot on synthetic text. The split is by whole **units**:
+pairs of products for spec queries, and (shape group, department) for policy queries. The four
+minimal-pair groups put their two sides in opposite splits. The popularity rank is per record and
+stratified. **`K` is the distinct-query count of the file a run draws from**, so there are three:
+1,274, 622 and 652, with capacity `round(0.25 × K)` = 318, 156 and 163. The gate counts G1 inside
+a split, requires G2 inside each split, retrieves scoped by `product_id` as a run does, and hashes
+the whole file with its two split files. The 94 queries the record cannot answer ride in the run
+files with `answerable: false`: ADR-011's "separate stratum" is read as **"separate population"**.
+**The labeller is not the judge:** the Phase 5 judge (item 5.1) is not Claude, and the ~100
+human-verified pairs are not Claude-marked.
+
+- **Rationale:**
+  - **Redundancy and traps must be made.** PQA has 5 – 14 re-asks per 100 questions and few
+    traps (`data-card.md` §3), so Tier 2 needs written paraphrases, and C1 needs written lookalikes
+    and condition twins. Qwen is the system under test, so it does not write (the author,
+    2026-10-21).
+  - **In this session, from scratchpad sheets.** No new dependency, no key, and PQA text never
+    enters git. The price is repeatability: a re-run would write new text and so give a new `K`,
+    new strata and a new split. So the model layer is hashed into the manifest and written once.
+  - **Units, because a random split of clusters would separate a probe from its target.** Then no
+    run would hold the trap. A product-free policy unit also stops the same question about two
+    products reaching both splits. Each split holds at least 30 minimal-pair twins (56 and 80).
+  - **`K` per file, because a run draws from one file.** A capacity taken from the whole file
+    would be about twice too large for a split run, and nothing would be evicted.
+  - **G1 within split and G2 per split** (stricter than the table in `data-card.md` §7), because a
+    pair across the splits is never in one run.
+  - **Unanswerable queries stay in the run files** because shoppers ask them, so the cache should
+    see them. They are reported apart by their own `answerable`.
+- **Alternatives:**
+  - The API path: adds a dependency and a key, and is no more repeatable. Both paths send PQA text
+    to Anthropic.
+  - Qwen as the writer: rejected by the author.
+  - A split by seed-question cluster alone (`Final_Proposal.md:454`): rejected; a product-pair unit
+    is a union of whole clusters, so no cluster crosses, which is what that line asks.
+  - Rank per cluster, a sixth stratum for unanswerable queries, and unanswerable queries in runs of
+    their own: all proposed and not taken (`design.md` §10).
+- **Consequences:**
+  - **The counts** (`evidence/build.md`): strata A 761, B-within 272, C 150, D 69, B-cross 22;
+    94 unanswerable; 136 minimal-pair twins; trap fraction 0.2229 (validation 0.2074, test 0.2377).
+    Pass 1 gave a yield of 448 (R2 precision 0.362, NPV 0.869; the repeat agreed on 38 of 40), so
+    pass 2 had **214 answerable spec seeds, not the ~304 the design expected**. The blind check
+    then dropped 16 spec seeds, 5 unanswerable seeds, 17 lookalikes, 2 paraphrases, 10 natural pairs
+    and 47 name swaps (the partner's record cannot answer), plus what went with a dropped seed.
+  - **Thin where C1 and RQ2 need it.** B-cross has 22 records (12 `name-swap`, 10 `name-swap-same`).
+    Natural B-within traps are 10 of 272, and none of the 163 policy ones. All 16
+    `condition-department` records are in validation, so the test split reads RQ2a from
+    `policy-condition` (80) alone. Intervals on these will be wide.
+  - **PQA text went to Anthropic** through the Claude session, in the sheets. The author accepted
+    the path at the experiment approval (2026-10-21). Anthropic's own terms for that use were not
+    checked in this item. Nothing derived is tracked: the three workload files and the model layer
+    are gitignored, and `data/workload-manifest.json` holds hashes and counts only.
+  - **Claude is on both sides: it wrote the policies (ADR-012) and the workload.** A habit of the
+    writer is shared by both, and a cache that matches the writer's phrasing would look better than
+    it is. The controls: the rules before the text; built policy questions start from real pool
+    wording (`origin: pqa-template`); R10, no shared 4-token sequence with any policy text beyond
+    the name, the term and the condition word; the headline reported by `origin` as a pre-registered
+    row (A3); the blind check; the 30-row read; and a judge that is not Claude.
+  - **Two of those controls are weaker than the plan meant.** The blind check ran in a new context
+    window but is the same model, so it is not an independent labeller. **The 30-row read was done
+    by Claude at the author's instruction, not by the author** (0 of 30 broke their rule; 1 was
+    not a shopper's question). It cannot show that Claude's reading of a rule is wrong. The author
+    can mark the same sheet later; if 3 or more break, the stop rule applies as written. The
+    labelling conventions of pass 1 and of the check round (for example, a worldwide claim makes a
+    country question answerable, a hedged one does not) were applied by Claude and were not checked
+    by anyone else.
+  - **The reject counts of the import measure little.** Rows went through a read-only pre-check
+    first, so the import rejected 1 of 1,097 write rows and none of 1,028 check rows. The drop
+    counts above are the measure.
+  - **Carried forward** (`design.md` §11): to 3.6, the digest over three files, `K` for each file,
+    G1 and G2 per split on the ingested `v1` (scoped, with unscoped beside), and per-probe retrieval
+    checks; to 5.1 and 5.2, the judge rule and the rubric for a wrong-product answer; to 6.1 and
+    6.3, the analysis rules A1 – A4 in `rules.md`; to 7.2, the probe file for `mu_hit.js`; to P1,
+    the run names its run file and sets `CACHE_CAPACITY` from that file's `K`. The comment at
+    `gateway/cmd/gateway/main.go:267-268` still gives the old meaning of `K`; P1 changes the
+    comment with the wiring. `ask.js` is unchanged.
+  - **Binds forward.** After 3.6, changing the rank seed, the split unit or its seed, the A / C
+    rule, the model layer or the "`K` per run file" rule needs a new `dataset_version`. Undoing the
+    labeller-is-not-the-judge rule needs a later ADR that says why one model may do both.
+- **Invalidates:** none — no runs yet. `experiments/results/` holds only `.gitkeep`, and
+  `data/dev-v0/` is untouched. As a record, ADR-011's "separate stratum" for unanswerable queries is
+  replaced by "separate population", and `interfaces.md` §D's definition of `K` changes (v0.15).
