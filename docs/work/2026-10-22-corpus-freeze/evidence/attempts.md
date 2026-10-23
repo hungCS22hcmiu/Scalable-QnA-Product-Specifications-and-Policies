@@ -1,7 +1,8 @@
 # Block B attempts — item 3.6
 
 Every attempt, the discarded ones too: time, command, memory readings, outcome.
-Memory level: `sysctl kern.memorystatus_vm_pressure_level` (0 green, 1 yellow, 2 urgent).
+Memory level: `sysctl kern.memorystatus_vm_pressure_level`. First written as "0 green, 1 yellow, 2 urgent" (the repo's rule); the
+SDK says 1 normal, 2 warn, 4 critical. Corrected in `approvals.md`. The readings in the table are raw sysctl values.
 
 ## Author's decision on memory (2026-10-22, in chat)
 

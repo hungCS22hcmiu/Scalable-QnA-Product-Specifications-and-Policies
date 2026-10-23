@@ -94,3 +94,5 @@ seeing the data is option (3) and needs its own ADR and pre-registration.
 **Not touched by this task:** `.claude/settings.json` (the author's own uncommitted change, which drops the
 `Read` deny rules for `data/raw`, `data/v1-draft` and `data/v1`). Noted by `/ai-review`; it is the author's
 decision and is not part of this commit.
+
+**Correction to the S3 waiver above (2026-10-22, later).** On this Mac the sysctl returns 1 (normal), 2 (warn) or 4 (critical): `DISPATCH_MEMORYPRESSURE_*` in the SDK's `dispatch/source.h`, and a reading of 1 with 47 % of memory free. The only reading of 2 was the preflight's; all 53 readings of the run were 1, the normal level. So the run did not need a waiver, and the sentence "the numbers of this run are indicative and are not cited anywhere" is **withdrawn**. The repo's "0 = green" is wrong, and S3 and acceptance A10 as written ("level 0") cannot be met on this machine. The author's reading to confirm: `1` is green. Code, tests, Makefile, CLAUDE.md and README still say 0; see `docs/work/2026-10-22-g1-finding/spec.md`, section "The memory scale".

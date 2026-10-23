@@ -33,7 +33,7 @@ S5 (G2 met only by same-cluster paraphrase pairs) was **not** raised, in either 
 | `high_sim_pairs` (cosine ≥ 0.85) | 1342; `expected-pairs.md` says 1342 (A3 ii, total) |
 | K, whole / validation / test | 1274 / 622 / 652 |
 | capacity, whole / validation / test | 318 / 156 / 163 |
-| memory readings | 53, all **1** (yellow); none green. See "Memory" below |
+| memory readings | 53, all **1** = the normal level on macOS's scale. See "Memory" below |
 
 ## G1 in detail
 
@@ -96,12 +96,9 @@ J ≤ 0.2. They are high-similarity pairs that share part of their evidence, so 
 
 ## Memory
 
-At the preflight the level read 2 with no model loaded; it read 1 after the LLM was unloaded and stayed 1 for the
-whole run. Under S3 a yellow run is discarded and repeated. The author chose to go on ("this is not a session for
-measurement to collect the statistic"); the waiver is written in `approvals.md`. So these numbers are **indicative**:
-they are not to be cited in `data-card.md`, an ADR or the thesis, and the successor task runs the gate again at level 0.
-Why they are probably the same at green: the stored vectors equal the 3.4 file exactly (0 of 1274 differ), and the
-gate's pair arithmetic equals the offline count (1342). That is a reason, not a proof.
+At the preflight the level read 2 with no model loaded; it read 1 later and stayed 1 for the whole run.
+
+**Correction (2026-10-22, later).** This record first called the run yellow and its numbers indicative. That was wrong. On this Mac the sysctl returns 1 (normal), 2 (warn) or 4 (critical): `DISPATCH_MEMORYPRESSURE_*` in the SDK's `dispatch/source.h`, and a reading of 1 with 47 % of memory free (checked in the `g1-finding` trail). So all 53 readings were at the **normal level**; only the preflight reading of 2 (warn) was not. The repo's rule "0 = green" counted 1 as not green, and the author's S3 waiver (`approvals.md`) was given on that reading. **These numbers stand as a run at the normal level**, pending the author's confirmation of the encoding. The code and CLAUDE.md still say 0; correcting them is a small step of the task that re-runs 3.6 (`g1-finding/spec.md`, section "The memory scale"). Supporting evidence that memory did not change the figures: the stored vectors equal the 3.4 file exactly (0 of 1274 differ), and the gate's pair arithmetic equals the offline count (1342).
 
 ## What is left
 

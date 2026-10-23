@@ -150,8 +150,9 @@ nothing frozen:
 **The result.** The first gate run on the ingested `v1` **failed G1: 21 pairs inside a split (13 validation, 8 test),
 29 short of the 50 needed.** G2 – G5, `W` and `S` pass; S4 and S5 were not raised. The query vectors equal the 3.4 file
 exactly. So `v1` has no snapshot digest, `data-card.md` §7 is not filled (13 `TODO(W8)` markers still open),
-`data/v1-freeze.json` does not exist, and **Phase 3 exit is not met**. The run was taken under yellow memory with the
-author's waiver (`approvals.md`), so its numbers are indicative and are not cited. Counts: `evidence/gate-failure.md`.
+`data/v1-freeze.json` does not exist, and **Phase 3 exit is not met**. All 53 memory readings were 1, the normal level on
+macOS's scale (the repo's "0 = green" is wrong; see the correction in `approvals.md`), so the run stands as a run at the normal
+level. Counts: `evidence/gate-failure.md`.
 
 **Why G1 failed (a reading, for the author).** The name-swap probes sit at cosine 0.66 – 0.80, below the 0.85 floor, so
 none of the 22 is a G1 pair. The policy-condition pairs are all above 0.936, but they share chunks (J mostly 0.2 – 0.5),
@@ -165,8 +166,8 @@ close enough.
 - From `/ai-review`, to that task's design: a hash of `rag/src` in the freeze record; a run start time in the report and a
   re-embedding of the 539 chunks to compare with the stored vectors; the `label_pair` rule (by `product_id` only), which
   lets a same-source paraphrase pair count as a G2 trap.
-- Redis holds `dev-v0` again. `data/v1/` is assembled and gitignored. The first run on `v1` must be repeated at memory
-  level 0 before its figures can be cited.
+- Redis holds `dev-v0` again. `data/v1/` is assembled and gitignored. Memory is read as 1 = normal (green); the encoding fix
+  in code and tests is a small step of the task that re-runs 3.6 (`g1-finding/spec.md`, section "The memory scale").
 - To P1 and Phase 4: unchanged (see `approvals.md`).
 
 **Follow-up worth a new task (the author's to open).** S1 option (2): reopen item 3.4 (or 3.3) under its own approvals, to
