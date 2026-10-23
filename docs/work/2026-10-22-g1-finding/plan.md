@@ -45,12 +45,12 @@ alone, when the author asks, and `make verify` runs after each code block.
 
 ## Block B — the freeze tool
 
-- [ ] **13. Failing tests first:** `freeze` accepts two reports that both accept `{G1}`, digest equal to the pin; refuses an
+- [x] **13. Failing tests first:** *Done 2026-10-23: 11 new tests; 8 failed today.* `freeze` accepts two reports that both accept `{G1}`, digest equal to the pin; refuses an
   empty or different set, a report whose failed set differs, runs that accept different sets, a digest other than the pin, a
   report without the new keys under the new path; `known_failures` is in the record with the counts and the floor; the record
   holds no asin, qa_id or path. *Check:* they fail today.
-- [ ] **14. The code:** `run_problems`, `compare_runs`, `build_record` as in `design.md` 2.2. *Check:* new pass, old pass unedited.
-- [ ] **15. `make verify`; commit B** (when the author asks).
+- [x] **14. The code:** *Done 2026-10-23: `accepted_failure_problems`, `run_problems`, `compare_runs`, `build_record` (`known_failures`), the printed line in `cmd_freeze`. No existing test edited.* `run_problems`, `compare_runs`, `build_record` as in `design.md` 2.2. *Check:* new pass, old pass unedited.
+- [x] **15. `make verify`; commit B** *Done 2026-10-23: 727 experiments + 23 rag tests, Go ok, no FAIL, no SKIPPED.* (when the author asks).
 
 ## Block C — the real data (no Redis, no Ollama)
 

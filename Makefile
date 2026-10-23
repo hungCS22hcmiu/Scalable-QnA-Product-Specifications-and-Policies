@@ -463,7 +463,7 @@ corpus-index-check: ## Item 3.6: is the index in Redis the v1 corpus on disk? (R
 
 RUN1 ?= data/v1-draft/gate/run1/report.json
 RUN2 ?= data/v1-draft/gate/run2/report.json
-corpus-freeze: ## Item 3.6: write data/v1-freeze.json from two passing gate runs (once; never overwritten)
+corpus-freeze: ## Item 3.6: write data/v1-freeze.json from two passing gate runs, or two that record G1 as failed (ADR-014); once
 	$(PY) experiments/scripts/freeze_corpus.py freeze --run1 $(RUN1) --run2 $(RUN2)
 
 # Reads Ollama's tag list. Loads no model, so there is no memory check.

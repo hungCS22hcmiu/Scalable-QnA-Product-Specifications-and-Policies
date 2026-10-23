@@ -2,7 +2,8 @@
 
     make corpus-assemble       data/v1/ from the drafts and the policy documents (bytes, copied)
     make corpus-index-check    is the index in Redis the corpus on disk? (a run's first step)
-    make corpus-freeze         data/v1-freeze.json, from two passing gate runs
+    make corpus-freeze         data/v1-freeze.json, from two passing gate runs (ADR-014: or two runs that
+                               accept G1 as a recorded failure, which the record lists as known_failures)
     make corpus-verify         do the files, chunks, model and config still match the record?
 
 The record holds digests, counts and statistics only: no file name, asin, qa_id or absolute path.
@@ -285,6 +286,38 @@ def load_report(path: Path) -> dict:
         raise Refusal(f"{path.name} is not JSON") from e
 
 
+def accepted_failure_problems(r: dict) -> list[str] | None:
+    """ADR-014: may a report that did not pass still be frozen, with its failure on record?
+
+    `None`: it accepts nothing, so it is an ordinary failed run. `[]`: the one allowed case, a report
+    whose failed criteria are exactly its non-empty `accepted_failures`, all in `ACCEPTABLE_FAILURES`,
+    marked freezable by the gate, over the pinned snapshot. Otherwise the reasons it is not allowed.
+    A report from a gate that predates ADR-014 has no such keys and accepts nothing.
+    """
+    accepted = r.get("accepted_failures") or []
+    if not accepted:
+        return None
+    failed = {c["name"].split()[0] for c in r["criteria"] if not c["passed"]}
+    reasons = []
+    not_allowed = sorted(set(accepted) - set(corpus_gate.ACCEPTABLE_FAILURES))
+    if not_allowed:
+        reasons.append(
+            f"it accepts {', '.join(not_allowed)}, which {corpus_gate.FINDING_ADR} does not allow"
+        )
+    if failed != set(accepted):
+        reasons.append(
+            f"the criteria that failed ({', '.join(sorted(failed)) or 'none'}) are not the accepted "
+            f"failures ({', '.join(sorted(accepted))})"
+        )
+    if r.get("freezable") is not True:
+        reasons.append("the report is not marked freezable")
+    if r.get("snapshot_digest") != corpus_gate.ACCEPTED_SNAPSHOT_DIGEST:
+        reasons.append(
+            f"the snapshot digest is not the pinned snapshot of {corpus_gate.FINDING_ADR}"
+        )
+    return reasons
+
+
 def run_problems(name: str, r: dict) -> list[str]:
     """Why one run's report cannot be frozen. The gate's own pass or fail is one reason among
     several: a pass on the wrong index, a dirty tree or a yellow reading is still not a freeze."""
@@ -304,7 +337,16 @@ def run_problems(name: str, r: dict) -> list[str]:
             f"{name}: the report is for dataset {r['dataset']!r}, not {VERSION!r}"
         )
     if not r["passed"]:
-        out.append(f"{name}: the gate did not pass")
+        reasons = accepted_failure_problems(r)
+        if reasons is None or reasons:
+            out.append(
+                f"{name}: the gate did not pass"
+                + (
+                    f", and its recorded failure is not allowed: {'; '.join(reasons)}"
+                    if reasons
+                    else ""
+                )
+            )
     if not r["snapshot_digest"]:
         out.append(f"{name}: the report has no snapshot digest")
     if not r["index_check"].get("passed"):
@@ -344,6 +386,8 @@ def compare_runs(r1: dict, r2: dict) -> tuple[list[str], list[str]]:
         problems.append(
             "the two runs differ on pass or fail (S2): an /investigate, never a best of three"
         )
+    if r1.get("accepted_failures", []) != r2.get("accepted_failures", []):
+        problems.append("the two runs accept different failures")
     for key in SAME_IN_BOTH_RUNS:
         if r1[key] != r2[key]:
             problems.append(f"the two runs differ in {key}")
@@ -430,6 +474,17 @@ def build_record(
             {"name": c["name"], "passed": c["passed"], "summary": c["summary"]}
             for c in r1["criteria"]
         ],
+        # ADR-014: a criterion that failed and was frozen anyway. [] when every criterion passed.
+        "known_failures": [
+            {
+                "criterion": criterion,
+                "adr": corpus_gate.FINDING_ADR,
+                "floor": corpus_gate.G1_MIN_PAIRS,
+                "counts": stats["g1_pairs_within_split"],
+                "across": stats["g1_pairs_across_splits"],
+            }
+            for criterion in r1.get("accepted_failures", [])
+        ],
         "grounding": r1["grounding"],
         "pair_breakdown": stats["pair_breakdown"],
         "statistics": {
@@ -513,6 +568,13 @@ def cmd_freeze(
     for name, v in record["run_files"].items():
         print(
             f"  {name:<10} K={v['k_distinct_queries']:<5} capacity={v['cache_capacity']}"
+        )
+    for known in record["known_failures"]:
+        c = known["counts"]
+        print(
+            f"  recorded failure: {known['criterion']} ({known['adr']}): "
+            f"{sum(c.values())} pairs inside a split ({', '.join(f'{k} {v}' for k, v in c.items())}), "
+            f"floor {known['floor']}. This is a freeze with a failure on record, not a pass."
         )
     for note in notes:
         print(f"  note: {note} (run 1 is the figure)")

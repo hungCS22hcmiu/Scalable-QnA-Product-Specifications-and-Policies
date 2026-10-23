@@ -909,3 +909,118 @@ def test_freeze_reads_green_from_the_gates_one_constant(world, monkeypatch):
     world.r1["memory_pressure"]["readings"] = [7, 7]
     world.r2["memory_pressure"]["readings"] = [7]
     assert _freeze(world) == 0
+
+
+# =================================================================================================
+# ADR-014, Block B: freeze a report that accepts G1 as a recorded failure -- and nothing else
+# =================================================================================================
+def _accepting(w, monkeypatch, *, pinned=True):
+    """Both reports as the gate writes them under `--accept-failed G1`: G1 failed, `passed` false,
+    `freezable` true. The pin is set to the fixture's digest unless `pinned` is False."""
+    if pinned:
+        monkeypatch.setattr(
+            fm.corpus_gate, "ACCEPTED_SNAPSHOT_DIGEST", w.r1["snapshot_digest"]
+        )
+    for r in (w.r1, w.r2):
+        r["passed"] = False
+        r["criteria"][0]["passed"] = False
+        r["freezable"] = True
+        r["accepted_failures"] = ["G1"]
+        r["statistics"]["g1_pairs_within_split"] = {"validation": 13, "test": 8}
+        r["statistics"]["g1_pairs_across_splits"] = 18
+
+
+def _refused(w):
+    with pytest.raises(fm.Refusal) as refusal:
+        _freeze(w)
+    assert not w.p.record.exists()
+    return " | ".join(refusal.value.lines)
+
+
+def test_freeze_writes_known_failures_for_an_accepted_g1(world, monkeypatch, capsys):
+    _accepting(world, monkeypatch)
+    assert _freeze(world) == 0
+    record = json.loads(world.p.record.read_text())
+    assert record["known_failures"] == [
+        {
+            "criterion": "G1",
+            "adr": "ADR-014",
+            "floor": 50,
+            "counts": {"validation": 13, "test": 8},
+            "across": 18,
+        }
+    ]
+    assert record["criteria"][0]["name"].startswith("G1")
+    assert record["criteria"][0]["passed"] is False
+    assert not any(_scan(world.p.record.read_text()).values())
+    out = capsys.readouterr().out
+    assert "recorded failure" in out and "G1" in out and "not a pass" in out
+
+
+def test_a_freeze_of_two_passing_runs_records_no_known_failures(world):
+    _freeze(world)
+    assert json.loads(world.p.record.read_text())["known_failures"] == []
+
+
+def test_freeze_refuses_a_failed_run_that_accepts_nothing(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    world.r1["accepted_failures"] = []
+    assert "run 1: the gate did not pass" in _refused(world)
+
+
+def test_freeze_refuses_a_report_from_an_older_gate_that_failed(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    for key in ("accepted_failures", "freezable"):
+        del world.r2[key]
+    assert "run 2: the gate did not pass" in _refused(world)
+
+
+def test_freeze_refuses_to_accept_any_failure_but_g1(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    world.r1["accepted_failures"] = ["G2"]
+    assert "which ADR-014 does not allow" in _refused(world)
+
+
+def test_freeze_refuses_when_another_criterion_failed_too(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    world.r2["criteria"][1]["passed"] = False
+    assert "run 2: the gate did not pass" in _refused(world)
+    assert "are not the accepted failures" in _refused(world)
+
+
+def test_freeze_refuses_a_report_that_is_not_marked_freezable(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    world.r1["freezable"] = False
+    assert "not marked freezable" in _refused(world)
+
+
+def test_freeze_refuses_a_digest_that_is_not_the_pin(world, monkeypatch):
+    _accepting(
+        world, monkeypatch, pinned=False
+    )  # the real pin; the fixture's files differ
+    assert "not the pinned snapshot" in _refused(world)
+
+
+def test_freeze_still_applies_its_own_checks_to_an_accepted_run(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    world.r1["memory_pressure"]["readings"] = [1, 2]
+    world.r2["git"]["tree_clean"] = False
+    said = _refused(world)
+    assert "run 1: memory pressure was not green" in said
+    assert "run 2: the code that measures was not a clean commit" in said
+
+
+def test_one_accepting_run_and_one_passing_run_are_not_a_freeze(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    world.r2.clear()  # in place: `save` writes the dict it closed over
+    world.r2.update(_report(world.p))  # a plain passing report
+    assert "the two runs differ on pass or fail" in _refused(world)
+
+
+def test_compare_runs_names_runs_that_accept_different_failures(world):
+    world.r2["accepted_failures"] = ["G1"]
+    problems, _ = fm.compare_runs(world.r1, world.r2)
+    assert "the two runs accept different failures" in problems
+    world.r1["accepted_failures"] = ["G1"]
+    problems, _ = fm.compare_runs(world.r1, world.r2)
+    assert "the two runs accept different failures" not in problems
