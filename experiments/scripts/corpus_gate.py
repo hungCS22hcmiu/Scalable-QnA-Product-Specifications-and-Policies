@@ -1772,6 +1772,8 @@ def main() -> int:
         print(f"\n  {ids} failed and is accepted as a recorded failure ({FINDING_ADR}). This is not a pass:")
         print("  the report keeps passed=false, and the freeze record lists the failure under")
         print("  known_failures. Record it in data-card.md §7 beside the digest, K and the capacity.")
+        print("  G5 here is lexical: the author's read of every policy document is the other half")
+        print("  of G5 (data-card.md §7), and it must be recorded before this digest is frozen.")
     elif criteria_passed:
         print("\n  NOT FROZEN — the five criteria pass, but this run is flagged, so no snapshot digest")
         print("  is printed:")

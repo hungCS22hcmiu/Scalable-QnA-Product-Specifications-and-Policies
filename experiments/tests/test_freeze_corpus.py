@@ -928,6 +928,8 @@ def _accepting(w, monkeypatch, *, pinned=True):
         r["accepted_failures"] = ["G1"]
         r["statistics"]["g1_pairs_within_split"] = {"validation": 13, "test": 8}
         r["statistics"]["g1_pairs_across_splits"] = 18
+        r["statistics"]["reachable_traps"] = {}  # only the ADR-014 gate writes this key
+        r["flags"] = []
 
 
 def _refused(w):
@@ -1024,3 +1026,33 @@ def test_compare_runs_names_runs_that_accept_different_failures(world):
     world.r1["accepted_failures"] = ["G1"]
     problems, _ = fm.compare_runs(world.r1, world.r2)
     assert "the two runs accept different failures" not in problems
+
+
+# /ai-review of g1-finding (2026-10-23): a report must show where it came from, and `passed` must agree
+# with the criteria it carries
+def test_freeze_refuses_an_accepted_report_the_adr_014_gate_did_not_write(
+    world, monkeypatch
+):
+    """The first-run report patched with three keys would otherwise pass for a fresh run."""
+    _accepting(world, monkeypatch)
+    del world.r1["statistics"]["reachable_traps"]
+    assert "not written by the gate of ADR-014" in _refused(world)
+
+
+def test_freeze_refuses_an_accepted_report_that_carries_flags(world, monkeypatch):
+    _accepting(world, monkeypatch)
+    world.r2["flags"] = ["S5 G2 is met by paraphrase pairs only"]
+    assert "run 2: the gate did not pass" in _refused(world)
+    assert "carries flags" in _refused(world)
+
+
+def test_freeze_refuses_a_report_that_says_passed_while_a_criterion_failed(world):
+    world.r1["criteria"][0]["passed"] = False  # passed stays true
+    said = _refused(world)
+    assert "run 1: the report says it passed, but G1 failed in its criteria" in said
+
+
+def test_freeze_refuses_a_passed_report_that_lists_accepted_failures(world):
+    world.r2["accepted_failures"] = ["G1"]
+    said = _refused(world)
+    assert "run 2: the report says it passed, but it lists accepted failures" in said

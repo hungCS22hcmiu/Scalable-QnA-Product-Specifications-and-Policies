@@ -18,3 +18,19 @@ code 3 or by `passed: false` with a digest present.
 
 No finding is left open. The author's items (the Phase 3 exit wording, the thesis text, `CLAUDE.md`, `README.md`, the supervisor)
 are listed in `approvals.md`.
+
+
+## `/ai-review` of the code, 2026-10-23 (`contract-reviewer`, general pass, over `33e1ec3..HEAD`)
+
+Verdict: the allowance is tight. The gate side, the exit codes, `passed` and the digest, `reachable_traps` against 3.4's definition,
+the memory scale, the frozen constants and the edited tests were all checked and found clean (only the 8 approved numeric sites
+changed). Four findings, all resolved or accepted:
+
+| # | Finding | Status | Resolution |
+| :--- | :--- | :--- | :--- |
+| 1 | `freeze` trusts three keys only the gate should write: the first-run report patched with `freezable`, `accepted_failures` and the pinned digest, passed twice, would freeze with no re-run | PLAUSIBLE (mechanically confirmed) | **Fixed in part.** An accepted report must carry `statistics.reachable_traps` (only the ADR-014 gate writes it) and no `flags`; the first-run report has neither. **Not done:** refusing two identical reports. The existing `world` fixture builds run 2 as a deep copy of run 1, so the check would break pre-existing tests, and two reports edited by hand can differ anyway. A forged report stays a trust boundary of the same kind as the existing ones (`passed`, `tree_clean`). |
+| 2 | `known_failures` and the pass test follow the report's own fields, not its `criteria`: `passed: true` with G1 failed in `criteria` freezes with `known_failures: []`; `passed: true` with `accepted_failures` set claims a failure that did not happen | PLAUSIBLE (hand edit); the first part pre-dates ADR-014 | **Fixed.** `consistency_problems` refuses a report that says it passed while its criteria show a failure, carries flags, or lists accepted failures; `known_failures` is built from the failed criteria. It runs after `compare_runs`, so the pre-existing test that builds an inconsistent run 2 on purpose still reaches its own message. |
+| 3 | The pin binds the files, not the counts: a genuine re-run with G1 = 17 + 9 would be freezable and recorded with the drifted numbers | PLAUSIBLE | **Accepted, manual by design (T4, A6).** Hard-coding 13 / 8 / 18 / 1,342 in `freeze` would turn a stop-and-investigate rule into a silent block. `freeze` prints the counts it records; the handoff to 3.6 (step 7) makes the comparison with `first-run/` an explicit command. |
+| 4 | The "recorded failure" banner dropped the reminder that the author's read of every policy document is the other half of G5 | CONFIRMED | **Fixed.** The banner prints the same two lines as the ordinary FREEZE block; a test asserts it. |
+
+Added tests: 4 in `test_freeze_corpus.py` (finding 1 twice, finding 2 twice) and one assertion in the accepted-run test (finding 4).

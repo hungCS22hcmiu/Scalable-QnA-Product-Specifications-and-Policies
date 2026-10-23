@@ -311,11 +311,39 @@ def accepted_failure_problems(r: dict) -> list[str] | None:
         )
     if r.get("freezable") is not True:
         reasons.append("the report is not marked freezable")
+    # Only the gate of ADR-014 writes these two. A first-run report patched with three keys has neither.
+    if "reachable_traps" not in r["statistics"]:
+        reasons.append(
+            f"the report was not written by the gate of {corpus_gate.FINDING_ADR} "
+            "(no reachable_traps in its statistics)"
+        )
+    if r.get("flags"):
+        reasons.append(f"the report carries flags ({'; '.join(r['flags'])})")
     if r.get("snapshot_digest") != corpus_gate.ACCEPTED_SNAPSHOT_DIGEST:
         reasons.append(
             f"the snapshot digest is not the pinned snapshot of {corpus_gate.FINDING_ADR}"
         )
     return reasons
+
+
+def consistency_problems(name: str, r: dict) -> list[str]:
+    """`passed` must agree with the criteria the report carries (/ai-review of g1-finding): a report
+    that says it passed while G1 failed in its own criteria would freeze with no `known_failures`.
+    Run on whole reports, after the two runs are compared."""
+    failed = sorted({c["name"].split()[0] for c in r["criteria"] if not c["passed"]})
+    claims = []
+    if r["passed"]:
+        if failed:
+            claims.append(f"{', '.join(failed)} failed in its criteria")
+        if r.get("flags"):
+            claims.append("it carries flags")
+        if r.get("accepted_failures"):
+            claims.append("it lists accepted failures")
+    return (
+        [f"{name}: the report says it passed, but {' and '.join(claims)}"]
+        if claims
+        else []
+    )
 
 
 def run_problems(name: str, r: dict) -> list[str]:
@@ -483,7 +511,9 @@ def build_record(
                 "counts": stats["g1_pairs_within_split"],
                 "across": stats["g1_pairs_across_splits"],
             }
-            for criterion in r1.get("accepted_failures", [])
+            for criterion in sorted(
+                {c["name"].split()[0] for c in r1["criteria"] if not c["passed"]}
+            )
         ],
         "grounding": r1["grounding"],
         "pair_breakdown": stats["pair_breakdown"],
@@ -542,6 +572,9 @@ def cmd_freeze(
     if not problems:  # compare and recompute only reports that are whole
         compared, notes = compare_runs(r1, r2)
         problems += compared + recompute_problems(p, r1)
+        problems += consistency_problems("run 1", r1) + consistency_problems(
+            "run 2", r2
+        )
     if problems:
         raise Refusal(*problems)
 

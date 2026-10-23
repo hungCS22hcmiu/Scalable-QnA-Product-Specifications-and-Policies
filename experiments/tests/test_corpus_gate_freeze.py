@@ -1167,6 +1167,8 @@ def test_an_accepted_g1_failure_is_freezable_loud_and_not_a_pass(full_run, monke
     assert "--- FREEZE WITH A RECORDED FAILURE (G1, ADR-014) ---" in text
     assert "--- FREEZE ---" not in text and PIN in text and "not a pass" in text
     assert "G1 failed and is accepted as a recorded failure (ADR-014)" in text
+    # the manual half of G5 is still owed before this digest is frozen
+    assert "the author's read of every policy document is the other half" in text
     assert data["passed"] is False and data["freezable"] is True
     assert data["accepted_failures"] == ["G1"] and data["flags"] == []
     assert data["snapshot_digest"] == PIN
