@@ -53,6 +53,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-011 | `v1`'s 152 products are drawn by one pre-registered rule; R2 is a pre-filter, not a label | in force (3.4 re-labels every R2-answerable workload query) | none — no runs yet; replaces the 3.1 manifest `bf0feb48…` with `741d52e3…` |
 | ADR-012 | `v1`'s policy corpus is 12 authored documents, one per condition, written to rules fixed before the text; G5 is a lexical scan plus the author's read | in force (item 3.3 done 2026-10-21; 3.6 inherits five checks; 3.4 avoids 10 products) | none — no runs yet; replaces ADR-002's "14 / 30 / 30 / 90" return windows |
 | ADR-013 | `v1`'s workload is 1,274 queries written by Claude under rules fixed before the text, split by unit, with `K` per run file | in force (item 3.4 done 2026-10-22; 3.6 inherits the gate changes; the Phase 5 judge is not Claude) | none — no runs yet; reads ADR-011's "separate stratum" as "separate population" |
+| ADR-014 | `v1` freezes with G1 recorded as failed (21 pairs, floor 50): a corpus finding that bounds C1, not a change to the gate | proposed — awaiting the author's read (the form was chosen 2026-10-23; the C1-reading paragraph, the Phase 3 exit wording and the supervisor line are not yet accepted) | none — no runs yet; changes how 3.6's first gate result is read; 3.6's freeze ADR becomes ADR-015 |
 
 ---
 
@@ -1310,3 +1311,152 @@ human-verified pairs are not Claude-marked.
 - **Invalidates:** none — no runs yet. `experiments/results/` holds only `.gitkeep`, and
   `data/dev-v0/` is untouched. As a record, ADR-011's "separate stratum" for unanswerable queries is
   replaced by "separate population", and `interfaces.md` §D's definition of `K` changes (v0.15).
+
+---
+
+### ADR-014 — `v1` freezes with G1 recorded as failed: 21 pairs against a floor of 50, kept as a corpus finding that bounds C1
+**Decided (data)** · 2026-10-23 · *`data-card.md` §7; `Final_Proposal.md` lines 436, 438, 497, 499; `experiments/scripts/corpus_gate.py`, `freeze_corpus.py`, `Makefile`, `verify_admission.sh`; trail `docs/work/2026-10-22-g1-finding/`; item 3.6 (`docs/work/2026-10-22-corpus-freeze/`)*
+
+The first gate run on the ingested `v1` failed **G1**: **21** pairs inside a split (13 validation,
+8 test) against a floor of **50**. G1's rule, its threshold (cosine ≥ 0.85, Jaccard ≤ 0.2, at least
+50), its pair definition and this result are **kept exactly as they are**. `v1` is frozen **with G1
+recorded as FAILED**. The gate keeps `passed: false`, the freeze record carries `known_failures`,
+and the failure is reported as a **corpus finding that bounds C1's applicability**, which is what
+`Final_Proposal.md:497` says to do. A narrow, opt-in allowance in the gate and the freeze tool
+makes this possible, and nothing else.
+
+**This is a fourth option.** Item 3.6's stop rule S1 named three next steps "and no other": (1)
+accept the failure as the result and report it; (2) reopen item 3.3 or 3.4; (3) change the gate
+statistic. Freezing with the failure on record is none of them. The author chose it on 2026-10-23,
+**after seeing the number 21**. The proposal's row was written before; the choice between this and
+a rework was made after.
+
+- **Rationale:**
+  - **The proposal pre-registered this case.** The falsifier row "The corpus itself"
+    (`Final_Proposal.md:497`): *"The corpus gate cannot pass **G1** (enough qualifying pairs) or
+    **G2** (any within-product pair) even after the structural requirements of the `v1` corpus
+    model and the B-within / B-cross split are met. Thresholds in `data-card.md` §7"* — response:
+    *"The phenomenon is genuinely thin in this domain. Reported as a **corpus finding** that bounds
+    C1's applicability — not engineered around with further corpus manipulation"*. Line 499:
+    *"**No success criterion is redefined after seeing results.** If a threshold above is missed,
+    the row's right-hand column is what gets written."* Both structural requirements are met: all
+    12 policy documents are 4 chunks (≥ 3), and B-within and B-cross are built.
+  - **The authority conflict is named, and settled.** Line 438 says *"`data-card.md` §7 is the
+    authority for the procedure, the thresholds, and the failure actions"* and *"the standing
+    instruction on any failure is **fix the corpus, not the rule**"*. §7 says the same
+    (`data-card.md:306`: *"Fix the corpus, not the rule — add categories, differentiate policy
+    windows per category, re-run"*; `:327`: *"Fix the corpus, re-run all five. Do not proceed to
+    ingestion"*). Line 438 is the general instruction. Line 497 is the specific case, written for
+    this exact failure, and line 499 says its right-hand column "is what gets written". The
+    specific case governs. §7 is still the authority for the thresholds, and none of them moves.
+  - **The shortfall has three parts, and the ADR does not call all of it structural.**
+    - *Products: structural.* Retrieval is scoped to a product and a product has about 3 chunks, so
+      two questions about one product share chunks (J = 1). Only questions about *different*
+      products can have J ≤ 0.2. All 24 such pairs at cosine ≥ 0.85 come from **5 product pairs**.
+      If every one of the 39 pairs (21 + 18 across the splits) sat inside a split the total would be
+      39, still below 50 (`evidence/l2-feasibility.md`). Choosing partners by name similarity has no
+      support in the data: the 36 most similar short names contain none of the 5 productive pairs.
+    - *Policy: a choice.* Most chunks shared by the reachable twin pairs are policy chunks (81 of
+      127 in validation, 106 of 188 in test; the design review's count, `review.md` finding 2).
+      The author controls those documents. The gate's own advice, "lengthen policy documents"
+      (`corpus_gate.py:823-825`; `data-card.md:306`), was **never tried**. It is **declined**, after
+      the count was seen, because ADR-012 writes sibling twins as minimal pairs (rule W5, waived only
+      for the phones warranty pair) and because line 497 says not to engineer around the finding.
+    - *The 50: no derivation.* `data-card.md:306` writes "≥ ~50" and nothing derives it. That is a
+      weakness of the criterion, and it is a reason to report the failure with its caveats, not to
+      change the criterion after seeing 21.
+  - **A passing G1 by redefinition would carry a claim the data cannot back.** Line 436 says G1
+    *"requires enough high-similarity / low-overlap pairs to detect a signal at all"*. An existence
+    check ("at least one") would read that as something it does not say.
+  - **Memory-scale correction, in this task.** See "The memory scale" below. This ADR says "run 1
+    stands" because of it, so it cannot wait for a later task.
+- **Alternatives:**
+  - **S1 (1) alone, nothing frozen.** Rejected: the later phases need a frozen corpus, and line 497
+    says the finding is *reported*, not that work stops.
+  - **S1 (2), reopen 3.3 or 3.4.** A workload lever (more cross-product look-alikes) has no support
+    in the data (above). Longer policy documents are declined (above).
+  - **S1 (3), change the gate statistic** (rule R2: an existence check), **or lower the 50.**
+    Rejected: it moves the line that 497 names and 499 forbids, after the result was seen.
+  - **Run the reachable-trap count through a power calculation.** Rejected: the proposal counts the
+    false-hit rate over hits (`:408`), dropped sample-size planning (`:79`), and expects the RQ2a
+    residual to be non-zero (`:412`). A zero-error yardstick would start from the wrong premise.
+- **The facts** (item 3.6's run 1; all 53 memory readings were `1`, the normal level, so the run
+  stands; counts only, no file name, asin or qa_id):
+  - **G1: 21 inside a split (13 + 8)**, plus 18 across the splits (not gated), 1,342 pairs at
+    cosine ≥ 0.85 in all, floor 50. **Not met.**
+  - **G2: B-within 3 in each split** (validation: 1 built trap + 2 paraphrase pairs; test: 2 built
+    traps + 1 coincidence). Met, thinly. S5 was not raised. G3, G4, G5, `W`, `S`: met. 539 chunks,
+    164 documents, 1,274 queries.
+  - **Reachable traps** (a probe with a partner whose kind is a trap kind, not `name-swap-same`, and
+    whose cosine to the partner is ≥ 0.85; 3.4's definition, `partner_cosine.py:72`). **As records:
+    74 of 129 in validation, 108 of 155 in test, 182 of 284** (ADR-013 has the split by kind: 23 of
+    99 lookalikes, 4 of 10 natural traps, 1 of 9 policy-kind, all 154 condition and region twins,
+    none of the 22 B-cross). **As unique pairs** (146 of the 284 records are mutual twins that name
+    each other): **45 in validation, 67 in test** — the design review's count; Block C of the trail
+    reproduces it with the gate's function before the code is accepted.
+  - **No sample size and no power claim stands beside these numbers.**
+- **How C1 is read, in both directions** *(proposed text, **not yet accepted by the author**; it
+  is the author's wording in the end, and it is fixed before any C1 run)*. A null result is
+  reported as "no difference resolvable on a corpus where the phenomenon is thin, at these
+  counts", never as "the rule fails" and never as "the corpus is at fault". A positive result is
+  reported with the trap counts (records and unique pairs) and Wilson intervals, never as "enough
+  traps". Neither reading is changed after the first C1 run.
+- **What the finding bounds, and what it does not show.** It bounds C1: the phenomenon is present
+  in `v1` but thin, so the comparison of the reuse rule with the best fixed threshold can be
+  resolved only as finely as those counts allow, and its intervals must be reported. It does **not**
+  show that the rule works or that it fails, that `v1` is a bad corpus, that 50 is the right number,
+  or that a corpus with longer policy documents would not pass.
+- **The mechanism and its limits** (built in this task, after this ADR is committed):
+  - `corpus_gate.py --accept-failed G1`. Nothing is accepted by default. Only `G1` is a legal value,
+    only for `dataset_version v1`, and **only when the snapshot digest equals the pinned
+    constant** below. If any corpus or workload file changes, the allowance stops working and a new
+    decision is needed. With it, a run where G1 is the only failed criterion and no flag (S3, S4,
+    S5) is raised prints the digest under "FREEZE WITH A RECORDED FAILURE (G1, ADR-014)", exits
+    with code **3**, and writes `passed: false`, `freezable: true`, `accepted_failures: ["G1"]`.
+    Without the flag, behaviour is today's.
+  - `freeze_corpus.py freeze` accepts a report only if its failed criteria **equal** a non-empty
+    `accepted_failures` set `{G1}`, its digest equals the pin, and **both runs** accept the same
+    set. The freeze record gets `known_failures` (criterion, ADR, counts, floor).
+  - The gate reports the reachable traps per split and probe kind, as records and as unique pairs,
+    "reported, not gated".
+  - **Pinned snapshot digest** (164 corpus files and 3 workload files):
+    `a5708fefa62cec0aef5505e9e5242bc04bf351fd02a2efb5da54a98f211bb2e4`. Run 1 printed its first 12
+    characters, `a5708fefa62c`. **Run 1's files**, copied on 2026-10-23 to
+    `data/v1-draft/gate/first-run/` (gitignored), sha256: `report.json`
+    `c1ad09eeb2b6ac8cd0cc9d07dbe5d022d473a0486bc27bb927c71c05fe2ff039`;
+    `retrieval-validation.json`
+    `1e2e17357c456c296e0b01a9178013e0f3ff523cc23135fead3306910da7bc57`; `retrieval-test.json`
+    `7a90de70423cf89ec46ef041a7c640395324bec09e679631f5c6314a8c7ced5f`.
+  - Item 3.6's two runs write to **new folders**, never `run1/`, and are compared by hand with the
+    preserved copy: 21 = 13 + 8, 18 across, 1,342 pairs. Any other count stops the work.
+- **The memory scale.** On macOS `kern.memorystatus_vm_pressure_level` is **1 = normal (green), 2 =
+  warn, 4 = critical**; the SDK header defines `DISPATCH_MEMORYPRESSURE_NORMAL 0x01`, `_WARN 0x02`,
+  `_CRITICAL 0x04`. The machine read `1` with 47 % free, and the Activity Monitor graph was green
+  at that reading. The repository's rule "`0` = green" (`CLAUDE.md:44`, `README.md:227`, the
+  `Makefile`, `corpus_gate.py`, `freeze_corpus.py`, `verify_admission.sh`) is wrong, and it was
+  stricter than needed, never looser: it could not accept the level the sensor reports as normal.
+  Run 1 therefore stands, and item 3.6's records that called it "yellow" are corrected. From Block
+  A0 of this task, `1` is green, held in one named constant. The test edits that follow are the
+  numbers only (green `0 → 1`, the old yellow `1 → 2`) and are made only after the author confirms
+  the list. `CLAUDE.md` and `README.md` are the author's to correct.
+- **Consequences:**
+  - **Phase 3's exit line cannot be met as written** ("G1…G5 all pass"). *Proposed wording, not yet
+    accepted by the author; the author edits `docs/super-plan.md`, which `.claude/hooks/lib.sh`
+    reads:* "G2…G5 pass, G1 is recorded as ADR-014's finding with its counts, and `make
+    gate-corpus` prints the snapshot digest under a recorded failure · `K`, the derived capacity
+    and every frozen corpus statistic are recorded in `data-card.md` · the validation/test splits
+    are frozen with the dataset."
+  - **Item 3.6 reopens** after this task: its S1 text, A3 (ii), A5 and the lines that say "G1 ≥ 50
+    must pass" change; its two runs use `ACCEPT_FAILED=G1`; `data-card.md` §7 (including line
+    258, "refuses to print a snapshot hash unless all five…", which becomes false) gets the status
+    paragraph; its freeze ADR is **ADR-015**.
+  - **The thesis text on C1's applicability** is the author's and the supervisor's.
+  - **Has the supervisor seen this?** *Not recorded yet.* Whether they see it before the first C1
+    run is the author's decision; this line is updated when that is known.
+  - **Binds forward.** After the freeze, changing G1, the 50, the pair definition or the allowance's
+    files needs a new ADR. A reader must never take the pinned digest as a pass: the banner,
+    exit code 3, `known_failures`, `passed: false` and this ADR all say it is not.
+- **Invalidates:** none — no runs yet. `experiments/results/` holds only `.gitkeep`, and Redis
+  holds `dev-v0` and no cache key. It changes how item 3.6's first gate result is read (a finding,
+  not a stop for rework) and which numbers 3.6's trail cites. It replaces no corpus file, no
+  workload file and no digest input: the pinned digest is the digest of the files as they stand.

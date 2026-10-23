@@ -1,0 +1,4 @@
+Implementation approved 2026-10-23 by the author (/approve implementation).
+Approved phases: impact (2026-10-23), experiment (2026-10-23), implementation (2026-10-23). Contract: not required.
+Order and gates: plan step 2 (ADR-014) first; no code before it is committed (T3); no test edit before the author confirms plan step 4 (T7);
+no gate run on v1 in this task.
