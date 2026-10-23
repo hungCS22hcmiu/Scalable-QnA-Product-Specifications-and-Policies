@@ -53,7 +53,8 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-011 | `v1`'s 152 products are drawn by one pre-registered rule; R2 is a pre-filter, not a label | in force (3.4 re-labels every R2-answerable workload query) | none — no runs yet; replaces the 3.1 manifest `bf0feb48…` with `741d52e3…` |
 | ADR-012 | `v1`'s policy corpus is 12 authored documents, one per condition, written to rules fixed before the text; G5 is a lexical scan plus the author's read | in force (item 3.3 done 2026-10-21; 3.6 inherits five checks; 3.4 avoids 10 products) | none — no runs yet; replaces ADR-002's "14 / 30 / 30 / 90" return windows |
 | ADR-013 | `v1`'s workload is 1,274 queries written by Claude under rules fixed before the text, split by unit, with `K` per run file | in force (item 3.4 done 2026-10-22; 3.6 inherits the gate changes; the Phase 5 judge is not Claude) | none — no runs yet; reads ADR-011's "separate stratum" as "separate population" |
-| ADR-014 | `v1` freezes with G1 recorded as failed (21 pairs, floor 50): a corpus finding that bounds C1, not a change to the gate | proposed — awaiting the author's read (the form was chosen 2026-10-23; the C1-reading paragraph, the Phase 3 exit wording and the supervisor line are not yet accepted) | none — no runs yet; changes how 3.6's first gate result is read; 3.6's freeze ADR becomes ADR-015 |
+| ADR-014 | `v1` freezes with G1 recorded as failed (21 pairs, floor 50): a corpus finding that bounds C1, not a change to the gate | in force for the form (chosen by the author 2026-10-23; the exit wording was applied at the author's instruction to close Phase 3 — the "How C1 is read" paragraph and the supervisor line are still the author's to accept) | none — no runs yet; changes how 3.6's first gate result is read; 3.6's freeze ADR becomes ADR-015 |
+| ADR-015 | `v1` is frozen: 164 corpus files and 3 workload files, 539 chunks, `K` 622 / 652, with G1 recorded as failed | in force (item 3.6 done 2026-10-23; Redis holds `dev-v0` afterwards; the author and the supervisor decide whether a `v2` follows, before Phase 4) | none — no runs yet |
 
 ---
 
@@ -1460,3 +1461,49 @@ a rework was made after.
   holds `dev-v0` and no cache key. It changes how item 3.6's first gate result is read (a finding,
   not a stop for rework) and which numbers 3.6's trail cites. It replaces no corpus file, no
   workload file and no digest input: the pinned digest is the digest of the files as they stand.
+
+---
+
+### ADR-015 — `v1` is frozen: 164 corpus files and 3 workload files, with G1 recorded as failed
+**Decided (data)** · 2026-10-23 · *`data/v1-freeze.json`; `data-card.md` §1, §7; `experiments/scripts/freeze_corpus.py`, `corpus_gate.py`; trail `docs/work/2026-10-23-corpus-freeze-run/` (item 3.6, second part)*
+
+`v1` is frozen on 2026-10-23: **152 product and 12 policy documents (164 files), the whole workload file and its two split files (167 files in
+all)**, snapshot digest `a5708fefa62cec0aef5505e9e5242bc04bf351fd02a2efb5da54a98f211bb2e4`, **539 chunks** (chunk digest `6eea2238…b9bb3`),
+`K` = **622** (validation) and **652** (test) with cache capacity `round(0.25 × K)` = **156** and **163**. The stack is `nomic-embed-text`
+(digest `0a109f42…e59f`, Ollama 0.33.2), FLAT / COSINE / 768 dimensions / `top_k` 5, chunks 256 / 40; the record holds the full values.
+It was frozen **with G1 recorded as FAILED** (ADR-014): 21 pairs inside a split (13 validation, 8 test) against a floor of 50. The gate reports
+`passed: false`, `data/v1-freeze.json` lists the failure under `known_failures`, and this is **not a pass**. Two gate runs from fresh ingests
+(`ACCEPT_FAILED=G1`, commit `a09b48d`, 53 memory readings each, all `1`) agree on every count and digest, and the first run, taken before the
+allowance existed, agrees with them: the two retrieval exports are byte-identical to the first run's (`evidence/run-a.md`, `run-b.md`).
+
+- **What it binds.** After this freeze, changing a corpus or workload file, the rank seed, the split unit or its seed, the A / C rule, the model
+  layer, the "`K` per run file" rule, the 3.1 skip rules (first parsed record wins; lone surrogates replaced and counted; non-strings counted, not
+  coerced), the chunking, `top_k`, the embedding model or the retrieval config needs a **new `dataset_version`** and an ADR. `make corpus-verify`
+  checks the files, chunks, model and config against the record. **Redis holds `dev-v0` after this item**, so every `v1` run starts with
+  `DATASET_VERSION=v1 make ingest` and `make corpus-index-check`.
+- **Rationale.** Phase 4 onward (the update set, the judge, every run) needs a fixed corpus, and nothing is measured on an unfrozen one. The
+  proposal pre-registered the response to a G1 failure (`Final_Proposal.md:497`): report it, do not engineer around it. ADR-014 has the reasons.
+- **Alternatives.** Wait for the supervisor before freezing: not taken, because a freeze is cheap to supersede (a `v2` is a new `dataset_version`,
+  not an edit of `v1`) and the supervisor can still decide it before Phase 4 and before any C1 run. Build a `v2` now (more products, longer
+  policy documents): not in this item; it would redo items 3.2, 3.4 and 3.6, and it is a decision for the author and the supervisor. If it is taken,
+  it needs its own ADR that says why, keeps `v1`'s finding in the thesis, and applies the same G1 threshold of 50 (the allowance of ADR-014 is pinned
+  to `v1`'s digest and does not carry over).
+- **Consequences.**
+  - **Carried measurements, recorded and not acted on** (counts; `2026-10-22-corpus-freeze/evidence/probe-checks.md`). Evidence spans located: 777,
+    of which 94 lie over more than one chunk. The seed's evidence chunk is in the scoped top-k for 75 of 101 validation seeds (all chunks: 68) and 66
+    of 97 test seeds (61). Policy queries (158, validation): `policy_frac` is 0.8 for 99 of them; with the default collapsed lane band
+    (Lo = Hi = 0.20) 156 are POLICY, 2 SPEC and **none MIXED**, and the candidate band [0.20, 0.60) would make 9 MIXED; of 33 D queries, 27 are POLICY
+    and 6 SPEC under the default band; of 431 product-only queries, 428 are SPEC. Twins (validation): 51 of 56 hold both twin documents in the top-k.
+    Units: of 13 policy terms, 11 are read by a listed unit, 1 by a currency symbol and 1 has no number, so **no unit is missing** from the
+    gateway's list. The lane band is a gateway constant and stays as it is; a change is a task of its own.
+  - **The corpus bounds C1** as ADR-014 says. The reachable traps are 74 / 129 (validation), 108 / 155 (test) and 182 / 284 as records, and 45, 67
+    and 112 of 211 as unique pairs; no sample size stands beside them.
+  - **Claude is on both sides.** Claude wrote the policy documents (ADR-012) and the workload (ADR-013). The controls of ADR-013 carry over: rules
+    before text, R10, the headline by `origin`, the blind check, the 30-row read, and a judge that is not Claude. Two of them are weaker than the
+    plan meant (the blind check is the same model; the 30-row read was done by Claude), as ADR-013 says.
+  - **There is no restore path for `data/v1/`** (it has no git). `freeze_corpus.py assemble` rebuilds it from the gitignored drafts byte for byte
+    (checked on 2026-10-23 into a scratch directory), but a `--restore` command is not built. It is carried to Phase 4, with `data/v1-draft/`.
+  - **The memory scale.** Green is the sensor level `1`: the Activity Monitor graph was green at 1 and yellow at 2 on this machine
+    (`evidence/memory-scale.md`), as the SDK header says. `GREEN_LEVEL` in `corpus_gate.py` holds it (ADR-014).
+  - **The Phase 3 exit line** was amended on 2026-10-23, at the author's instruction to close the phase, to the wording ADR-014 proposed.
+- **Invalidates:** none — no runs yet. `experiments/results/` holds only `.gitkeep`. Item 3.6's first gate run stands as ADR-014's finding.

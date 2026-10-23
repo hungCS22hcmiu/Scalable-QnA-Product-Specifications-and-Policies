@@ -1,0 +1,402 @@
+{
+  "freeze_version": 1,
+  "dataset_version": "v1",
+  "frozen_on": "2026-10-23",
+  "git_commit": "a09b48ddf32b812f7f330410ef1dd69482b134d6",
+  "snapshot_digest": "a5708fefa62cec0aef5505e9e5242bc04bf351fd02a2efb5da54a98f211bb2e4",
+  "file_count": 167,
+  "chunk_digest": "6eea223881617d5d3d98c116d338d1c3f90292a9cc0e669a884ad1c8c91b9bb3",
+  "chunk_count": 539,
+  "stored_vector_digest": "1eb483043ac055d1b418177a57cc3104ecedbfac61fe7790a104aa1a6b7e23a4",
+  "splitter": {
+    "chunk_size": 256,
+    "chunk_overlap": 40
+  },
+  "embedding": {
+    "tag": "nomic-embed-text",
+    "digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+    "ollama_version": "0.33.2"
+  },
+  "retrieval": {
+    "top_k": 5,
+    "index": "FLAT",
+    "metric": "COSINE",
+    "dim": 768,
+    "data_type": "FLOAT32"
+  },
+  "packages": {
+    "llama-index-core": "0.14.23",
+    "tiktoken": "0.13.0",
+    "nltk": "3.10.3",
+    "llama-index-vector-stores-redis": "0.8.0",
+    "redisvl": "0.4.1"
+  },
+  "workload_manifest_sha256": "7ee717a846a2110890944539e12bd29c4d0902aa7b4f9b1c4566109e8fb178f0",
+  "probe_flags_sha256": "0e6745e3d786450cbd452022ce5f7a6828aee5830ba04ee4bc371bb5a58f4929",
+  "run_files": {
+    "whole": {
+      "k_distinct_queries": 1274,
+      "cache_capacity": 318
+    },
+    "validation": {
+      "k_distinct_queries": 622,
+      "cache_capacity": 156
+    },
+    "test": {
+      "k_distinct_queries": 652,
+      "cache_capacity": 163
+    }
+  },
+  "criteria": [
+    {
+      "name": "G3  Tier-1 collisions",
+      "passed": true,
+      "summary": "0 colliding group(s), 0 benign duplicate group(s) over 1274 distinct (normalized query, product_id) partitions"
+    },
+    {
+      "name": "G4  doc-id kind prefix",
+      "passed": true,
+      "summary": "164/164 doc_ids carry a kind prefix"
+    },
+    {
+      "name": "G5  condition-splitting (declared axes, lexical)",
+      "passed": true,
+      "summary": "4 families split, 12/12 policy documents clean; the author's read of every document is the other half of G5"
+    },
+    {
+      "name": "W   workload shape (stratum, split, cluster, one Tier-1 form)",
+      "passed": true,
+      "summary": "1274 records \u00b7 validation=622 test=652 \u00b7 546 clusters \u00b7 294 probes \u00b7 0 problem(s)"
+    },
+    {
+      "name": "S   split files (found by name, re-derived from the whole file)",
+      "passed": true,
+      "summary": "workload-v1-validation.json, workload-v1-test.json match the whole file"
+    },
+    {
+      "name": "G1  high-similarity / low-overlap pairs (within split)",
+      "passed": false,
+      "summary": "21 pair(s) with sim >= 0.85 and J <= 0.2 (need >= 50)"
+    },
+    {
+      "name": "G2  within-product traps exist (validation)",
+      "passed": true,
+      "summary": "B-within=3  B-cross=10  ratio=0.30  unlabelled=0"
+    },
+    {
+      "name": "G2  within-product traps exist (test)",
+      "passed": true,
+      "summary": "B-within=3  B-cross=5  ratio=0.60  unlabelled=0"
+    }
+  ],
+  "known_failures": [
+    {
+      "criterion": "G1",
+      "adr": "ADR-014",
+      "floor": 50,
+      "counts": {
+        "validation": 13,
+        "test": 8
+      },
+      "across": 18
+    }
+  ],
+  "grounding": {
+    "ungrounded": 0,
+    "own_chunk_missing": 0
+  },
+  "pair_breakdown": {
+    "g1": {
+      "validation": {
+        "pair_of": {
+          "same_docs": 0,
+          "different_docs": 1
+        },
+        "same_cluster": {
+          "same_docs": 2,
+          "different_docs": 0
+        },
+        "other": {
+          "same_docs": 0,
+          "different_docs": 10
+        }
+      },
+      "test": {
+        "pair_of": {
+          "same_docs": 0,
+          "different_docs": 2
+        },
+        "same_cluster": {
+          "same_docs": 4,
+          "different_docs": 0
+        },
+        "other": {
+          "same_docs": 0,
+          "different_docs": 2
+        }
+      }
+    },
+    "g2": {
+      "validation": {
+        "pair_of": {
+          "same_docs": 0,
+          "different_docs": 1
+        },
+        "same_cluster": {
+          "same_docs": 2,
+          "different_docs": 0
+        },
+        "other": {
+          "same_docs": 0,
+          "different_docs": 0
+        }
+      },
+      "test": {
+        "pair_of": {
+          "same_docs": 0,
+          "different_docs": 2
+        },
+        "same_cluster": {
+          "same_docs": 0,
+          "different_docs": 0
+        },
+        "other": {
+          "same_docs": 0,
+          "different_docs": 1
+        }
+      }
+    }
+  },
+  "statistics": {
+    "g1_pairs_within_split": {
+      "validation": 13,
+      "test": 8
+    },
+    "g1_pairs_across_splits": 18,
+    "reachable_traps": {
+      "validation": {
+        "condition-department": {
+          "records": 16,
+          "reachable": 16,
+          "pairs": 8,
+          "pairs_reachable": 8
+        },
+        "name-swap": {
+          "records": 5,
+          "reachable": 0,
+          "pairs": 5,
+          "pairs_reachable": 0
+        },
+        "natural": {
+          "records": 4,
+          "reachable": 2,
+          "pairs": 2,
+          "pairs_reachable": 1
+        },
+        "policy-condition": {
+          "records": 40,
+          "reachable": 40,
+          "pairs": 20,
+          "pairs_reachable": 20
+        },
+        "policy-kind": {
+          "records": 6,
+          "reachable": 0,
+          "pairs": 6,
+          "pairs_reachable": 0
+        },
+        "policy-region": {
+          "records": 6,
+          "reachable": 6,
+          "pairs": 6,
+          "pairs_reachable": 6
+        },
+        "spec-attribute": {
+          "records": 52,
+          "reachable": 10,
+          "pairs": 52,
+          "pairs_reachable": 10
+        },
+        "all": {
+          "records": 129,
+          "reachable": 74,
+          "pairs": 99,
+          "pairs_reachable": 45
+        }
+      },
+      "test": {
+        "name-swap": {
+          "records": 7,
+          "reachable": 0,
+          "pairs": 7,
+          "pairs_reachable": 0
+        },
+        "natural": {
+          "records": 6,
+          "reachable": 2,
+          "pairs": 3,
+          "pairs_reachable": 1
+        },
+        "policy-condition": {
+          "records": 80,
+          "reachable": 80,
+          "pairs": 40,
+          "pairs_reachable": 40
+        },
+        "policy-kind": {
+          "records": 3,
+          "reachable": 1,
+          "pairs": 3,
+          "pairs_reachable": 1
+        },
+        "policy-region": {
+          "records": 12,
+          "reachable": 12,
+          "pairs": 12,
+          "pairs_reachable": 12
+        },
+        "spec-attribute": {
+          "records": 47,
+          "reachable": 13,
+          "pairs": 47,
+          "pairs_reachable": 13
+        },
+        "all": {
+          "records": 155,
+          "reachable": 108,
+          "pairs": 112,
+          "pairs_reachable": 67
+        }
+      },
+      "whole": {
+        "condition-department": {
+          "records": 16,
+          "reachable": 16,
+          "pairs": 8,
+          "pairs_reachable": 8
+        },
+        "name-swap": {
+          "records": 12,
+          "reachable": 0,
+          "pairs": 12,
+          "pairs_reachable": 0
+        },
+        "natural": {
+          "records": 10,
+          "reachable": 4,
+          "pairs": 5,
+          "pairs_reachable": 2
+        },
+        "policy-condition": {
+          "records": 120,
+          "reachable": 120,
+          "pairs": 60,
+          "pairs_reachable": 60
+        },
+        "policy-kind": {
+          "records": 9,
+          "reachable": 1,
+          "pairs": 9,
+          "pairs_reachable": 1
+        },
+        "policy-region": {
+          "records": 18,
+          "reachable": 18,
+          "pairs": 18,
+          "pairs_reachable": 18
+        },
+        "spec-attribute": {
+          "records": 99,
+          "reachable": 23,
+          "pairs": 99,
+          "pairs_reachable": 23
+        },
+        "all": {
+          "records": 284,
+          "reachable": 182,
+          "pairs": 211,
+          "pairs_reachable": 112
+        }
+      }
+    },
+    "b_within": {
+      "validation": 3,
+      "test": 3
+    },
+    "b_cross": {
+      "validation": 10,
+      "test": 5
+    },
+    "b_unlabelled": {
+      "validation": 0,
+      "test": 0
+    },
+    "unscoped": {
+      "validation": {
+        "g1_pairs": 2,
+        "b_within": 2
+      },
+      "test": {
+        "g1_pairs": 12,
+        "b_within": 9
+      }
+    },
+    "benign_duplicate_groups": 0,
+    "high_sim_pairs": 1342,
+    "overlap_mean": 0.797040072859745,
+    "overlap_variance": 0.07693728332518308,
+    "strata": {
+      "validation": {
+        "A": 371,
+        "B-cross": 11,
+        "B-within": 124,
+        "C": 83,
+        "D": 33
+      },
+      "test": {
+        "A": 390,
+        "B-cross": 11,
+        "B-within": 148,
+        "C": 67,
+        "D": 36
+      }
+    },
+    "trap_fraction": {
+      "validation": 0.20739549839228297,
+      "test": 0.23773006134969324,
+      "whole": 0.22291993720565148
+    },
+    "g5_split_families": 4,
+    "g5_offending_documents": 0,
+    "low_overlap_pairs": 39,
+    "s5": {
+      "validation": false,
+      "test": false
+    }
+  },
+  "gate_run": {
+    "run1": {
+      "stage2_seconds": 81.4,
+      "memory_readings": 53,
+      "memory_max": 1,
+      "query_vectors_vs_file": {
+        "compared": 1274,
+        "missing": 0,
+        "differing": 0,
+        "max_abs_diff": 0.0
+      }
+    },
+    "run2": {
+      "stage2_seconds": 81.2,
+      "memory_readings": 53,
+      "memory_max": 1,
+      "query_vectors_vs_file": {
+        "compared": 1274,
+        "missing": 0,
+        "differing": 0,
+        "max_abs_diff": 0.0
+      }
+    },
+    "comparison": []
+  }
+}

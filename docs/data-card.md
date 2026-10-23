@@ -1,17 +1,17 @@
 # Data Card
 
-**Status:** v0.7 — sources chosen (ADR-002), **products selected (ADR-011, item 3.2)**, **policy documents written (ADR-012, item 3.3)**, **workload built as a draft (item 3.4, ADR-013)**, corpus **not yet frozen** · scaffold now, **fill and freeze at timeline W8** · **Created:** 2026-07-23 · **Revised:** 2026-10-22
+**Status:** v0.8 — sources chosen (ADR-002), **products selected (ADR-011, item 3.2)**, **policy documents written (ADR-012, item 3.3)**, **workload built as a draft (item 3.4, ADR-013)**, corpus **frozen 2026-10-23 with G1 recorded as failed** (item 3.6, ADR-014, ADR-015; §7) · **Created:** 2026-07-23 · **Revised:** 2026-10-23
 **Companion to:** `Final_Proposal.md` (§9.3 datasets), `contracts/interfaces.md` (§C chunk-IDs, §D Tier-1 key), `decisions.md` (inherited state and every decision from 2026-09-22 on).
 
 **Purpose.** Document provenance, licensing, schema, and versioning for every data artifact the study consumes or produces, so results are reproducible and the open-source deliverable (proposal §13) is legally clean. Items marked **`TODO(W8)`** are filled when the corpus is frozen.
 
-**Freeze policy.** At **W8** the experimental snapshot `v1` is frozen and hashed. `dataset_version`, `snapshot_sha256`, and **`K` for each run file (distinct-query count, which sets cache capacity)** are recorded here and in every run manifest (the evaluation Re-chunking or corpus edits bump the version. **No experiment runs against an unfrozen corpus**, and none against one that has not passed all five gate criteria in §7 (G1–G5).
+**Freeze policy.** At **W8** the experimental snapshot `v1` is frozen and hashed. `dataset_version`, `snapshot_sha256`, and **`K` for each run file (distinct-query count, which sets cache capacity)** are recorded here and in every run manifest (the evaluation Re-chunking or corpus edits bump the version. **No experiment runs against an unfrozen corpus**, and none against one that has not been through the five gate criteria in §7 (G1–G5). **`v1` passed G2 – G5 and failed G1; the failure is recorded as a finding (ADR-014), it is not a pass.**
 
 > ⚠️ **Two corpora — do not conflate them.**
 >
 > | Corpus | Built | Size | Status |
 > | :--- | :--- | :--- | :--- |
-> | **`dev-v0`** | W5 | ~40 products, 4 policy docs, no category balance | **Throwaway.** Exists only to make the pipeline run during the 3-week runway. Not hashed, not versioned, **not citable in any result.** Discarded after W8 |
+> | **`dev-v0`** | W5 | ~40 products, 4 policy docs, no category balance | **Throwaway.** Exists only to make the pipeline run during the 3-week runway. Not hashed, not versioned, **not citable in any result.** Kept after the freeze (item 3.6): the live checks and the demo still use it |
 > | **`v1`** | W8 | ~150 products, **≥3 categories**, per-category policies | The **frozen experimental corpus**. Hashed, versioned, and gated by §7 |
 >
 > Both use the **same frozen embedding model and chunking config** (the frozen embedding model/the frozen chunking, frozen W5), so `v1` is a content expansion rather than a re-chunk. Any number in the pre-thesis report that comes from `dev-v0` must be labelled preliminary and non-authoritative.
@@ -20,9 +20,9 @@
 
 | Artifact | Source | License posture | Frozen |
 | :--- | :--- | :--- | :--- |
-| Product catalog (~150) | **Amazon-PQA** — six leaf files → four departments (ADR-002) | **academic use granted; redistribution NOT granted** → build script + hash manifest | `TODO(W8)` |
-| Query workload | **Amazon-PQA** — same records as the catalog | **academic use granted; redistribution NOT granted** → build script + hash manifest | `TODO(W8)` |
-| Policy corpus (~13 docs) | self-authored | author-owned → releasable | `TODO(W8)` |
+| Product catalog (~150) | **Amazon-PQA** — six leaf files → four departments (ADR-002) | **academic use granted; redistribution NOT granted** → build script + hash manifest | frozen 2026-10-23, snapshot `a5708fefa62c…` (ADR-015) |
+| Query workload | **Amazon-PQA** — same records as the catalog | **academic use granted; redistribution NOT granted** → build script + hash manifest | frozen 2026-10-23, snapshot `a5708fefa62c…` (ADR-015) |
+| Policy corpus (~13 docs) | self-authored | author-owned → releasable | frozen 2026-10-23, snapshot `a5708fefa62c…` (ADR-015) |
 | Answerability check labels | **ePQA** (Amazon Science), 3 CSVs — §1 | **CDLA-Sharing-1.0**: redistribution permitted under the same terms; used for a counts-only check, nothing derived is tracked | pinned 2026-10-20 |
 | Paraphrase stress set | mined + machine-generated | derivative — see below | `TODO(W8)` |
 | Update set (~20 edits) | self-authored edits | author-owned | `TODO(W8)` |
@@ -72,6 +72,8 @@
 - **ePQA, the answerability check's labels (provenance).** `github.com/amazon-science/contextual-product-qa`, folder `ePQA/`, at commit `cec976cc2f2218aa76e562ecc9c7d79f1f3271bc`, fetched 2026-10-20T09:15:09Z by `make epqa-fetch` into `data/raw/epqa/` (gitignored). `train.csv` 37,486,800 bytes `b63de968…`, `dev.csv` 2,986,475 bytes `ec5c4865…`, `test.csv` 5,871,044 bytes `a01387cf…` (full sha256 in `answerability_check.py` and the trail's `evidence/epqa-fetch.log`). Licence **CDLA-Sharing-1.0** (the repository's own `LICENSE`). Used only by `make pqa-answerability`, which writes counts; no ePQA text is tracked. **Citation** (the README names this paper for ePQA): Shen, Asai, Byrne and de Gispert, *xPQA: Cross-Lingual Product Question Answering across 12 Languages*, arXiv:2305.09249, 2023.
 - **Titles that can contradict a policy document (item 3.3, counted 2026-10-21 by `make policy-sources`, counts only).** 10 of the 152 titles carry a condition the policy corpus does not model for them: phones 7 (Renewed 2, "International Version" 4, "No warranty" 4; one title can hold several), electronics 2 Renewed, laptops 1 Renewed. **Decided by the author: they stay** (ADR-011 unchanged). **For 3.4:** no policy-lane or stratum-D query names one of them. A C1 limitation.
 - **Empty and thin products exist.** 2.7–9.1 % of products per leaf have no bullets and no description, and the document is then the title alone. The ≥ 3-bullets filter removes them. 3.4–16.8 % state a warranty term in their own prose, which can contradict the authored warranty documents of §2. **Decided (ADR-011): excluded,** and the title is tested too, since it is embedded.
+
+- **Skip rules fixed at the freeze (item 3.1, D9 and D12).** They shape the question pool and so `K`. The **first parsed record** of an asin wins. A lone surrogate is **replaced with U+FFFD and counted** (not dropped). A non-string value is **counted, not coerced** (`bad_type`). Changing one changes `K` and needs a new `dataset_version`.
 
 ## 2. Policy corpus (self-authored)
 - **Provenance:** **12** policy documents (returns and warranty; **no shipping**: the question pool has no shipping tag, and shipping has no condition to split) authored in-house, modelled on real store and maker pages. Author-owned → freely releasable. **Fixed at item 3.3 (ADR-012)**: 8 per-department documents, 4 of them split in two by a condition. The tracked source is `data/policies-v1/`; 3.6 copies it into `data/v1/`. **Drafted by a model (Claude) from the term table only**, by rules committed before the first document (`c9a93f6`), and **read and approved by the author** (P8; task `approvals.md`): all 12 on 2026-10-21; 8 were then changed by `/ai-review` (F1, F3, F4) and **re-read and approved by the author** the same day, so all 12 are approved in their current text.
@@ -257,6 +259,9 @@ C1 can only produce a signal where queries are **similar but ground differently*
 > **Implemented and runnable (2026-09-06):** `experiments/scripts/corpus_gate.py`, via `make gate-corpus`.
 > It computes every statistic listed below and **refuses to print a snapshot hash unless all five
 > criteria pass**, so "frozen" cannot happen by accident.
+> **One exception (ADR-014, 2026-10-23):** `--accept-failed G1`, only for `v1` and only for the pinned snapshot, lets a run in which G1 is the
+> only failed criterion print the digest as "FREEZE WITH A RECORDED FAILURE" and exit 3. `passed` stays false, and the freeze record
+> lists the failure under `known_failures`. Without the flag the gate behaves as above.
 > ⚠️ **G5 is implemented as a lexical scan** (item 3.3, `c9a93f6`; this closes the code half of item
 > 3.5): `corpus_gate.check_g5` fails any policy document that names a condition value it does not
 > declare, over the word list `CONDITION_AXES` (axes `packaging`, `grade`, `region` and `kind`).
@@ -297,7 +302,7 @@ C1 can only produce a signal where queries are **similar but ground differently*
 > - **Structural run on the draft build (2026-10-22, not the freeze):** G3, G4, G5, `W` and `S` all pass over 164 documents and 1,274 records (G3: 0 colliding groups, 0 benign duplicate groups). G1 and G2 need the ingested index and belong to item 3.6.
 > - **Cross-split near-duplicates (U9, counted 2026-10-22):** 74 pairs of policy-cell queries and 8 pairs with a D query sit on one policy document in different splits at cosine ≥ 0.85. The policy unit keeps one cell in one split, not the different shapes of one document, and not D, which sits in a product unit (`evidence/partner-cosine.md`).
 
-> ⚠️ **Which overlap — the gate's is not the rule's.** The rule's overlap is `|A ∩ B| / |B|`, between a query's retrieval and a *cached entry's* provenance — **asymmetric, and therefore not well-defined for a query–query pair**, which is what this gate counts. The gate uses symmetric Jaccard `J(A,B) = |A ∩ B| / |A ∪ B|` over the two top-k retrieval sets. At equal `top_k` this is monotone in `|A ∩ B|` and orders pairs identically to `|A ∩ B| / k`; at `top_k = 5`, `J ≤ 0.2` admits **at most one shared chunk**. The gate statistic is a **corpus property**, never the rule's operating metric, and the two are reported separately so they cannot be conflated.
+> ⚠️ **Which overlap — the gate's is not the rule's.** The rule's overlap is `|A ∩ B| / |B|`, between a query's retrieval and a *cached entry's* provenance — **asymmetric, and therefore not well-defined for a query–query pair**, which is what this gate counts. The gate uses symmetric Jaccard `J(A,B) = |A ∩ B| / |A ∪ B|` over the two top-k retrieval sets. It orders pairs like `|A ∩ B| / k` only when the two sets have equal size; scoped sets can be smaller than `top_k` (a product has about 3 chunks), so in general it does not (corrected 2026-10-23, item 3.6 review M8). One statement is exact: `J ≤ 0.2` holds exactly when `6·s ≤ a + b` (s shared chunks, a and b the set sizes), and with `a, b ≤ 5` that admits **at most one shared chunk**. The gate statistic is a **corpus property**, never the rule's operating metric, and the two are reported separately so they cannot be conflated.
 
 **Five criteria, all of which must pass before the snapshot is hashed.**
 
@@ -326,15 +331,18 @@ The check is structural — it reads the corpus files, needs no ingested index, 
 | G1 ∧ G2 ∧ G3 ∧ G4 ∧ G5 all pass | Freeze and hash the corpus. Record the statistics below |
 | Any criterion fails | Fix the corpus, re-run all five. Do not proceed to ingestion |
 
+**Status of `v1` at the freeze (2026-10-23, item 3.6; ADR-014 and ADR-015).** `v1` is frozen with **G1 recorded as FAILED**: 21 pairs inside a split (validation 13, test 8) against a floor of 50. G2, G3, G4, G5, `W` and `S` pass. This is **not a pass**: the gate reports `passed: false`, and `data/v1-freeze.json` lists the failure under `known_failures`. The proposal pre-registered this case (`Final_Proposal.md:497`: reported as a corpus finding that bounds C1's applicability, not engineered around). The standing instruction in the table above ("fix the corpus, not the rule") was not followed for G1: lengthening the policy documents was declined after the count was seen, and the reasons are in ADR-014. Two gate runs from fresh ingests agree on every count and every digest, and the first run (taken before the allowance existed) agrees with them.
+
 **Recorded as frozen corpus statistics** (they are also what make a null C1 interpretable rather than merely disappointing — proposal §5 C1 fallback). Every one of them is printed by `make gate-corpus`, and `REPORT=<path>` additionally writes them as JSON so the freeze record is machine-readable rather than transcribed by hand:
 
-- `TODO(W8): count of high-similarity / low-overlap pairs (G1).`
-- `TODO(W8): B-within and B-cross counts and their ratio (G2).`
-- `TODO(W8): Tier-1 collision groups found, and benign duplicate groups (G3).`
-- **G5, item 3.3 (2026-10-21, `make policy-check` on the 12 documents; re-run at the freeze):** before splitting, **4** families would hold an opposing pair under one `doc_id` (phones returns, laptops returns, furniture returns, phones warranty; the laptops region pair was dropped, not split); after, **0** documents name an undeclared condition. The author's read of every document is the other half of G5.
-- `TODO(W8): distribution of source-overlap across all high-similarity pairs (the overlap-variance statistic).`
-- `TODO(W8): per-stratum query counts (A / B-within / B-cross / C / D, §2) and the trap fraction of the workload.`
-- `TODO(W8): K — the count of distinct queries in each run file (the validation and the test file, ADR-013; the whole file's K is a gate figure, not a run's).` ⚠️ **Cache capacity derives from this**: `cache_capacity = round(0.25 × K)` of the file the run uses. Record `K` and the derived capacity for each file here and in every run manifest.
+- **G1 (FAILED, recorded; ADR-014):** **21** pairs with `sim ≥ 0.85` and `J ≤ 0.2` inside a split (validation 13, test 8), floor 50; 18 more across the splits (not gated). 1,342 pairs reach cosine 0.85 in all, and 39 of them have `J ≤ 0.2`. Who made the 21 (built target, paraphrase of one cluster, or two products): validation 1 + 2 + 10, test 2 + 4 + 2. **Reachable traps** (a probe whose `pair_of` partner is at cosine ≥ 0.85; reported, not gated; no sample size): as records 74 of 129 in validation, 108 of 155 in test, 182 of 284; as unique pairs 45 of 99, 67 of 112, 112 of 211.
+- **G2 (passes, thinly):** B-within 3 in each split; B-cross 10 in validation and 5 in test; ratio 0.30 and 0.60; unlabelled 0. Validation: 1 built trap + 2 paraphrase pairs. Test: 2 built traps + 1 pair that is neither. S5 (G2 met by paraphrases only) was not raised. Unscoped retrieval, for comparison only: validation G1 = 2 (B-within 2), test G1 = 12 (B-within 9).
+- **G3 (passes):** 0 Tier-1 collision groups, 0 benign duplicate groups.
+- **G5, item 3.3 (2026-10-21, `make policy-check` on the 12 documents; re-run at the freeze):** before splitting, **4** families would hold an opposing pair under one `doc_id` (phones returns, laptops returns, furniture returns, phones warranty; the laptops region pair was dropped, not split); after, **0** documents name an undeclared condition. The author's read of every document is the other half of G5. **At the freeze (2026-10-23):** 4 families split, 0 of 12 policy documents name an undeclared condition. G4: 164 of 164 documents carry a kind prefix.
+- **Source-overlap across all 1,342 high-similarity pairs (scoped):** mean 0.797, variance 0.0769. Counts by `J`: 0.0–0.1: 27 · 0.1–0.2: 9 · 0.2–0.3: 56 · 0.3–0.4: 16 · 0.4–0.5: 136 · 0.5–0.6: 76 · 0.6–0.7: 186 · 0.7–0.8: 16 · 0.8–0.9: 12 · 0.9–1.0: 808 (a `J` of exactly 0.2 sits in the 0.2–0.3 row). Most similar pairs retrieve almost the same evidence, which is why G1 is thin.
+- **Per-stratum counts and trap fraction.** Validation: A 371, B-within 124, B-cross 11, C 83, D 33; trap fraction 0.207. Test: A 390, B-within 148, B-cross 11, C 67, D 36; trap fraction 0.238. Whole file: 0.223 (the trap fraction counts probes other than `name-swap-same`; the reachable fraction is lower, 0.143).
+- **`K` and cache capacity (frozen 2026-10-23):** validation `K` = 622 → capacity **156**; test `K` = 652 → capacity **163**; the whole file's `K` = 1,274 (capacity 318) is a gate figure, not a run's. ⚠️ **Cache capacity derives from this**: `cache_capacity = round(0.25 × K)` of the file the run uses. Record `K` and the derived capacity for each file here and in every run manifest.
+- **The freeze record** is `data/v1-freeze.json` (tracked; digests, counts and statistics only). Snapshot digest `a5708fefa62cec0aef5505e9e5242bc04bf351fd02a2efb5da54a98f211bb2e4` over 167 files (164 corpus files and 3 workload files); chunk digest `6eea223881617d5d3d98c116d338d1c3f90292a9cc0e669a884ad1c8c91b9bb3` over 539 chunks; stored-vector digest `1eb483043ac055d1b418177a57cc3104ecedbfac61fe7790a104aa1a6b7e23a4`; embedding model `nomic-embed-text` digest `0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f`, Ollama 0.33.2; retrieval FLAT / COSINE / 768 / `top_k` 5; splitter 256 / 40. `make corpus-verify` and `make corpus-index-check` check them.
 
 ## Ethics / PII
 Public, non-personal data only. No user accounts, no personalization (proposal §6.3) — answers that vary by locale/membership are treated as dynamic and bypass the cache, so no personal data enters the corpus or cache. The phones warranty's region condition (item 3.3) is a fixed term of the policy — where warranty service is asked for, for a phone bought from the store — not an answer that varies with who asks, so it is cached like any other policy answer.
