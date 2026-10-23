@@ -771,7 +771,7 @@ def full_run(tmp_path, monkeypatch, world, capsys):
             0,
         ),
     )
-    readings = iter([0] * 100)
+    readings = iter([1] * 100)
     monkeypatch.setattr(g, "memory_pressure_level", lambda: next(readings))
     monkeypatch.setattr(
         g,
@@ -854,7 +854,7 @@ def test_main_runs_the_index_check_then_writes_the_new_report_keys(full_run):
     assert data["splitter"] == {"chunk_size": 256, "chunk_overlap": 40}
     assert data["memory_pressure"]["readings"] and set(
         data["memory_pressure"]["readings"]
-    ) == {0}
+    ) == {1}
     assert data["grounding"] == {"ungrounded": 0, "own_chunk_missing": 0}
     assert data["query_vectors_vs_file"]["missing"] == 4
     stats = data["statistics"]
@@ -938,11 +938,11 @@ def test_main_prints_counts_and_no_qa_id_when_a_query_retrieves_nothing(
 
 def test_main_flags_a_yellow_reading_and_the_report_keeps_it(full_run, monkeypatch):
     run, report, *_ = full_run
-    readings = iter([0, 0, 1] + [0] * 100)
+    readings = iter([1, 1, 2] + [1] * 100)
     monkeypatch.setattr(g, "memory_pressure_level", lambda: next(readings))
     _, text = run()
     assert "S3 — memory pressure was not green" in text
-    assert 1 in json.loads(report.read_text())["memory_pressure"]["readings"]
+    assert 2 in json.loads(report.read_text())["memory_pressure"]["readings"]
 
 
 def test_main_refuses_an_export_path_git_does_not_ignore_before_doing_any_work(
@@ -989,7 +989,7 @@ def test_control_a_green_run_that_passes_every_criterion_prints_the_digest(
 def test_a_yellow_reading_stops_a_run_the_criteria_pass(full_run, monkeypatch):
     run, report, *_ = full_run
     _criteria_all_green(monkeypatch)
-    readings = iter([0, 0, 1] + [0] * 100)
+    readings = iter([1, 1, 2] + [1] * 100)
     monkeypatch.setattr(g, "memory_pressure_level", lambda: next(readings))
     code, text = run()
     data = json.loads(report.read_text())
@@ -1023,3 +1023,41 @@ def test_main_refuses_a_report_path_git_does_not_ignore_before_doing_any_work(
     )
     with pytest.raises(SystemExit, match="not gitignored"):
         run("--report", str(REPO_ROOT / "experiments" / "_nope.json"))
+
+
+# =================================================================================================
+# ADR-014, Block A0: on macOS 1 is the normal (green) pressure level, 2 is warn and 4 is critical
+# =================================================================================================
+def test_the_green_level_is_one_and_the_names_are_the_sdks():
+    assert g.GREEN_LEVEL == 1
+    assert g.PRESSURE_NAMES == {1: "normal", 2: "warn", 4: "critical"}
+
+
+def test_normal_readings_raise_no_s3_flag_and_the_run_passes(full_run, monkeypatch):
+    run, report, *_ = full_run
+    _criteria_all_green(monkeypatch)
+    readings = iter([g.GREEN_LEVEL] * 100)
+    monkeypatch.setattr(g, "memory_pressure_level", lambda: next(readings))
+    code, text = run()
+    data = json.loads(report.read_text())
+    assert "S3" not in text and data["flags"] == []
+    assert code == 0 and data["passed"] is True and "--- FREEZE ---" in text
+
+
+@pytest.mark.parametrize(
+    "bad,words",
+    [(2, "warn"), (4, "critical"), (None, "could not be read"), (0, "0")],
+)
+def test_any_reading_but_one_raises_s3_and_the_message_names_it(
+    full_run, monkeypatch, bad, words
+):
+    run, report, *_ = full_run
+    _criteria_all_green(monkeypatch)
+    readings = iter([1, 1, bad] + [1] * 100)
+    monkeypatch.setattr(g, "memory_pressure_level", lambda: next(readings))
+    code, text = run()
+    data = json.loads(report.read_text())
+    assert code != 0 and "--- FREEZE ---" not in text
+    assert "S3 — memory pressure was not green" in text and words in text
+    assert data["flags"] == ["S3 memory pressure was not green"]
+    assert data["passed"] is False and data["snapshot_digest"] is None

@@ -15,20 +15,20 @@ alone, when the author asks, and `make verify` runs after each code block.
 
 ## Block A0 — the memory scale (the author confirms the test edits first)
 
-- [ ] **4. List the existing tests that assert the wrong scale.** For each: file, test, stubbed readings, the one-number change.
+- [x] **4. List the existing tests that assert the wrong scale.** *Done 2026-10-23: 8 edits, all numbers only; the list and the basis for the author's confirmation are in `approvals.md`.* For each: file, test, stubbed readings, the one-number change.
   No edit. The author confirms the list in `approvals.md` (T7). *Check:* the list covers every hit of the grep
   `memory_pressure|readings|\[0\]` in `experiments/tests/` that treats `0` as green or `1` as not green.
-- [ ] **5. Failing tests first.** New tests on the corrected scale: readings `[1, 1, 1]` do not raise S3 and let a run pass;
+- [x] **5. Failing tests first.** *Done 2026-10-23: 15 new tests (6 in the gate file, 9 in the freeze file); 8 failed today, for the missing constant, the missing level words in the S3 message, and `[0, 0]` / `[0]` being accepted.* New tests on the corrected scale: readings `[1, 1, 1]` do not raise S3 and let a run pass;
   `freeze` accepts reports with readings `[1, 1, 1, 1]`; `[1, 2]`, `[1, 4]`, `[1, None]`, `[1, True]` and `[]` are refused by
   both. *Check:* they fail today, for that reason.
-- [ ] **6. The code.** `GREEN_LEVEL` and `PRESSURE_NAMES` in `corpus_gate.py`; the S3 message, the `flags` list and the count
+- [x] **6. The code.** *Done 2026-10-23: `GREEN_LEVEL`, `PRESSURE_NAMES`, `describe_pressure` in the gate; the S3 message names the levels seen; `freeze` reads the constant; Makefile guard, echo lines and comments; `verify_admission.sh`; one docstring in `loadgen_footprint.py`. The 8 listed test edits are numbers only. `make verify`: 694 experiments + 23 rag tests, Go ok, no FAIL, no SKIPPED. `grep` for the old rule finds none in code, Makefile or scripts.* `GREEN_LEVEL` and `PRESSURE_NAMES` in `corpus_gate.py`; the S3 message, the `flags` list and the count
   use them; `freeze_corpus.py` `run_problems` reads the constant; the `Makefile` guard, messages and comments; the
   `verify_admission.sh` comment. The confirmed existing tests change by their numbers. *Check:* new tests pass; `make verify`
   green; `grep -rn "0 = green\|0=green\|want 0\|= 0 first"` over code, Makefile and scripts finds none (CLAUDE.md and
   README.md named for the author).
-- [ ] **7. The guard, by its shell test.** Run the `measure` recipe's condition with `zone` set to 1, 2 and 4 in a scratch
+- [x] **7. The guard, by its shell test.** *Done: the recipe text copied into a scratch Makefile with the sensor stubbed. Level 1 exits 0 and prints OK; levels 2, 4 and 0 fail with the three-level message.* Run the `measure` recipe's condition with `zone` set to 1, 2 and 4 in a scratch
   shell. *Check:* accepts 1; refuses 2 and 4 with the new message. No load is run.
-- [ ] **8. Commit A0 alone** (when the author asks).
+- [x] **8. Commit A0 alone.** *Done 2026-10-23, on the author's instruction to execute the remaining steps.*
 
 ## Block A — the gate allowance
 

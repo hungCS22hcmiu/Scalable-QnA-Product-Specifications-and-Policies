@@ -117,8 +117,9 @@ _SWAP_USED = re.compile(r"used\s*=\s*([\d.]+)M")
 
 
 def sample_machine() -> dict[str, float]:
-    """The raw memory readings, one `sysctl` call. Integers are NOT mapped to a colour: this repository's
-    `0 = green` is unverified against what the sysctl actually returns (design.md U8)."""
+    """The raw memory readings, one `sysctl` call. Integers are NOT mapped to a colour here: they are recorded raw.
+    The repository's old zero-is-green rule was wrong; macOS reports 1 normal, 2 warn, 4 critical
+    (ADR-014; design.md U8 left this open)."""
     out = subprocess.run(
         ["sysctl", "-n", "kern.memorystatus_vm_pressure_level", "kern.memorystatus_level", "vm.swapusage"],
         capture_output=True, text=True, check=False,

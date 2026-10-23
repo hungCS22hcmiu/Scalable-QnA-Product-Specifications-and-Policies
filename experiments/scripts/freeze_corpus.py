@@ -318,7 +318,9 @@ def run_problems(name: str, r: dict) -> list[str]:
     if not r["git"]["tree_clean"]:
         out.append(f"{name}: the code that measures was not a clean commit")
     readings = r["memory_pressure"]["readings"]
-    not_green = [m for m in readings if not (type(m) is int and m == 0)]
+    not_green = [
+        m for m in readings if not (type(m) is int and m == corpus_gate.GREEN_LEVEL)
+    ]
     if not readings or not_green:
         out.append(
             f"{name}: memory pressure was not green, or could not be read, at {len(not_green)} of "

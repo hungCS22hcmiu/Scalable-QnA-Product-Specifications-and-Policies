@@ -51,7 +51,7 @@ spike: ## Feasibility spike — measure the memory envelope. SPENT: already froz
 	@echo "hardware change, and re-freeze deliberately if the numbers move."
 	@echo "Baseline:"; vm_stat | head -4; sysctl hw.memsize; sysctl vm.swapusage
 
-# Loads nomic-embed-text: check `sysctl kern.memorystatus_vm_pressure_level` = 0 first, every time.
+# Loads nomic-embed-text: check `sysctl kern.memorystatus_vm_pressure_level` = 1 (normal, green) first, every time.
 # The corpus is data/$$DATASET_VERSION (default dev-v0); item 3.6 ingests v1 with
 #   DATASET_VERSION=v1 make ingest
 # This is NOT Make's VERSION (that one is v1 for the gate, and would flip the default by accident).
@@ -97,11 +97,10 @@ redis-check: ## Verify the cache/dependency eviction split is safe (interfaces.m
 
 measure: env-check redis-check ## Gate a MEASURED run (proposal 7 validity rule)
 	@zone=$$(sysctl -n kern.memorystatus_vm_pressure_level); \
-	 if [ "$$zone" != "0" ]; then \
-	   echo "FAIL — memory pressure level $$zone (0=green, 1=yellow, 2=urgent)."; \
+	 if [ "$$zone" != "1" ]; then \
+	   echo "FAIL — memory pressure level $$zone (1=normal/green, 2=warn/yellow, 4=critical/red)."; \
 	   echo "       A yellow/red run is invalid and must be discarded and repeated at lower"; \
-	   echo "       load. NOTE: this sensor's behaviour is under review — run the reboot"; \
-	   echo "       test before trusting a reading."; \
+	   echo "       load. The scale is macOS's own (DISPATCH_MEMORYPRESSURE_*), see ADR-014."; \
 	   ps aux -m | awk '{sum+=$$6} END {printf "       currently %.1f GB total RSS\n", sum/1024/1024}'; \
 	   exit 1; \
 	 fi; \
@@ -327,7 +326,7 @@ SEAM_LOG ?=
 seam-check: ## Item 1.4: texts flow Python -> Go aligned, oracle = Redis (NOT a measurement)
 	@set -euo pipefail; \
 	 log="$(SEAM_LOG)"; [ -n "$$log" ] || log=$$(mktemp -t seam-check); \
-	 echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (0 = green; recorded, not gated)"; \
+	 echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"; \
 	 redis-cli -u $(SEAM_REDIS_URL) PING >/dev/null 2>&1 || { echo "FAIL — redis unreachable at $(SEAM_REDIS_URL)"; exit 1; }; \
 	 n=$$( (lsof -t -nP -iTCP:50051 -sTCP:LISTEN 2>/dev/null || true) | sort -u | wc -l | tr -d ' '); \
 	 echo "  info: $$n process(es) listening on :50051 (rag-server-reuseport; not used by this check)"; \
@@ -364,7 +363,7 @@ seam-check: ## Item 1.4: texts flow Python -> Go aligned, oracle = Redis (NOT a 
 support-check: ## Item 2.1: lexical support gate on live retrieved text, oracle = Redis (NOT a measurement)
 	@set -euo pipefail; \
 	 log="$(SEAM_LOG)"; [ -n "$$log" ] || log=$$(mktemp -t support-check); \
-	 echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (0 = green; recorded, not gated)"; \
+	 echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"; \
 	 redis-cli -u $(SEAM_REDIS_URL) PING >/dev/null 2>&1 || { echo "FAIL — redis unreachable at $(SEAM_REDIS_URL)"; exit 1; }; \
 	 n=$$( (lsof -t -nP -iTCP:50051 -sTCP:LISTEN 2>/dev/null || true) | sort -u | wc -l | tr -d ' '); \
 	 echo "  info: $$n process(es) listening on :50051 (rag-server-reuseport; not used by this check)"; \
@@ -416,7 +415,7 @@ load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 # workload-v1-test.json), re-derived from it, and hashed with it.
 #
 # Stage 2 first checks that the index in Redis is the corpus on disk, then loads nomic-embed-text.
-# Check `sysctl kern.memorystatus_vm_pressure_level` = 0 before it, every time: the gate reads the
+# Check `sysctl kern.memorystatus_vm_pressure_level` = 1 (normal, green) before it, every time: the gate reads the
 # level itself and writes every reading to the report, and a run with a reading above 0 is discarded.
 #   REPORT=<file>        also write the full result as JSON
 #   RETRIEVAL_OUT=<dir>  write each split's retrieval (ids and sets, no text) -- under data/v1-draft/

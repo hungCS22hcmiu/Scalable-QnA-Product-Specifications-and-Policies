@@ -7,7 +7,7 @@
 # described" before the meeting.
 #
 # CLAUDE.md's standing rule still applies: check memory pressure before running.
-#   sysctl kern.memorystatus_vm_pressure_level   # want 0
+#   sysctl kern.memorystatus_vm_pressure_level   # want 1 (1 normal/green, 2 warn, 4 critical; ADR-014)
 #
 # Usage:
 #   GATEWAY_URL=http://localhost:8080 ./experiments/scripts/verify_admission.sh

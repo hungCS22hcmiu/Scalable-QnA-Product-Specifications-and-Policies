@@ -299,7 +299,7 @@ def _report(p, *, passed=True):
         "stored_vector_digest": "c" * 64,
         "index_check": {"passed": True, "tests": 5},
         "grounding": {"ungrounded": 0, "own_chunk_missing": 0},
-        "memory_pressure": {"readings": [0, 0, 0, 0]},
+        "memory_pressure": {"readings": [1, 1, 1, 1]},
         "stage2_seconds": 301.5,
         "query_vectors_vs_file": {
             "compared": 4,
@@ -374,7 +374,7 @@ def test_freeze_writes_the_record_with_the_gates_own_integers(world, capsys):
     assert record["gate_run"]["run1"] == {
         "stage2_seconds": 301.5,
         "memory_readings": 4,
-        "memory_max": 0,
+        "memory_max": 1,
         "query_vectors_vs_file": world.r1["query_vectors_vs_file"],
     }
     out = capsys.readouterr().out
@@ -483,11 +483,11 @@ def _run2_other_pass_fail(w):
             "run 2: the code that measures was not a clean commit",
         ),
         (
-            _run1(["memory_pressure", "readings"], [0, 1, 0]),
+            _run1(["memory_pressure", "readings"], [1, 2, 1]),
             "run 1: memory pressure was not green",
         ),
         (
-            _run2(["memory_pressure", "readings"], [0, None, 0]),
+            _run2(["memory_pressure", "readings"], [1, None, 1]),
             "run 2: memory pressure was not green",
         ),
         (
@@ -880,3 +880,32 @@ def test_check_index_before_a_record_says_the_vectors_were_not_compared(
     out = capsys.readouterr().out
     assert "vector sizes checked" in out and "are not compared" in out
     assert "ids, texts, vectors and the embedding model's digest checked" not in out
+
+
+# =================================================================================================
+# ADR-014, Block A0: green is the gate's GREEN_LEVEL, which is 1 (macOS: 1 normal, 2 warn, 4 critical)
+# =================================================================================================
+def test_freeze_accepts_normal_readings_only(world):
+    world.r1["memory_pressure"]["readings"] = [1, 1, 1]
+    world.r2["memory_pressure"]["readings"] = [1, 1, 1, 1]
+    assert _freeze(world) == 0
+    record = json.loads(world.p.record.read_text())
+    assert record["gate_run"]["run1"]["memory_max"] == 1
+
+
+@pytest.mark.parametrize(
+    "readings", [[1, 2], [1, 4], [1, None], [1, True], [], [0, 0], [0]]
+)
+def test_freeze_refuses_every_reading_that_is_not_exactly_one(world, readings):
+    world.r2["memory_pressure"]["readings"] = readings
+    with pytest.raises(fm.Refusal) as refusal:
+        _freeze(world)
+    assert "run 2: memory pressure was not green" in " | ".join(refusal.value.lines)
+    assert not world.p.record.exists()
+
+
+def test_freeze_reads_green_from_the_gates_one_constant(world, monkeypatch):
+    monkeypatch.setattr(fm.corpus_gate, "GREEN_LEVEL", 7)
+    world.r1["memory_pressure"]["readings"] = [7, 7]
+    world.r2["memory_pressure"]["readings"] = [7]
+    assert _freeze(world) == 0

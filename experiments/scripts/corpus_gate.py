@@ -98,6 +98,11 @@ NOT_A_TRAP = ("name-swap-same",)
 # would otherwise print a line per record.
 DETAIL_CAP = 10
 
+# macOS `kern.memorystatus_vm_pressure_level` (DISPATCH_MEMORYPRESSURE_* in the SDK): 1 normal, 2 warn,
+# 4 critical. Green is 1 (ADR-014). The repository's old zero-is-green rule was wrong: macOS does not report 0.
+GREEN_LEVEL = 1
+PRESSURE_NAMES = {1: "normal", 2: "warn", 4: "critical"}
+
 # G5's word list (docs/work/2026-10-20-policy-documents/design.md §5), committed before the first
 # policy document was written, and WIDENED by /ai-review F2 (2026-10-21) after the text existed;
 # none of the 12 documents hit an added word. Lower case. Errs wide: a wrong hit costs a reworded
@@ -1151,9 +1156,10 @@ def index_check(
 
 # --- what the measurement ran on ------------------------------------------------------------------
 def memory_pressure_level() -> int | None:
-    """`kern.memorystatus_vm_pressure_level`: 0 green, 1 yellow, 2 urgent (CLAUDE.md). The gate
-    reads it itself, so a run's validity is not left to the person who started it. None when it
-    cannot be read, and the freeze counts that as not green."""
+    """`kern.memorystatus_vm_pressure_level`: 1 normal (green, `GREEN_LEVEL`), 2 warn, 4 critical
+    (ADR-014). The gate reads it itself, so a run's validity is not left to the person who started
+    it. The raw value is returned. None when it cannot be read, and the freeze counts that as not
+    green."""
     try:
         out = subprocess.run(
             ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
@@ -1165,6 +1171,13 @@ def memory_pressure_level() -> int | None:
         return int(out.stdout.strip())
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
+
+
+def describe_pressure(level: int | None) -> str:
+    """One reading in words, for the S3 message: `2 (warn)`, `0 (not a macOS level)`."""
+    if level is None:
+        return "could not be read"
+    return f"{level} ({PRESSURE_NAMES.get(level, 'not a macOS level')})"
 
 
 def git_state(repo: Path = REPO_ROOT, paths: tuple[str, ...] = GIT_PATHS) -> dict:
@@ -1519,11 +1532,13 @@ def main() -> int:
     )
     stage2_seconds = time.monotonic() - started
     memory.append(memory_pressure_level())
+    not_green = [m for m in memory if m != GREEN_LEVEL]
     print(f"\nstage 2 took {stage2_seconds:.0f} s · memory pressure readings: {len(memory)}, "
-          f"not green: {sum(1 for m in memory if m != 0)}")
-    if any(m != 0 for m in memory):
-        print("  S3 — memory pressure was not green (or could not be read). Discard this run, "
-              "close apps and repeat it.")
+          f"not green: {len(not_green)}")
+    if not_green:
+        seen = ", ".join(sorted({describe_pressure(m) for m in not_green}))
+        print(f"  S3 — memory pressure was not green (seen: {seen}; green is {GREEN_LEVEL}, "
+              f"{PRESSURE_NAMES[GREEN_LEVEL]}). Discard this run, close apps and repeat it.")
 
     # Counts only: a qa_id embeds an asin. The ids are in the retrieval export.
     grounding = grounding_counts(queries)
@@ -1617,7 +1632,7 @@ def main() -> int:
     # The criteria can pass on a run that must not be frozen: yellow memory (S3), a query with no
     # grounding (S4), a G2 met by paraphrases only (S5). Such a run prints no digest.
     flags = []
-    if any(m != 0 for m in memory):
+    if any(m != GREEN_LEVEL for m in memory):
         flags.append("S3 memory pressure was not green")
     if grounding["ungrounded"] or grounding["own_chunk_missing"]:
         flags.append("S4 a query is ungrounded or lacks its own product's chunk")

@@ -82,6 +82,27 @@ not required. `READY_TO_IMPLEMENT` is written. This unlocks the plan, **in its o
 
 **ADR-014 drafted 2026-10-23** (plan step 2), not committed. Three parts of it are marked as the author's to accept: the "How C1 is read" paragraph, the proposed Phase 3 exit wording, and the supervisor line ("not recorded yet"). Every quotation from `Final_Proposal.md` and `data-card.md` was checked by script against the files. T3 holds until the author asks for the commit (plan step 3).
 
+**Memory-scale test edits (plan step 4, T7) — the list, 2026-10-23.** The author said in chat, after ADR-014 was drafted and
+committed (a59e0e5): "feel free to execute all of the remaining steps". That is taken as the confirmation of this list **on one
+condition set by the spec: each edit changes a number only** (green `0 → 1`, the old yellow `1 → 2`). If any edit needs more than
+a number, work stops and the author is asked. The existing tests that assume the wrong scale, and nothing else:
+
+| # | File : line | Test (or fixture) | Change |
+| :--- | :--- | :--- | :--- |
+| 1 | `test_corpus_gate_freeze.py:774` | `full_run` fixture | readings `[0] * 100` → `[1] * 100` |
+| 2 | `test_corpus_gate_freeze.py:855-857` | the report test | `set(readings) == {0}` → `{1}` |
+| 3 | `test_corpus_gate_freeze.py:941, 945` | `test_main_flags_a_yellow_reading_and_the_report_keeps_it` | `[0, 0, 1] + [0] * 100` → `[1, 1, 2] + [1] * 100`; `assert 1 in` → `assert 2 in` |
+| 4 | `test_corpus_gate_freeze.py:992` | `test_a_yellow_reading_stops_a_run_the_criteria_pass` | `[0, 0, 1] + [0] * 100` → `[1, 1, 2] + [1] * 100` |
+| 5 | `test_freeze_corpus.py:302` | the report fixture | `[0, 0, 0, 0]` → `[1, 1, 1, 1]` |
+| 6 | `test_freeze_corpus.py:377` | the expected record | `"memory_max": 0` → `1` |
+| 7 | `test_freeze_corpus.py:486` | the parametrised refusal | `[0, 1, 0]` → `[1, 2, 1]` |
+| 8 | `test_freeze_corpus.py:490` | the parametrised refusal | `[0, None, 0]` → `[1, None, 1]` |
+
+**Checked and left unchanged:** `test_freeze_corpus.py:494` (`[]`) and `:498` (`[True]`: a bool equals 1 in Python, and `freeze`
+refuses it because `type(m) is int` is required, so it is a stronger test on the new scale); `:577` (`[2]`: warn, still refused);
+`test_corpus_gate_freeze.py:368` (parses the raw sysctl text, no scale); `test_loadgen_footprint.py:480` (a raw reading, no scale).
+New tests are added for the corrected scale (plan step 5). They are additions, not edits.
+
 **Still open, and not answered by this approval:** the memory-scale test edits (T7), the "How C1 is read" paragraph, the Phase 3
 exit wording (the author's), and whether the supervisor sees ADR-014. **Invalidates: none — no runs yet.**
 
