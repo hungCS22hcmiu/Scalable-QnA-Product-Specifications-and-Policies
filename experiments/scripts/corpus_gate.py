@@ -5,6 +5,14 @@ corpus risks removing the phenomenon it studies. This gate catches that *before*
 snapshot is hashed, while the corpus can still be fixed — and it refuses to print a snapshot hash
 unless every criterion passes, so "frozen" cannot happen by accident.
 
+**One narrow exception (ADR-014).** `--accept-failed G1` lets a run in which G1 is the only failed
+criterion, and no flag (S3, S4, S5) is raised, print the digest as "FREEZE WITH A RECORDED FAILURE".
+Only G1, only for dataset version v1, and only when the snapshot digest equals the pinned
+`ACCEPTED_SNAPSHOT_DIGEST` (the files whose first run failed G1). `passed` stays false.
+
+Exit codes: 0 every criterion passed · 3 freezable with a recorded failure (not a pass) · 1 anything
+else.
+
     make gate-corpus VERSION=v1 WORKLOAD=data/workload-v1.json
 
 ## The five criteria (data-card.md §7)
@@ -102,6 +110,15 @@ DETAIL_CAP = 10
 # 4 critical. Green is 1 (ADR-014). The repository's old zero-is-green rule was wrong: macOS does not report 0.
 GREEN_LEVEL = 1
 PRESSURE_NAMES = {1: "normal", 2: "warn", 4: "critical"}
+
+# ADR-014: item 3.6 may freeze v1 with G1 recorded as FAILED (21 pairs against a floor of 50). The
+# allowance is opt-in (`--accept-failed`), for these criteria and this version only, and only for the
+# files whose first run failed: the pinned digest of the 164 corpus files and 3 workload files
+# (docs/work/2026-10-22-g1-finding/evidence/first-run-pin.md). If one file changes, it stops working.
+ACCEPTABLE_FAILURES = ("G1",)
+ACCEPTABLE_VERSION = "v1"
+FINDING_ADR = "ADR-014"
+ACCEPTED_SNAPSHOT_DIGEST = "a5708fefa62cec0aef5505e9e5242bc04bf351fd02a2efb5da54a98f211bb2e4"
 
 # G5's word list (docs/work/2026-10-20-policy-documents/design.md §5), committed before the first
 # policy document was written, and WIDENED by /ai-review F2 (2026-10-21) after the text existed;
@@ -1173,6 +1190,71 @@ def memory_pressure_level() -> int | None:
         return None
 
 
+def parse_accept_failed(text: str | None, version: str) -> tuple[str, ...]:
+    """The criteria named by `--accept-failed`, checked before any work (ADR-014). Spaces and repeats
+    are collapsed. Only `ACCEPTABLE_FAILURES`, and only for `ACCEPTABLE_VERSION`."""
+    ids = tuple(dict.fromkeys(p.strip() for p in (text or "").split(",") if p.strip()))
+    bad = [i for i in ids if i not in ACCEPTABLE_FAILURES]
+    if bad:
+        raise SystemExit(
+            f"FAIL — --accept-failed takes only {', '.join(ACCEPTABLE_FAILURES)} ({FINDING_ADR}); "
+            f"got {', '.join(bad)}."
+        )
+    if ids and version != ACCEPTABLE_VERSION:
+        raise SystemExit(
+            f"FAIL — --accept-failed is allowed only for dataset version {ACCEPTABLE_VERSION} "
+            f"({FINDING_ADR}); got {version}."
+        )
+    return ids
+
+
+def reachable_traps(queries: list[Query]) -> dict[str, dict[str, dict[str, int]]]:
+    """Traps whose partner a run can reach, per split and probe kind (ADR-014; counts only).
+
+    3.4's definition (`workload-generator/tools/partner_cosine.py`): a trap is a record with a
+    `probe_kind` other than `NOT_A_TRAP`; it is reachable when its cosine with its `pair_of` partner is
+    at least `SIM_FLOOR`. `records` counts records; `pairs` counts a twin pair once (both records name
+    each other). A partner that names no record is not reachable. A record with a `pair_of` and no
+    `probe_kind` is not a trap. Reported, never gated, and it carries no sample size.
+    """
+    by_id = {q.qa_id: q for q in queries}
+    cells: dict[tuple[str, str], dict] = {}
+    for q in queries:
+        if not q.probe_kind or q.probe_kind in NOT_A_TRAP:
+            continue
+        partner = by_id.get(q.pair_of) if q.pair_of else None
+        reach = (
+            partner is not None
+            and bool(q.embedding)
+            and cosine(q.embedding, partner.embedding) >= SIM_FLOOR
+        )
+        key = frozenset((q.qa_id, q.pair_of))
+        for scope in ([q.split] if q.split in SPLITS else []) + ["whole"]:
+            for kind in (q.probe_kind, "all"):
+                cell = cells.setdefault(
+                    (scope, kind),
+                    {"records": 0, "reachable": 0, "pairs": set(), "pairs_reachable": set()},
+                )
+                cell["records"] += 1
+                cell["pairs"].add(key)
+                if reach:
+                    cell["reachable"] += 1
+                    cell["pairs_reachable"].add(key)
+    out: dict[str, dict[str, dict[str, int]]] = {}
+    for scope in (*SPLITS, "whole"):
+        kinds = sorted({kind for (sc, kind) in cells if sc == scope and kind != "all"})
+        out[scope] = {}
+        for kind in (*kinds, "all"):
+            cell = cells.get((scope, kind))
+            out[scope][kind] = {
+                "records": cell["records"] if cell else 0,
+                "reachable": cell["reachable"] if cell else 0,
+                "pairs": len(cell["pairs"]) if cell else 0,
+                "pairs_reachable": len(cell["pairs_reachable"]) if cell else 0,
+            }
+    return out
+
+
 def describe_pressure(level: int | None) -> str:
     """One reading in words, for the S3 message: `2 (warn)`, `0 (not a macOS level)`."""
     if level is None:
@@ -1433,7 +1515,16 @@ def main() -> int:
         help="the vectors file item 3.4 embedded (data/v1-draft/workload/vectors.json): the report "
         "counts how many of this run's query vectors differ from it, and by how much.",
     )
+    ap.add_argument(
+        "--accept-failed",
+        default="",
+        metavar="ID",
+        help=f"ADR-014: let a run in which only this criterion failed print the digest as a RECORDED "
+        f"FAILURE (exit 3, passed stays false). Only {', '.join(ACCEPTABLE_FAILURES)}, only for "
+        f"dataset version {ACCEPTABLE_VERSION}, only for the pinned snapshot. Default: nothing.",
+    )
     args = ap.parse_args()
+    accept_failed = parse_accept_failed(args.accept_failed, args.version)
 
     corpus_dir = Path(args.corpus_dir) if args.corpus_dir else REPO_ROOT / "data" / args.version
     workload_path = (
@@ -1595,6 +1686,19 @@ def main() -> int:
           + f" · across the splits={len(across)} (not gated)")
     for g2 in g2s:
         print(f"  {g2.name[4:]:<44}: {g2.summary}")
+    traps = reachable_traps(queries)
+    print(f"  reachable traps (partner at cosine >= {SIM_FLOOR}; reported, not gated; "
+          "records, then unique pairs):")
+    for scope in (*SPLITS, "whole"):
+        total = traps[scope]["all"]
+        by_kind = " · ".join(
+            f"{kind} {c['reachable']}/{c['records']}"
+            for kind, c in traps[scope].items()
+            if kind != "all"
+        )
+        print(f"      {scope:<10} {total['reachable']} of {total['records']} records · "
+              f"{total['pairs_reachable']} of {total['pairs']} pairs"
+              + (f" · {by_kind}" if by_kind else ""))
     print("  unscoped, for comparison (not gated)        : "
           + " ".join(
               f"{s}: G1={len(unscoped_within[s])} "
@@ -1640,6 +1744,13 @@ def main() -> int:
         flags.append("S5 G2 is met by paraphrase pairs only")
     passed = criteria_passed and not flags
     digest, per_file = snapshot_digest(freeze_files(corpus_dir, workload_path))
+    # ADR-014: the one narrow exception. Failed criteria are read from the criteria themselves, and
+    # the allowance holds only for the pinned files, only for criteria named on the command line,
+    # and only when nothing else is wrong.
+    failed_ids = {c.name.split()[0] for c in criteria if not c.passed}
+    digest_is_pin = digest == ACCEPTED_SNAPSHOT_DIGEST
+    accepted = (failed_ids & set(accept_failed)) if digest_is_pin else set()
+    freezable = bool(failed_ids) and failed_ids <= accepted and not flags
     if passed:
         print("\n--- FREEZE ---")
         print(f"  dataset version : {args.version}")
@@ -1649,6 +1760,18 @@ def main() -> int:
         print("  of each run file in data-card.md §7 and in every run manifest (the evaluation).")
         print("  G5 here is lexical: the author's read of every policy document is the other half")
         print("  of G5 (data-card.md §7), and it must be recorded before this digest is frozen.")
+    elif freezable:
+        ids = ", ".join(sorted(accepted))
+        print(f"\n--- FREEZE WITH A RECORDED FAILURE ({ids}, {FINDING_ADR}) ---")
+        print(f"  dataset version : {args.version}")
+        print(f"  snapshot digest : {digest}")
+        print(f"  over            : {len(per_file)} files")
+        for c in criteria:
+            if not c.passed:
+                print(f"  recorded failure: {c.name.strip()} — {c.summary}")
+        print(f"\n  {ids} failed and is accepted as a recorded failure ({FINDING_ADR}). This is not a pass:")
+        print("  the report keeps passed=false, and the freeze record lists the failure under")
+        print("  known_failures. Record it in data-card.md §7 beside the digest, K and the capacity.")
     elif criteria_passed:
         print("\n  NOT FROZEN — the five criteria pass, but this run is flagged, so no snapshot digest")
         print("  is printed:")
@@ -1658,6 +1781,16 @@ def main() -> int:
     else:
         print("\n  NOT FROZEN — a criterion failed, so no snapshot digest is printed.")
         print(f"  (it would have been {digest[:12]}…; fix the corpus and re-run)")
+        if accept_failed:
+            print(f"  --accept-failed {','.join(accept_failed)} was given but not honoured ({FINDING_ADR}):")
+            if not digest_is_pin:
+                print(f"    the snapshot digest {digest[:12]}… is not the pinned snapshot "
+                      f"{ACCEPTED_SNAPSHOT_DIGEST[:12]}… (a corpus or workload file changed)")
+            others = sorted(failed_ids - set(accept_failed))
+            if others:
+                print(f"    other criteria failed: {', '.join(others)}")
+            if flags:
+                print(f"    a flag was raised: {'; '.join(flags)}")
 
     git_end = git_state()
     provenance = {
@@ -1705,7 +1838,9 @@ def main() -> int:
                     "workload": str(workload_path),
                     "passed": passed,
                     "flags": flags,
-                    "snapshot_digest": digest if passed else None,
+                    "freezable": freezable,
+                    "accepted_failures": sorted(accepted) if freezable else [],
+                    "snapshot_digest": digest if (passed or freezable) else None,
                     "files": [{"path": p, "sha256": d} for p, d in per_file],
                     "criteria": [
                         {"name": c.name, "passed": c.passed, "summary": c.summary} for c in criteria
@@ -1713,6 +1848,7 @@ def main() -> int:
                     "statistics": {
                         "g1_pairs_within_split": {s: len(within[s]) for s in SPLITS},
                         "g1_pairs_across_splits": len(across),
+                        "reachable_traps": traps,
                         "b_within": {
                             s: sum(1 for p in within[s] if p.label == "B-within") for s in SPLITS
                         },
@@ -1763,7 +1899,7 @@ def main() -> int:
         )
         print(f"\n  report -> {report_path}")
 
-    return 0 if passed else 1
+    return 0 if passed else 3 if freezable else 1
 
 
 if __name__ == "__main__":

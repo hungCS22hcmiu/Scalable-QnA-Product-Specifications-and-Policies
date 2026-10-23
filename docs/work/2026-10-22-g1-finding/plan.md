@@ -32,16 +32,16 @@ alone, when the author asks, and `make verify` runs after each code block.
 
 ## Block A — the gate allowance
 
-- [ ] **9. Failing tests first** (`spec.md` A3, A4): refuses a value but `G1`; a version but `v1`; a digest but the pinned one;
+- [x] **9. Failing tests first** *Done 2026-10-23: 22 new tests (pin, refusals, accepted run, not-honoured cases, `reachable_traps`); they failed for the missing constants and flag.* (`spec.md` A3, A4): refuses a value but `G1`; a version but `v1`; a digest but the pinned one;
   another failed criterion; S3, S4 or S5 raised; ordinary banner and exit when G1 passes; the accepted run prints the
   recorded-failure banner, exits 3, writes `passed:false`, `freezable:true`, `accepted_failures:["G1"]` and the digest; the
   default path unchanged. Tests for `reachable_traps` on a synthetic workload (records vs unique pairs; `name-swap-same`
   excluded; a probe without `probe_kind` ignored). *Check:* they fail today.
-- [ ] **10. The code.** Constants, `--accept-failed`, the pin, `freezable`, banners, exit 3, report keys, `reachable_traps`,
+- [x] **10. The code.** *Done 2026-10-23: constants, `parse_accept_failed`, `--accept-failed`, the pin, `freezable`, banner, exit 3, report keys, `reachable_traps` and its printing, module docstring, Makefile `ACCEPT_FAILED`. All old tests pass; the two Block A0 numeric edits are the only edited tests.* Constants, `--accept-failed`, the pin, `freezable`, banners, exit 3, report keys, `reachable_traps`,
   the printing, the module docstring (lines 5 – 6). *Check:* new tests pass, every old test passes unedited.
-- [ ] **11. Exit code 3 under `make`.** A scratch Makefile whose recipe exits 3. *Check:* `make` stops with "Error 3" and
+- [x] **11. Exit code 3 under `make`.** *Done: a scratch recipe that writes a file and exits 3 — `make` printed "Error 3" and the file was still there.* A scratch Makefile whose recipe exits 3. *Check:* `make` stops with "Error 3" and
   the report is still written by the gate.
-- [ ] **12. `make verify`; commit A** (when the author asks).
+- [x] **12. `make verify`; commit A** *Done 2026-10-23: 716 experiments + 23 rag tests, Go ok, no FAIL, no SKIPPED. Committed on the author's instruction to execute the remaining steps.* (when the author asks).
 
 ## Block B — the freeze tool
 

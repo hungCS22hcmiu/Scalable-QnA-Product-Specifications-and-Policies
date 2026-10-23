@@ -1061,3 +1061,266 @@ def test_any_reading_but_one_raises_s3_and_the_message_names_it(
     assert "S3 — memory pressure was not green" in text and words in text
     assert data["flags"] == ["S3 memory pressure was not green"]
     assert data["passed"] is False and data["snapshot_digest"] is None
+
+
+# =================================================================================================
+# ADR-014, Block A: `--accept-failed G1` -- a pinned, opt-in allowance, and the reachable traps
+# =================================================================================================
+PIN = "d" * 64
+
+
+def _g1_fails_the_rest_pass(monkeypatch, g2_passes=True):
+    monkeypatch.setattr(
+        g,
+        "check_g1",
+        lambda pairs, scope="": g.Criterion("G1  forced", False, "forced"),
+    )
+    monkeypatch.setattr(
+        g,
+        "check_g2",
+        lambda pairs, scope="": g.Criterion(
+            f"G2  forced ({scope})", g2_passes, "forced"
+        ),
+    )
+
+
+def _pin(monkeypatch, value=PIN):
+    """The fixture's files cannot hash to the real pin, so the digest and the pin are both set."""
+    monkeypatch.setattr(g, "ACCEPTED_SNAPSHOT_DIGEST", PIN)
+    monkeypatch.setattr(
+        g, "snapshot_digest", lambda paths: (value, [("f.json", "0" * 64)])
+    )
+
+
+def _not_honoured(full_run, text_has):
+    run, report, *_ = full_run
+    code, text = run("--accept-failed", "G1")
+    data = json.loads(report.read_text())
+    assert code == 1 and "FREEZE WITH A RECORDED FAILURE" not in text
+    assert data["passed"] is False and data["freezable"] is False
+    assert data["accepted_failures"] == [] and data["snapshot_digest"] is None
+    assert "--accept-failed G1 was given but not honoured" in text and text_has in text
+
+
+def test_the_pin_is_the_digest_run_1_printed():
+    assert len(g.ACCEPTED_SNAPSHOT_DIGEST) == 64
+    assert g.ACCEPTED_SNAPSHOT_DIGEST.startswith("a5708fefa62c")
+    assert (g.ACCEPTABLE_FAILURES, g.ACCEPTABLE_VERSION, g.FINDING_ADR) == (
+        ("G1",),
+        "v1",
+        "ADR-014",
+    )
+
+
+@pytest.mark.parametrize("bad", ["G2", "G1,G2", "g1", "W", "S", "all"])
+def test_accept_failed_refuses_any_value_but_g1_before_any_work(
+    full_run, monkeypatch, bad
+):
+    import rag.embedding
+
+    run, *_ = full_run
+    monkeypatch.setattr(
+        rag.embedding, "OllamaEmbedding", lambda: pytest.fail("work was started")
+    )
+    with pytest.raises(SystemExit, match="only G1"):
+        run("--accept-failed", bad)
+
+
+def test_accept_failed_refuses_any_version_but_v1_before_any_work(
+    full_run, monkeypatch
+):
+    import rag.embedding
+
+    run, *_ = full_run
+    monkeypatch.setattr(
+        rag.embedding, "OllamaEmbedding", lambda: pytest.fail("work was started")
+    )
+    with pytest.raises(SystemExit, match="only for dataset version v1"):
+        run("--version", "v2", "--accept-failed", "G1")
+
+
+def test_a_list_with_spaces_and_repeats_is_collapsed():
+    assert g.parse_accept_failed("", "v1") == ()
+    assert g.parse_accept_failed(None, "v2") == ()
+    assert g.parse_accept_failed(" G1, G1 ,", "v1") == ("G1",)
+
+
+def test_without_the_flag_a_failed_g1_is_a_plain_failure(full_run, monkeypatch):
+    run, report, *_ = full_run
+    _g1_fails_the_rest_pass(monkeypatch)
+    _pin(monkeypatch)
+    code, text = run()
+    data = json.loads(report.read_text())
+    assert code == 1 and "FREEZE WITH A RECORDED FAILURE" not in text
+    assert "NOT FROZEN — a criterion failed" in text
+    assert data["passed"] is False and data["freezable"] is False
+    assert data["accepted_failures"] == [] and data["snapshot_digest"] is None
+
+
+def test_an_accepted_g1_failure_is_freezable_loud_and_not_a_pass(full_run, monkeypatch):
+    run, report, *_ = full_run
+    _g1_fails_the_rest_pass(monkeypatch)
+    _pin(monkeypatch)
+    code, text = run("--accept-failed", "G1")
+    data = json.loads(report.read_text())
+    assert code == 3
+    assert "--- FREEZE WITH A RECORDED FAILURE (G1, ADR-014) ---" in text
+    assert "--- FREEZE ---" not in text and PIN in text and "not a pass" in text
+    assert "G1 failed and is accepted as a recorded failure (ADR-014)" in text
+    assert data["passed"] is False and data["freezable"] is True
+    assert data["accepted_failures"] == ["G1"] and data["flags"] == []
+    assert data["snapshot_digest"] == PIN
+
+
+def test_the_flag_is_not_honoured_when_the_digest_is_not_the_pin(full_run, monkeypatch):
+    _g1_fails_the_rest_pass(monkeypatch)
+    _pin(monkeypatch, value="e" * 64)
+    _not_honoured(full_run, "not the pinned snapshot")
+
+
+def test_the_flag_is_not_honoured_with_the_real_pin_on_the_fixture_files(
+    full_run, monkeypatch
+):
+    _g1_fails_the_rest_pass(monkeypatch)
+    _not_honoured(full_run, "not the pinned snapshot")
+
+
+def test_the_flag_is_not_honoured_when_another_criterion_fails_too(
+    full_run, monkeypatch
+):
+    _g1_fails_the_rest_pass(monkeypatch, g2_passes=False)
+    _pin(monkeypatch)
+    _not_honoured(full_run, "other criteria failed")
+
+
+def test_the_flag_is_not_honoured_under_s3(full_run, monkeypatch):
+    _g1_fails_the_rest_pass(monkeypatch)
+    _pin(monkeypatch)
+    readings = iter([1, 1, 2] + [1] * 100)
+    monkeypatch.setattr(g, "memory_pressure_level", lambda: next(readings))
+    _not_honoured(full_run, "a flag was raised")
+
+
+def test_the_flag_is_not_honoured_for_an_ungrounded_run(full_run, monkeypatch):
+    import rag.retrieve
+
+    _g1_fails_the_rest_pass(monkeypatch)
+    _pin(monkeypatch)
+    monkeypatch.setattr(rag.retrieve, "retrieve", lambda text, product_id=None: ([], 0))
+    _not_honoured(full_run, "a flag was raised")
+
+
+def test_the_flag_is_not_honoured_when_g2_is_met_by_paraphrases_only(
+    full_run, monkeypatch
+):
+    _g1_fails_the_rest_pass(monkeypatch)
+    _pin(monkeypatch)
+    monkeypatch.setattr(g, "paraphrase_only", lambda pairs, by_id: True)
+    _not_honoured(full_run, "a flag was raised")
+
+
+def test_the_flag_changes_nothing_when_g1_passes(full_run, monkeypatch):
+    run, report, *_ = full_run
+    _criteria_all_green(monkeypatch)
+    _pin(monkeypatch)
+    code, text = run("--accept-failed", "G1")
+    data = json.loads(report.read_text())
+    assert code == 0 and "--- FREEZE ---" in text
+    assert "RECORDED FAILURE" not in text
+    assert data["passed"] is True and data["freezable"] is False
+    assert data["accepted_failures"] == [] and data["snapshot_digest"] == PIN
+
+
+def test_an_old_run_without_the_flag_keeps_exit_codes_zero_and_one(
+    full_run, monkeypatch
+):
+    run, *_ = full_run
+    assert run()[0] == 1  # G1 fails on four queries
+    _criteria_all_green(monkeypatch)
+    assert run()[0] == 0
+
+
+# --- reachable traps (3.4's definition, partner_cosine.py: a probe_kind other than name-swap-same;
+# --- reachable when the cosine with its pair_of partner is at least SIM_FLOOR) -------------------
+def _probe(qa_id, split, vec, pair_of="", probe_kind=""):
+    return g.Query(
+        qa_id=qa_id,
+        question=qa_id,
+        split=split,
+        embedding=vec,
+        pair_of=pair_of,
+        probe_kind=probe_kind,
+    )
+
+
+NEAR, FAR = [1.0, 0.1], [0.1, 1.0]
+
+
+def test_reachable_traps_by_split_and_kind_as_records_and_unique_pairs():
+    qs = [
+        _probe("a", "validation", [1.0, 0.0]),
+        _probe("t1", "validation", NEAR, "a", "lookalike"),  # reachable
+        _probe("t2", "validation", FAR, "a", "lookalike"),  # a trap, out of reach
+        _probe(
+            "x", "validation", NEAR, "y", "policy-condition"
+        ),  # mutual twins, reachable
+        _probe("y", "validation", [1.0, 0.0], "x", "policy-condition"),
+        _probe("n", "validation", NEAR, "a", "name-swap-same"),  # not a trap
+        _probe(
+            "p", "validation", NEAR, "a", ""
+        ),  # pair_of without a probe_kind: ignored
+        _probe("b", "test", [1.0, 0.0]),
+        _probe("t3", "test", NEAR, "b", "lookalike"),
+    ]
+    got = g.reachable_traps(qs)
+    v = got["validation"]
+    assert v["lookalike"] == {
+        "records": 2,
+        "reachable": 1,
+        "pairs": 2,
+        "pairs_reachable": 1,
+    }
+    assert v["policy-condition"] == {
+        "records": 2,
+        "reachable": 2,
+        "pairs": 1,
+        "pairs_reachable": 1,
+    }
+    assert v["all"] == {"records": 4, "reachable": 3, "pairs": 3, "pairs_reachable": 2}
+    assert "name-swap-same" not in v
+    assert got["test"]["all"] == {
+        "records": 1,
+        "reachable": 1,
+        "pairs": 1,
+        "pairs_reachable": 1,
+    }
+    assert got["whole"]["all"] == {
+        "records": 5,
+        "reachable": 4,
+        "pairs": 4,
+        "pairs_reachable": 3,
+    }
+
+
+def test_a_partner_that_is_missing_or_at_the_floor_is_counted_correctly(monkeypatch):
+    at_floor = [
+        3.0,
+        4.0,
+    ]  # cosine 0.6 with [1, 0]; the floor is set to exactly that value
+    monkeypatch.setattr(g, "SIM_FLOOR", g.cosine([1.0, 0.0], at_floor))
+    qs = [
+        _probe("a", "validation", [1.0, 0.0]),
+        _probe("at", "validation", at_floor, "a", "lookalike"),
+        _probe("gone", "validation", NEAR, "no-such-record", "lookalike"),
+    ]
+    got = g.reachable_traps(qs)["validation"]["all"]
+    assert got["records"] == 2 and got["reachable"] == 1
+
+
+def test_a_run_prints_and_records_the_reachable_traps_with_no_sample_size(full_run):
+    run, report, *_ = full_run
+    _, text = run()
+    stats = json.loads(report.read_text())["statistics"]
+    assert set(stats["reachable_traps"]) == {"validation", "test", "whole"}
+    assert "reachable traps" in text and "reported, not gated" in text
+    assert "sample size" not in text and "power" not in text

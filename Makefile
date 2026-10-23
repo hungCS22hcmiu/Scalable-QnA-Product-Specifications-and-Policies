@@ -416,7 +416,12 @@ load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 #
 # Stage 2 first checks that the index in Redis is the corpus on disk, then loads nomic-embed-text.
 # Check `sysctl kern.memorystatus_vm_pressure_level` = 1 (normal, green) before it, every time: the gate reads the
-# level itself and writes every reading to the report, and a run with a reading above 0 is discarded.
+# level itself and writes every reading to the report, and a run with any reading but 1 is discarded.
+#   ACCEPT_FAILED=G1     ADR-014 ONLY: let a run in which G1 is the only failure print the digest as a
+#                        RECORDED FAILURE (exit code 3, passed stays false). Only G1, only v1, only for
+#                        the pinned files. Use it for item 3.6's two freeze runs, with REPORT= and
+#                        RETRIEVAL_OUT= pointing at NEW folders (data/v1-draft/gate/run1/ holds the
+#                        failed first run). Exit codes: 0 pass, 3 recorded failure, 1 anything else.
 #   REPORT=<file>        also write the full result as JSON
 #   RETRIEVAL_OUT=<dir>  write each split's retrieval (ids and sets, no text) -- under data/v1-draft/
 #   VECTORS=<file>       compare this run's query vectors with item 3.4's (data/v1-draft/workload/vectors.json)
@@ -434,7 +439,8 @@ gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the sna
 	$(PY) experiments/scripts/corpus_gate.py --version $(VERSION) --workload $(WORKLOAD) \
 	  $(if $(CORPUS_DIR),--corpus-dir "$(CORPUS_DIR)",) \
 	  $(if $(STRUCTURAL),--structural-only,) $(if $(REPORT),--report $(REPORT),) \
-	  $(if $(RETRIEVAL_OUT),--retrieval-out $(RETRIEVAL_OUT),) $(if $(VECTORS),--vectors $(VECTORS),)
+	  $(if $(RETRIEVAL_OUT),--retrieval-out $(RETRIEVAL_OUT),) $(if $(VECTORS),--vectors $(VECTORS),) \
+	  $(if $(ACCEPT_FAILED),--accept-failed $(ACCEPT_FAILED),)
 
 # Item 3.6: freezing v1 (docs/work/2026-10-22-corpus-freeze/design.md 2.2). In order:
 #   make corpus-assemble                          # data/v1/ from the drafts and the policy documents
