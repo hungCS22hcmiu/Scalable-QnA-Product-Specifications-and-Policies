@@ -54,12 +54,12 @@ alone, when the author asks, and `make verify` runs after each code block.
 
 ## Block C — the real data (no Redis, no Ollama)
 
-- [ ] **16. `tools/reachable_check.py` in this trail** reads `data/workload-v1.json` and `data/v1-draft/workload/vectors.json`
+- [x] **16. `tools/reachable_check.py` in this trail** *Done 2026-10-23, `evidence/reachable-check.md`: 74/129, 108/155, 182/284 as records; 45 and 67 reachable unique pairs (99, 112 and 211 unique pairs in all); 146 mutual-twin records; the three trap definitions give 129 and 155. Every expected count reproduced.* reads `data/workload-v1.json` and `data/v1-draft/workload/vectors.json`
   and calls the gate's `reachable_traps`. *Check:* 74/129, 108/155, 182/284 as records; 45 and 67 as unique pairs; the three
   trap definitions (by `probe_kind`, by `pair_of`, by stratum) give 129 and 155. Counts only, in `evidence/reachable-check.md`.
-- [ ] **17. The pin survives `assemble`.** `freeze_corpus.py assemble` into a scratch directory, recompute the snapshot digest.
+- [x] **17. The pin survives `assemble`.** *Done, `evidence/pin-check.md`: the digest cannot be recomputed from a scratch directory (it hashes repo-relative paths), so two checks were made: the 167 files hash to the pin now, and a fresh `assemble` gives 164 files with the same names and bytes as `data/v1/`.* `freeze_corpus.py assemble` into a scratch directory, recompute the snapshot digest.
   *Check:* it equals the pinned constant.
-- [ ] **18. Hygiene.** A grep of every changed tracked file for the asin and qa_id patterns. *Check:* none.
+- [x] **18. Hygiene.** *Done: no asin and no qa_id pattern in any changed or new tracked file, tests included. Also A6: no diff in `rag/`, `gateway/`, `docs/contracts/` or `data/`; 0.85, 0.2 and 50 untouched; the old-scale grep finds nothing.* A grep of every changed tracked file for the asin and qa_id patterns. *Check:* none.
 
 ## Close
 
