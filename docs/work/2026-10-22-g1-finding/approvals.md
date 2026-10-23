@@ -116,3 +116,9 @@ must pass", the freeze ADR number). It changes no corpus file, no workload file 
 
 **Author's items (not done by this task):** the Phase 3 exit wording in `docs/super-plan.md`; the thesis text on C1's
 applicability; `CLAUDE.md` and `README.md`; whether the supervisor sees the ADR.
+
+**Closed 2026-10-23 (`/done`).** All 19 plan steps are done. `/verify` passed (731 experiments + 23 rag tests, Go ok, nothing skipped);
+`/ai-review` found four items, resolved in `review.md`. `READY_TO_IMPLEMENT` is deleted and the gate is relocked. **Invalidates: none —
+no runs yet** (`experiments/results/` still holds only `.gitkeep`); no frozen value moved (0.85, 0.2, 50, the corpus, the workload and
+the pinned digest are unchanged). Still the author's, as before: the "How C1 is read" paragraph, the Phase 3 exit wording in
+`docs/super-plan.md`, the ADR-014 supervisor line and index status ("proposed"), `CLAUDE.md:44`, `README.md:227`, the thesis text.

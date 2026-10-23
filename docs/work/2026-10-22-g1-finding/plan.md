@@ -11,7 +11,7 @@ alone, when the author asks, and `make verify` runs after each code block.
   `a5708fefa62c`, as run 1 printed.
 - [x] **2. Draft ADR-014 in `docs/decisions.md`** (append only). *Drafted 2026-10-23: 150 lines added at the end plus one index row (line 56); the author reads it next.* Contents: `spec.md` A1. *Check:* each A1 item is present; the
   quotations of `Final_Proposal.md:436, :438, :497, :499` are exact; a grep for an asin or qa_id finds none; the author reads it.
-- [ ] **3. Commit ADR-014 alone** (when the author asks). *Check:* `git log` shows it before any code commit of this task.
+- [x] **3. Commit ADR-014 alone** *Done: a59e0e5, before any code commit.* (when the author asks). *Check:* `git log` shows it before any code commit of this task.
 
 ## Block A0 — the memory scale (the author confirms the test edits first)
 
@@ -63,10 +63,57 @@ alone, when the author asks, and `make verify` runs after each code block.
 
 ## Close
 
-- [ ] **19. `/verify`, `/ai-review`, `/done`.** Outcome in this file: what shipped; the finding in one sentence; the numbers;
+- [x] **19. `/verify`, `/ai-review`, `/done`.** *Done 2026-10-23: `/verify` (`make verify`: 731 experiments + 23 rag tests, Go ok, nothing skipped), `/ai-review` (`review.md`), `/done` (below).* Outcome in this file: what shipped; the finding in one sentence; the numbers;
   whether scope L was honest; **the handoff to 3.6** (`spec.md` A10): its S1 text, A3 (ii), A5, the lines that say "G1 ≥ 50 must
   pass", its freeze ADR becoming ADR-015, its re-runs into new folders with `ACCEPT_FAILED=G1`. No gate run on `v1` is made in
   this task.
+
+## Outcome (2026-10-23)
+
+**What shipped (4 code commits + the ADR, all on `main`):** ADR-014 (a59e0e5) · Block A0, `GREEN_LEVEL = 1` (37e0e8f) · Block A,
+`corpus_gate.py --accept-failed G1` pinned to the first-run snapshot, exit code 3, `reachable_traps` (e6dc08c) · Block B,
+`freeze_corpus.py` accepts two runs that record G1 as failed, with `known_failures` (fdbe4a9) · Block C, the real-data checks
+(981d4cb). `make verify`: 727 experiments tests + 23 rag tests, Go ok, no FAIL, no SKIPPED (was 679 + 23); 731 after the review fixes.
+
+**The finding in one sentence.** `v1` has 21 pairs inside a split (13 + 8) where G1 needs 50; G1 stays as it is, `v1` freezes with
+the failure on record, and C1 is read as bounded by it (ADR-014).
+
+**The numbers.** G1 21 = 13 + 8, 18 across the splits, 1,342 pairs at cosine ≥ 0.85. Reachable traps 74/129 (validation),
+108/155 (test), 182/284 as records; 45 and 67 as reachable unique pairs (112 of 211). Pinned digest `a5708fefa62c…`.
+
+**Deferred, and why.** The "How C1 is read" paragraph, the Phase 3 exit wording and the supervisor line in ADR-014 are marked as
+the author's to accept; the ADR's index row still says "proposed". `docs/super-plan.md`'s exit line, `CLAUDE.md:44` and
+`README.md:227` (the old "0 = green") and the thesis text are the author's. Also left: `loadgen_footprint.py`'s report heading
+still says its sensor encoding is "unverified" (output text of an exploratory tool; not changed, no test touches it).
+
+**Was scope L honest?** Yes. It touched a measured gate, a frozen document's reading (`data-card.md` §7 is still to change in 3.6)
+and the rule that gates every run's memory check. One note on the ladder: the memory scale was first opened as a separate task and
+then folded in here (design review, finding 7).
+
+**Review.** `/ai-review` (`review.md`, second section): four findings; two fixed, one fixed in part, one accepted as manual by design (the
+counts are compared by hand, T4). 52 tests were added in all (15 + 22 + 15).
+
+**Tests.** Eight existing tests were edited, by a number only, under the author's chat instruction to execute the remaining steps
+(list and basis in `approvals.md`). No other existing test changed.
+
+### Handoff to item 3.6 (A10) — what its trail must change when it reopens
+
+1. **S1's text** (`spec.md`, the stop rules): add the fourth option "freeze with the failure recorded (ADR-014)" and say that G1 alone
+   failing is no longer a stop under `--accept-failed G1`; every other failed criterion still is.
+2. **Done-when and A2** (`spec.md:16`, `:93`): "G1 … G5 all pass" becomes "G2 … G5 pass and G1 is recorded as ADR-014's finding";
+   "every memory reading is 0" becomes **1** (also `plan.md:87` and the `approvals.md` waiver text that says "level 0").
+3. **A3 (ii)** (`spec.md:94`): the expected pair counts add the first run's G1 numbers (21 = 13 + 8, 18 across, 1,342); the re-run
+   is compared by hand with `data/v1-draft/gate/first-run/` (hashes in `evidence/first-run-pin.md`). **A4:** the record also
+   holds `known_failures`. **A5** is unchanged (K 622 / 652, capacity 156 / 163).
+4. **Any "G1 ≥ 50 must pass" line** in its plan, design (`design.md:191`, U5) and `data-card.md` §7 (including the line that says the
+   gate "refuses to print a snapshot hash unless all five criteria pass").
+5. **The freeze ADR becomes ADR-015** wherever 3.6's trail says ADR-014 for "`v1` is frozen" (`spec.md:65, :102, :139, :158`;
+   `plan.md:112, :163, :165`; `design.md:24, :149, :195`). ADR-014 is this task's.
+6. **Run both gate runs with `ACCEPT_FAILED=G1`, into new folders** (not `run1/`, which holds the failed first run), e.g.
+   `make gate-corpus ACCEPT_FAILED=G1 REPORT=data/v1-draft/gate/freeze-a/report.json RETRIEVAL_OUT=data/v1-draft/gate/freeze-a ...`,
+   then `make corpus-freeze RUN1=... RUN2=...`. Expect exit code 3 from each (make prints "Error 3"; the report is already written).
+   Check the green memory level first: `sysctl kern.memorystatus_vm_pressure_level` must read **1**.
+7. **Stop if a count differs** from the preserved first run (T4): 21 = 13 + 8, 18 across, 1,342.
 
 ## Not in this plan
 
