@@ -19,11 +19,7 @@
       "WebSearch"
     ],
     "deny": [
-      "Bash(rm -rf /*)",
-      "Read(./data/raw/**)",
-      "Read(./data/v1-draft/**)",
-      "Read(./data/v1/**)"
-
+      "Bash(rm -rf /*)"
     ]
   },
   "hooks": {

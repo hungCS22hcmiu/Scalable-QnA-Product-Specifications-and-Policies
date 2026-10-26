@@ -2,6 +2,8 @@
 
 *Written 2026-10-15 from the code, the contract (`interfaces.md` §C–§E) and the live Redis server.
 Where the code and the contract disagree, the code is described and the gap is listed in §9.*
+*Updated 2026-10-25 after the `v1` freeze (ADR-015): the `v1` corpus (§1, §3), the frozen `K` (§6) and
+how to empty the cache for a measured run (§11, run rule 11, ADR-010).*
 
 ---
 
@@ -38,7 +40,7 @@ areas. Each area has its own key prefix.
 │  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘                                │
 └──────────────────────────────────────────────────────────────────────────────┘
 
-NOT in Redis:  the source JSON files ......... data/dev-v0/*.json
+NOT in Redis:  the source JSON files ......... data/dev-v0/*.json, data/v1/*.json
                the dataset epoch ............. outside Redis on purpose (ADR-008)
                the evaluation log + answers .. experiments/results/{run_id}/raw/ (ADR-005)
 ```
@@ -46,7 +48,13 @@ NOT in Redis:  the source JSON files ......... data/dev-v0/*.json
 **What the live server holds today (2026-10-15):** 44 keys, all `corpus::*` — 40 product chunks and
 4 policy chunks of `dev-v0`, one chunk per document — plus the index `idx:corpus`. There are no cache
 keys and no `idx:cache`, because the gateway is not running. The gateway creates `idx:cache` when it
-starts (`EnsureCacheIndex`, `gateway/cmd/gateway/main.go`).
+starts (`EnsureCacheIndex`, `gateway/cmd/gateway/main.go`). This was checked again on 2026-10-25 and
+had not changed.
+
+**`v1` is frozen but not loaded.** `v1` was frozen on 2026-10-23 (ADR-015, `data/v1-freeze.json`).
+Between runs Redis holds `dev-v0`. Every `v1` run starts by loading it with
+`DATASET_VERSION=v1 make ingest`, then checks that the index is the corpus on disk with
+`make corpus-index-check`.
 
 **Redis never deletes a key by itself.** The server runs with `maxmemory 0` (no memory limit) and
 `maxmemory-policy noeviction`. `make redis-check` fails if either is different. When the cache must
@@ -146,6 +154,11 @@ A **product** becomes text as `Product: …` / `Category: …` / `Specs:` plus o
 **policy** becomes its title, a blank line, and its text. In `dev-v0` every document is short, so
 every document is exactly one chunk (`#chunk-0`).
 
+In `v1` this is no longer true. Its 164 documents give **539 chunks**. Each of the 12 policy
+documents is exactly **4 chunks** (48 in all), and the 152 products split into a median of 2 – 5
+chunks, depending on the PQA leaf (`data-card.md` §1, §7). `v1` names look like
+`product-electronics-b000tnfaq2` and `policy-return-phones-opened`.
+
 **The `search_document: ` prefix** is a rule of the nomic model: stored text gets
 `search_document: `, questions get `search_query: `. Skipping it does not fail. It only makes the
 search quietly worse. Python and Go both add it.
@@ -185,8 +198,8 @@ KEY  corpus::product-headphones-03#chunk-0                                  HASH
 | `doc_id` | The source document, e.g. `product-headphones-03`, `policy-warranty`. The prefix (`product-` / `policy-`) is the **only** place the kind is recorded, and the reuse rule reads it. |
 | `ordinal` | The chunk's position in its document, from 0. |
 | `kind` | `product` or `policy`, taken from the `doc_id` prefix. |
-| `category` | e.g. `headphones`, `laptops`. Empty for policies. |
-| `dataset_version` | Which corpus build this is (`dev-v0` now, `v1` later). A re-chunk is a new version, never an in-place change. |
+| `category` | In `dev-v0`: e.g. `headphones`, `laptops`, and empty for policies. In `v1`: the store department (`phones`, `laptops`, `electronics`, `furniture`), and a policy carries its department too (`policy-return-electronics` → `electronics`). |
+| `dataset_version` | Which corpus build this is (`dev-v0` or `v1`). A re-chunk is a new version, never an in-place change. |
 | `text` | The chunk text. This is what the LLM reads and what the support gate checks answers against. |
 | `vector` | The chunk's embedding. Searched by KNN. |
 | `title` | Display name. Stored, never searched. |
@@ -422,14 +435,19 @@ weak point is in §9.
 ## 6. Area 2c — `lru:entries`, the eviction order
 
 The cache has a fixed size: **`round(0.25 × K)` entries**, where `K` is the number of distinct
-questions in the frozen workload. The gateway keeps this limit, not Redis.
+questions in the **run file**, the workload split the run uses (`interfaces.md` v0.15). The gateway
+keeps this limit, not Redis.
 
 - **What it is:** one ZSET. Member = `entry_id`. Score = time of the last access, in Unix
   **nanoseconds**. Lowest score = least recently used.
 - **When it is written (`ZADD`):** on a Tier-1 hit, a Tier-2 hit, and a miss write-back.
 - **When it exists:** **only if `CACHE_CAPACITY` is set above 0.** The default is `0`, which means
   "no limit". Then the gateway skips every `ZADD` and never trims, so you will **not see this key** in a
-  normal `make dev` run. `K` is not frozen yet, so no capacity is set yet.
+  normal `make dev` run.
+- **The frozen values (2026-10-23, `data-card.md` §7):** `K` is 622 for the validation file and 652
+  for the test file, so the capacity is **156** and **163** entries. The whole workload file (1,274)
+  is the corpus gate's input, not a run file. The code still defaults to `0`: making each run set
+  `CACHE_CAPACITY` from its run file's `K` is carried to P1.
 - Its name has no `t1:`/`t2:` prefix on purpose: those prefixes are what the index and the purge scan.
 
 **Trim**, after each miss write-back (`cache/capacity.go:TrimToCapacity`):
@@ -523,7 +541,7 @@ Some details that matter:
 
 ## 8. Area 3 — invalidation, not built yet (Phase 4)
 
-`gateway/internal/deps/` is a one-line stub. Nothing below exists in code. It is what `interfaces.md`
+`gateway/internal/deps/` holds only a six-line `doc.go`. Nothing below exists in code. It is what `interfaces.md`
 §E and ADR-008 require.
 
 **`dep:{chunk_id}`** will be a SET of every `entry_id` whose answer used that chunk — the
@@ -595,7 +613,7 @@ is seen. Today the epoch is the constant `DATASET_EPOCH_STUB = 0` (`rag/src/rag/
 | **`chunk_id`** | `{doc_id}#chunk-{ordinal}`, e.g. `policy-warranty#chunk-0`. Stable inside one dataset version. |
 | **`doc_id`** | The source document's name. Starts with `product-` or `policy-`. Equals the JSON file name. |
 | **`ordinal`** | A chunk's position in its document, from 0. |
-| **`dataset_version`** | The corpus build (`dev-v0`, later `v1`). Changing the chunking means a new version. |
+| **`dataset_version`** | The corpus build (`dev-v0`, or the frozen `v1`). Changing the chunking means a new version. |
 | **embedding** | A 768-number vector of a text, from `nomic-embed-text` via Ollama. |
 | **`entry_id`** | The ULID of one cached answer. Shared by its `t1:` record, its `t2:` key and `lru:entries`. |
 | **`t1_key`** | The Tier-1 key stored inside the Tier-2 record, so Tier 1 can be found from an `entry_id`. |
@@ -605,7 +623,7 @@ is seen. Today the epoch is the constant `DATASET_EPOCH_STUB = 0` (`rag/src/rag/
 | **`dataset_epoch`** | The corpus version an answer was made under. Used to reject stale write-backs. Stub `0` today. |
 | **write-back** | Writing a new answer into both tiers after a miss. |
 | **promotion** | After a Tier-2 hit, also writing a Tier-1 record for the exact words of that question. |
-| **capacity, K** | Cache size = `round(0.25 × K)` entries; `K` = distinct questions in the frozen workload. |
+| **capacity, K** | Cache size = `round(0.25 × K)` entries; `K` = distinct questions in the run file: 622 (validation) or 652 (test), so 156 or 163 entries. |
 | **τ (tau)** | The similarity threshold for Tier 2. Swept, never hand-set (demo default 0.85). |
 | **θ (theta)** | The source-overlap threshold. Swept, never hand-set (demo default 0.60). |
 | **support gate** | The check that a cached answer is supported by the new question's retrieved text (`τ_s = 0.6`). |
@@ -626,13 +644,26 @@ redis-cli --scan --pattern 't1:*'                # Tier-1 keys
 redis-cli --scan --pattern 't2:*'                # Tier-2 keys
 redis-cli HMGET t2:<entry_id> query_text answer namespace lane t1_key hit_count
 redis-cli ZRANGE lru:entries 0 -1 WITHSCORES     # empty unless CACHE_CAPACITY > 0
+make corpus-index-check                          # is the index in Redis the v1 corpus on disk?
 ```
 
 `HGETALL` on a `corpus::` or `t2:` key prints the vector as unreadable bytes. Use `HMGET` with field
 names instead.
 
-**Do not run `FLUSHALL` or `FT.DROPINDEX` by hand.** Use `make demo-reset`, and stop the gateway
-first. `FT.DROPINDEX` alone keeps the `t2:` hashes; when the gateway restarts it re-creates `idx:cache`,
+**Two ways to empty the cache, for two purposes** (run rule 11, `interfaces.md` §H v0.14, ADR-010):
+
+| Purpose | Command | What it deletes |
+| :--- | :--- | :--- |
+| A measured run | `python3 experiments/scripts/loadgen_footprint.py flush-cache` | Only `t1:`, `t2:` and `lru:`. Never `corpus:`. It refuses to run while any `dep:` or `entry:` key exists. |
+| A demo | `make demo-reset` | Everything (`FLUSHALL`). Then it restores `data/` from git and re-ingests the corpus. |
+
+A measured run must **start with `t1:`, `t2:` and `lru:` empty**. Entries left by an earlier process
+(for example, one that ran the gate-off arm) would otherwise be served under the wrong label.
+Invariant I9 checks this from `raw/` alone, and a run that breaks it is not admissible. Once Phase 4
+writes `dep:` records, the flush tool refuses every time, so **Phase 4 must define a new reset**.
+
+**Do not run `FLUSHALL` or `FT.DROPINDEX` by hand.** For a demo, use `make demo-reset`, and stop the
+gateway first. `FT.DROPINDEX` alone keeps the `t2:` hashes; when the gateway restarts it re-creates `idx:cache`,
 which picks them up again, so a warm cache looks cold. `FLUSHALL` under a running gateway deletes
 `idx:cache`, and new `t2:` records are then written into no index, so Tier 2 never hits and nothing
 reports an error.

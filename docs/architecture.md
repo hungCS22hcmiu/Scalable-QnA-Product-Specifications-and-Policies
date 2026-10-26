@@ -33,7 +33,8 @@ thesis/
 │   │   ├── interfaces.md           frozen wire contracts; the version is in its header
 │   │   └── requirements.md         FR / NFR / RR — skeleton, unfilled
 │   ├── work/<YYYY-MM-DD>-<slug>/   spec · impact · design · review · plan · approvals
-│   └── learning/                   submitted prose + study notes  (gitignored)
+│   ├── 0-Thesis-Report/            the final report: plan, Markdown drafts, figures, LaTeX  (gitignored)
+│   └── learning/                   study notes  (gitignored)
 │
 ├── .claude/                      workflow automation (hooks, commands, agents)
 │

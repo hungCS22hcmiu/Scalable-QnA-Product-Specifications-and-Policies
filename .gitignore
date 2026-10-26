@@ -15,6 +15,9 @@ docs/learning/
 # Moved out of docs/learning/ on 2026-09-22 and so no longer covered by the rule
 # above. It is the same submitted prose and this remote is public.
 docs/Final_Proposal.md
+# The final report: chapter drafts, LaTeX source, diagrams. The most submitted prose of all
+# (2026-10-25). Ignored means no history here, so keep a private backup of it.
+docs/0-Thesis-Report/
 
 # --- Corpus -------------------------------------------------------------------
 # dev-v0 is author-written (worklog W05, 2026-08-15) — freely releasable, and
