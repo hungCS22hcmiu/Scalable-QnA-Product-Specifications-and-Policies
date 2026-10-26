@@ -1,12 +1,15 @@
 # Tier 2 — the semantic cache, from the idea to the mechanism
 
-**For:** a reader who is new to this project · **Describes:** the code at commit `33a1a9d` (16 Oct 2026)
+**For:** a reader who is new to this project · **Describes:** the code at commit `33a1a9d` (16 Oct 2026).
+Checked again on 26 Oct 2026: no file in `gateway/` has changed since.
 **About the numbers:** every number here comes from the small development corpus, `dev-v0`
 (44 documents: 4 store policies and 40 products). They show how the mechanism behaves. They are
-**not** results of the thesis, which will be measured on the final corpus.
+**not** results of the thesis, which will be measured on the final corpus, `v1` (frozen on 23 Oct 2026).
+Example D (§11a) follows the code on `v1`, but it shows no measured number. The one exception is the
+lane counts in Step 3, copied from ADR-015.
 
-**Contents.** Part 1, the idea (§1–4) · Part 2, the mechanism (§5–8) · Part 3, three worked
-examples (§9–11) · Part 4, measuring and limits (§12–13) · Code map and further reading (§14)
+**Contents.** Part 1, the idea (§1–4) · Part 2, the mechanism (§5–8) · Part 3, four worked
+examples (§9–11a) · Part 4, measuring and limits (§12–13) · Code map and further reading (§14)
 
 ---
 
@@ -101,8 +104,10 @@ retrieves the return policy. The warranty question retrieves the warranty policy
 retrieval of the new question twice:
 
 1. **To choose where to look.** The cache is split into groups called **namespaces**. A question may
-   only reuse an answer from its own namespace, and the namespace is built from what retrieval
-   returned. The warranty question looks among warranty answers, so it never sees the return answer.
+   only reuse an answer from its own namespace. For a policy question, the namespace is built from
+   what retrieval returned: the warranty question looks among warranty answers, so it never sees the
+   return answer. For a product question that carries a `product_id`, the namespace is that product,
+   taken from the request and not from retrieval (Step 4, Example D).
 2. **To check the old answer.** Before an answer is served, a **support gate** checks that the cached
    answer's words and numbers appear in the evidence retrieved **now**, for the new question.
 
@@ -209,7 +214,10 @@ read from one number, the **policy fraction**: the share of retrieved chunks who
 The rule is: a fraction of 0 is SPEC, a fraction of at least 0.20 is POLICY. With at most five chunks,
 that means **no policy chunk → SPEC, at least one policy chunk → POLICY**. In a check on the
 development corpus (6 Sep 2026) this separated the two kinds completely: ten spec questions all had
-fraction 0.00, and ten policy questions all had 0.40 to 0.80.
+fraction 0.00, and ten policy questions all had 0.40 to 0.80. That corpus had 4 policy chunks; `v1` has 48.
+The same count on the `v1` validation split (ADR-015) reads 428 of 431 product-only questions as SPEC,
+so the split holds for them. It does not hold for mixed questions (stratum D): of 33, 27 are read as
+POLICY, 6 as SPEC and none as MIXED, because the band is closed.
 
 **Why read it from the retrieval, and not from the question?** A classifier that reads the question
 can be wrong, and its mistakes would look like mistakes of the reuse rule. Counting the prefixes of
@@ -217,7 +225,8 @@ what retrieval actually returned cannot be wrong about what was retrieved.
 
 There is also a third lane, **MIXED**, for questions that need both a product and a policy ("How long
 is the warranty on the EarBuds Pop 3, and what is its battery life?"). It is **switched off by
-default**, because the development corpus has no way to test it. It waits for the final corpus.
+default**, because the development corpus has no way to test it. `v1` now has such questions
+(stratum D, 69 queries), but the lane stays off until item 6.1 of `docs/super-plan.md` pins its band.
 
 ### Step 4 — Build the namespace
 
@@ -390,9 +399,17 @@ But it does **not** use it to decide. The reason is measured, and Example B (§1
 questions that need opposite verdicts can get exactly the same containment. Also, with five chunks
 the score can only take six values (0, 0.2, 0.4, 0.6, 0.8, 1.0), so θ has little room to work with.
 
+There is a second reason, and it needs no measurement. When a request carries a `product_id`,
+retrieval is limited to that product. A product has only about three chunks (ADR-014), and the
+retriever returns up to five. So two questions about the same product mostly retrieve the same chunks,
+and their containment is close to 1 whatever they ask. (A long product, like the one in Example D with
+eight chunks, is an exception.) The pairs where containment could help, similar questions about
+different products, are already kept apart by the namespace.
+
 This is an **open point** of the project, and it is stated here plainly. The proposal lists
-containment as part of the rule, and the served rule does not use it. Logging it on every candidate
-means one run gives both verdicts, so the two rules can still be compared.
+containment as part of the rule, and the served rule does not use it. No decision record covers this
+change yet; the plan calls it finding F-K. Logging it on every candidate means one run gives both
+verdicts, so the two rules can still be compared.
 
 ---
 
@@ -546,6 +563,50 @@ The answer is right. The gate refuses it because the model used words the spec s
 Nothing was tuned after the sample. A strict gate costs hit rate, not safety, and whether to change the
 lexical score is a decision for the final study, made before its data is seen.
 
+## 11a. Example D — a product question that carries a `product_id`
+
+**Setting.** Corpus `v1`, cold cache, gate on, τ = 0.85. The product is a laptop whose record is cut
+into 8 chunks (checked on 26 Oct 2026 by running the ingest splitter on its file). The product texts
+and questions of `v1` come from Amazon-PQA, which this repository may not redistribute, so the two
+questions below are written for this example. **This example follows the code. It is not a recorded
+run:** Redis held `dev-v0` when it was written, so it shows no similarity and no `S_lex` value.
+
+Both requests carry the same `product_id`, written here as `product-laptops-X`.
+
+**Question 1:** "Which graphics card does this laptop have?"
+
+1. Tier 1 misses: nothing is stored yet.
+2. Retrieval takes the top five chunks over the whole corpus, then drops every chunk of another
+   product (§6, Step 1). What is left is chunks of this laptop, and a policy chunk only if it ranked in
+   the top five.
+3. If no policy chunk is left, the policy fraction is 0 and the lane is **SPEC**.
+4. The namespace is `product-laptops-X`. It comes from the `product_id` in the request, **not** from
+   the retrieved chunks.
+5. The namespace is empty, so nothing is judged: **MISS**. The model answers from the retrieved chunks,
+   and the new entry is stored with lane SPEC and namespace `product-laptops-X`.
+
+**Question 2:** "What GPU is in this laptop?"
+
+1. Tier 1 misses: the words are different.
+2. The lane and the namespace are the same as for Question 1.
+3. The search inside the namespace finds Question 1's entry.
+4. The judge runs the checks of Step 6: similarity ≥ τ, then the support gate. If the cached answer
+   holds a number with a unit (a memory size, for example), the same number and unit must appear in one
+   of the new chunks.
+5. If every check passes, the result is **TIER2_HIT**. If one fails, it is a **MISS** with cause
+   `SIMILARITY` or `SUPPORT`, and the model answers again.
+
+**What this shows.**
+
+- The namespace is the product named in the request. A different laptop with almost the same wording
+  can never be a candidate, whatever retrieval returns.
+- Containment (§8) would add nothing here. Both questions are limited to the same product, so they
+  mostly retrieve the same chunks. This laptop has eight chunks, so the top five of two questions can
+  differ. That is the exception, not the usual case.
+- For a product question with a `product_id`, the namespace comes from the request, not from the
+  evidence. Retrieval still decides the lane and the support gate. Without a `product_id`, the
+  namespace falls back to the top-ranked product chunk, as in Step 4.
+
 ---
 
 # Part 4 — Measuring and limits
@@ -601,7 +662,7 @@ compared, and the gate's own effect, in false hits prevented and in hits lost, c
 **Open in the design:**
 
 - **The overlap score is logged but does not decide** (§8). The proposal lists it as part of the rule.
-  Which of the two is the thesis claim is still open.
+  Which of the two is the thesis claim is still open (finding F-K in the plan; no decision record yet).
 - **Same evidence, opposite condition.** Two questions can retrieve the same chunks and ask about
   opposite conditions, for example an opened and an unopened item. The namespace and the gate both look
   at the evidence, and the evidence is the same, so neither can tell them apart. The planned defence is
@@ -616,9 +677,10 @@ compared, and the gate's own effect, in false hits prevented and in hits lost, c
   of the model's wording (§11).
 - **It can be fooled by wording.** An answer that mostly repeats product specs passes even against the
   wrong policy, because spec words appear in every product chunk. A test keeps this case visible.
-- **The evidence is small.** Every number here is from the 44-document development corpus, and the
-  MIXED lane cannot be tested until the final corpus exists. Removing cached answers when a source
-  document changes is also not built yet; it is a later part of the project.
+- **The evidence is small.** Every number here is from the 44-document development corpus, not from
+  `v1`. `v1` has questions for the MIXED lane (stratum D), but the lane stays off until the study
+  fixes its band. Removing cached answers when a source document changes is also not built yet; it is
+  a later part of the project.
 
 ## 14. Code map and further reading
 

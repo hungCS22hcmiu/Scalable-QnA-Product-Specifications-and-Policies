@@ -133,7 +133,8 @@ contracts/     .proto — the single definition of the Go↔Python seam
 experiments/   k6 load scenarios, corpus and envelope scripts, results
 ui/            debug UI (built with `make ui`; the gateway serves it)
 data/          dev-v0 (development corpus, not citable) · pqa-manifest.json (hashes and counts of the
-                 Amazon-PQA build, no text) · v1 (experimental corpus, not yet built)
+                 Amazon-PQA build, no text) · v1 (experimental corpus, frozen 2026-10-23, gitignored;
+                 the freeze record is v1-freeze.json)
 docs/          the plan, the decision log, the contracts, the corpus card, task trails
 Makefile       the command surface — run `make help`
 ```
@@ -158,18 +159,26 @@ Build began **W5 (Aug 10, 2026)**. Pre-thesis submitted **Aug 31**; thesis compl
 
 The RAG service and the gateway both run end-to-end today: two-tier cache, the reuse rule with its
 three lanes, the answer–evidence support gate (a lexical and a numeric arm), admission control and
-request coalescing are built and tested, and `httpapi` is tested on every exit path of `Ask`. Phase 3
-has started: the Amazon-PQA builder (item 3.1) checks the six source files by sha256, parses them
-against the real field names, and writes a hash manifest with no PQA text (1,212,029 questions over
-71,794 products). Three things are **not** true yet, and the claim above should be read with them:
+request coalescing are built and tested, and `httpapi` is tested on every exit path of `Ask`.
+
+**Phase 3 closed on 2026-10-23.** The experimental corpus `v1` is frozen: 152 products and 12 authored
+policy documents (164 files, 539 chunks), and a workload of 1,274 queries split into validation (622)
+and test (652). The sensitivity gate G1 is recorded as **failed** — 21 pairs against a floor of 50
+(ADR-014, ADR-015) — so it limits where C1 applies and is reported as a finding. The next step is
+Phase 4. It starts with a decision on the MIXED lane (item 4.0), before the dependency map is built.
+Four things are **not** true yet, and the claim above should be read with them:
 
 - **The served Tier-2 rule is `similarity ∧ namespace ∧ support`** (and `similarity ∧ namespace` with
   the gate off). θ is computed and logged as a counterfactual but gates nothing (open finding F-K in
   `docs/super-plan.md`). The support gate is served since item 2.3 and has an on/off switch since item
   2.4 (`SUPPORT_GATE`); every judged candidate logs one `refusal_cause`, and every record logs the arm.
 - **Source-aware invalidation (C2) is not built.** `gateway/internal/deps/` is a stub (Phase 4).
-- **No citable result exists.** The `v1` corpus, workload generator, judge and figure pipeline are
-  Phases 3–5, and `dev-v0` is a development corpus.
+- **The MIXED lane is off.** A question about a product *and* a policy (stratum D, 69 of 1,274
+  queries) is read as POLICY, because the lane band is closed by default (`LANE_SIGMA` =
+  `LANE_SIGMA_HI` = 0.20). On the `v1` validation split, 27 of 33 such queries are read as POLICY and
+  6 as SPEC. Item 4.0 chooses what the study does about it, in a numbered ADR, before item 4.1 starts.
+- **No citable result exists.** `v1` is frozen, but no experiment has run on it. The judge and the
+  figure pipeline are Phase 5, and `dev-v0` is a development corpus.
 
 The schedule is **eight phases with binary exit criteria** rather than weeks — see
 `docs/super-plan.md`.
@@ -178,8 +187,8 @@ The schedule is **eight phases with binary exit criteria** rather than weeks —
 | :--- | :--- | :--- |
 | 1 | Instrument integrity — nothing measured before this is evidence | ✅ exit criterion met 2026-10-07 |
 | 2 | The answer–evidence support gate | ✅ closed 2026-10-15 |
-| 3 | Corpus and workload (longest lead) | **current** — item 3.1, the PQA builder, done 2026-10-15 |
-| 4 | Source-aware invalidation | |
+| 3 | Corpus and workload (longest lead) | ✅ closed 2026-10-23 — `v1` frozen, G1 recorded as failed |
+| 4 | Source-aware invalidation | **next** — starts with item 4.0, the MIXED-lane decision |
 | 5 | Judging, the false-hit budget, the figure pipeline | |
 | 6 | The reuse frontier on held-out test | |
 | 7 | Capacity under concurrent load | |
