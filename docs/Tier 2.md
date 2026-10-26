@@ -226,7 +226,8 @@ what retrieval actually returned cannot be wrong about what was retrieved.
 There is also a third lane, **MIXED**, for questions that need both a product and a policy ("How long
 is the warranty on the EarBuds Pop 3, and what is its battery life?"). It is **switched off by
 default**, because the development corpus has no way to test it. `v1` now has such questions
-(stratum D, 69 queries), but the lane stays off until item 6.1 of `docs/super-plan.md` pins its band.
+(stratum D, 69 queries), but the lane stays off until item 4.0 of `docs/super-plan.md` decides
+whether to pin a band.
 
 ### Step 4 — Build the namespace
 

@@ -233,8 +233,9 @@ the host, never in Docker** — macOS containers have no Metal passthrough, and 
 invalidates every latency measurement.
 
 Before any run that loads the model, check memory pressure is green
-(`sysctl kern.memorystatus_vm_pressure_level` reads `0`). A run taken under yellow or red pressure
-is invalid and must be discarded and repeated. `make measure` gates this for you.
+(`sysctl kern.memorystatus_vm_pressure_level` reads `1`; `2` is yellow, `4` is red). A run taken
+under yellow or red pressure is invalid and must be discarded and repeated. `make measure` gates
+this for you.
 
 ## License
 
