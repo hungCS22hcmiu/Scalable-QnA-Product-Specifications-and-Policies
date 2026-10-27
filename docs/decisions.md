@@ -55,6 +55,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-013 | `v1`'s workload is 1,274 queries written by Claude under rules fixed before the text, split by unit, with `K` per run file | in force (item 3.4 done 2026-10-22; 3.6 inherits the gate changes; the Phase 5 judge is not Claude) | none — no runs yet; reads ADR-011's "separate stratum" as "separate population" |
 | ADR-014 | `v1` freezes with G1 recorded as failed (21 pairs, floor 50): a corpus finding that bounds C1, not a change to the gate | in force for the form (chosen by the author 2026-10-23; the exit wording was applied at the author's instruction to close Phase 3 — the "How C1 is read" paragraph and the supervisor line are still the author's to accept) | none — no runs yet; changes how 3.6's first gate result is read; 3.6's freeze ADR becomes ADR-015 |
 | ADR-015 | `v1` is frozen: 164 corpus files and 3 workload files, 539 chunks, `K` 622 / 652, with G1 recorded as failed | in force (item 3.6 done 2026-10-23; Redis holds `dev-v0` afterwards; the author and the supervisor decide whether a `v2` follows, before Phase 4) | none — no runs yet |
+| ADR-016 | The MIXED lane is one pinned band, [0.20, 0.60), run as an on/off arm and not swept | in force (binds forward — item 4.5 adds the arm field to the record; no run has taken either arm) | none — no runs yet; a log from before the arm field reads as MIXED off |
 
 ---
 
@@ -1507,3 +1508,51 @@ allowance existed, agrees with them: the two retrieval exports are byte-identica
     (`evidence/memory-scale.md`), as the SDK header says. `GREEN_LEVEL` in `corpus_gate.py` holds it (ADR-014).
   - **The Phase 3 exit line** was amended on 2026-10-23, at the author's instruction to close the phase, to the wording ADR-014 proposed.
 - **Invalidates:** none — no runs yet. `experiments/results/` holds only `.gitkeep`. Item 3.6's first gate run stands as ADR-014's finding.
+
+---
+
+### ADR-016 — The MIXED lane is one pinned band, [0.20, 0.60), run as an on/off arm and not swept
+**Decided (method)** · 2026-10-27 · *`super-plan.md` items 4.0, 6.1, 6.2; `interfaces.md` §H; `Final_Proposal.md` §9.2, §9.4; `gateway/internal/reuse/lane.go`, `gateway/cmd/gateway/main.go`*
+
+The study takes option (a) of item 4.0, chosen by the author on 2026-10-27. The lane band is pinned at **σ_lo = 0.20, σ_hi = 0.60**: a
+grounding that holds both a product and a policy chunk is MIXED when 0.20 ≤ `policy_frac` < 0.60, and its namespace is the pair
+`{product}|{policy}` (`reuse/lane.go`). The MIXED lane runs as an **on/off ablation arm**, like the support gate (ADR-010). **Off** is the
+closed band σ_lo = σ_hi = 0.20, which stays the gateway default; **on** is `LANE_SIGMA_HI=0.60`. The band is **not swept**. Configuration 4
+runs **three arms**: (gate off, MIXED off), (gate on, MIXED off), (gate on, MIXED on). Each step adds one mechanism, so the gate's share
+and the MIXED lane's share are read apart. Configuration 5 runs with the gate on and MIXED on. The test split was not read to choose.
+
+- **Rationale.** The author wants the composite key as a measured result, not a design note. With the band closed, a question about a
+  product and a policy is read as POLICY and its product drops out of the key, so two such questions about different products can share
+  one entry: a false hit the lane rule creates and containment does not have (`lane.go`, `LaneMixed`). An arm measures what the
+  composite key buys; a sweep would add two parameters against the baseline's one. The MIXED arm sits on top of the gate because the
+  gate's numeric arm may already refuse part of these false hits (a number in the old answer checked against the new product's evidence;
+  not measured), so the useful question is what MIXED adds once the gate is on. [0.20, 0.60) is the candidate measured on `dev-v0` on
+  2026-09-06, before `v1` existed (`main.go`: `policy_frac` 0.00 for 10 of 10 spec questions, 0.20–0.40 for 5 of 6 mixed, 0.60–0.80 for 10
+  of 10 policy). The `v1` validation counts (U10, `docs/work/2026-10-22-corpus-freeze/evidence/probe-checks.md`) were read to report its
+  effect, not to search for a band.
+- **Alternatives.** (b), keep the band closed and report stratum D as a limitation: cheaper (no code, no extra runs), not taken because it
+  leaves the composite key unmeasured. Four arms (gate × MIXED in full): not taken; it also measures MIXED with the gate off, but doubles
+  configuration 4's runs. A wider band: not taken, because no band on `policy_frac` separates D from policy queries (both peak at 0.8: 8 of
+  33 D, 99 of 158 policy), and widening moves policy queries faster than D queries: [0.20, 0.70) makes 17 of 33 D MIXED and also 29 of 158
+  policy. Sweeping σ_lo and σ_hi: not taken (the unequal-tuning threat, `Final_Proposal.md` §9.4).
+- **Consequences.**
+  - **What the band does on `v1` validation (U10).** On: D 12 MIXED, 15 POLICY, 6 SPEC (n = 33); policy 147 POLICY, 9 MIXED, 2 SPEC
+    (n = 158); product-only 428 SPEC, 3 MIXED (n = 431). Off: D 27 POLICY, 6 SPEC; policy 156 POLICY, 2 SPEC; product-only 428 SPEC,
+    3 POLICY.
+  - **It does not remove the failure.** 15 of 33 D queries stay POLICY without their product, and the 6 that retrieve no policy chunk
+    stay SPEC with their policy half ungrounded; no band reaches either. Telling them apart would need the query text, which the rule
+    must not read as a predictive signal. The 9 policy and 3 product-only queries moved to MIXED lose reuse (false misses, not false
+    hits). Stratum D is reported per arm with these counts.
+  - **σ_lo.** Retrieved sets hold 1 to 5 chunks, so the smallest non-zero `policy_frac` is 0.20 and σ_lo = 0.20 is the lowest cut with
+    any effect.
+  - **Parameters the frontier sweeps: two, τ and θ,** against the baseline's one (τ). σ_lo and σ_hi leave the sweep; `τ_s` stays pinned
+    at 0.6. While F-K is open θ moves no served decision, so the served sweep is τ alone. The arm is two fixed values, not a parameter.
+    Item 6.1's lane-band part is discharged.
+  - **The record must name the arm.** No field in `interfaces.md` §H names the band today. A task adds it (contract and gateway)
+    **before any run**, as ADR-010 did for `support_gate`. Item 4.5 of `super-plan.md` owns it, before 4.1.
+  - **Cost.** Configuration 4 goes from two arms to three, so its run time grows by half on the one-slot envelope (ADR-003).
+  - **Stale text.** `Final_Proposal.md` §9.2 (configuration 4's two arms) and §9.4 ("four swept parameters"; limitation 4's
+    "unspecified" lane-band bounds), the author's to edit; `lane.go:94` ("Both bounds are swept") and `main.go`'s "the operating point
+    belongs to the sweep", fixed by item 4.5. `super-plan.md` items 6.1 and 6.2 were updated the same day.
+- **Invalidates:** none — no runs yet (`experiments/results/` holds only `.gitkeep`). A log written before the arm field exists names no
+  arm; every such log ran with the band closed and reads as MIXED off. All of them are `dev-v0` and not citable.
