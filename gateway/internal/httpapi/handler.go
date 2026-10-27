@@ -104,10 +104,11 @@ type Handler struct {
 	// main.go logs which one is in force at startup.
 	Capacity int
 
-	// LaneBand is the two-lane experiment's lane selector, widened
-	// from one sigma to two bounds so stratum D has a lane. DEMO values like Tau and Theta:
-	// swept, never hand-set for anything reported. A collapsed band (Lo == Hi) is the
-	// pre-registered baseline and reproduces the original two-lane rule exactly.
+	// LaneBand is the lane selector, widened from one sigma to two bounds so stratum D has a lane.
+	// It is one of ADR-016's two pinned bands, checked at start by main's bandFromEnv: the closed band
+	// (Lo == Hi, the default) is the MIXED-off arm and reproduces the original two-lane rule exactly,
+	// and [0.20, 0.60) is the MIXED-on arm. It is the single source for both lane decisions (Classify,
+	// for the query and for the write-back) and the record's mixed_lane label (LaneBand.Arm()).
 	LaneBand reuse.LaneBand
 
 	// Catalog backs GET /products for the demo UI. Nil is valid and yields an empty list --
@@ -181,10 +182,13 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	t1Key := cache.Key(normalized, req.ProductID)
 	rec := telemetry.Record{
 		RequestID: requestID, RunID: h.RunID, ConfigID: h.ConfigID, Mutation: h.Mutation,
-		// Set HERE, in the literal, with config_id and mutation: every exit below emits this record, so
-		// the Tier-1 lookup error, TIER1_HIT, SHED, ABANDONED and GENERATION_FAILED all carry the arm.
-		// Set later, a Tier-1 record would carry "" and read as a different era of log (H, v0.14).
+		// Both arms are set HERE, in the literal, with config_id and mutation: every exit below emits this
+		// record, so the Tier-1 lookup error, TIER1_HIT, SHED, ABANDONED and GENERATION_FAILED all carry
+		// them. Set later, a Tier-1 record would carry "" and read as a different era of log (H, v0.14,
+		// v0.16). mixed_lane comes from h.LaneBand, the same field Classify reads, so label and behaviour
+		// cannot come from two places (ADR-016, item 4.5).
 		SupportGate:     h.SupportGate.String(),
+		MixedLane:       h.LaneBand.Arm(),
 		TS:              start.UTC().Format(time.RFC3339Nano),
 		QueryRaw:        req.Question,
 		QueryNormalized: normalized,

@@ -46,7 +46,7 @@ thesis/
 ├── gateway/                      Go — THE CONTRIBUTION
 │   ├── go.mod
 │   ├── cmd/gateway/main.go         wiring + config, no request logic. Its env and run-end rules (gateFromEnv,
-│   │                               retiredEnv, incomplete, finishRun) are pure functions with tests beside it
+│   │                               bandFromEnv, retiredEnv, incomplete, finishRun) are pure functions with tests beside it
 │   └── internal/
 │       ├── httpapi/                POST /ask, the cascade, 503 shedding → contracts/interfaces.md §A
 │       │                           · /products and /stats for the demo UI (browse.go)

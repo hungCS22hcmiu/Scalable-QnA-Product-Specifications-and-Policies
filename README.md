@@ -173,10 +173,11 @@ Four things are **not** true yet, and the claim above should be read with them:
   `docs/super-plan.md`). The support gate is served since item 2.3 and has an on/off switch since item
   2.4 (`SUPPORT_GATE`); every judged candidate logs one `refusal_cause`, and every record logs the arm.
 - **Source-aware invalidation (C2) is not built.** `gateway/internal/deps/` is a stub (Phase 4).
-- **The MIXED lane is off.** A question about a product *and* a policy (stratum D, 69 of 1,274
-  queries) is read as POLICY, because the lane band is closed by default (`LANE_SIGMA` =
-  `LANE_SIGMA_HI` = 0.20). On the `v1` validation split, 27 of 33 such queries are read as POLICY and
-  6 as SPEC. Item 4.0 chooses what the study does about it, in a numbered ADR, before item 4.1 starts.
+- **The MIXED lane is an on/off arm (ADR-016).** A question about a product *and* a policy (stratum
+  D, 69 of 1,274 queries) is the case it serves. On is the band [0.20, 0.60) (`LANE_SIGMA_HI=0.60`);
+  off is the closed default (`LANE_SIGMA` = `LANE_SIGMA_HI` = 0.20). Any other band stops the gateway
+  at start. Every evaluation record names the arm in `mixed_lane`. On the `v1` validation split, the
+  on arm reads 12 of 33 stratum-D queries as MIXED, and the off arm reads 27 as POLICY and 6 as SPEC.
 - **No citable result exists.** `v1` is frozen, but no experiment has run on it. The judge and the
   figure pipeline are Phase 5, and `dev-v0` is a development corpus.
 

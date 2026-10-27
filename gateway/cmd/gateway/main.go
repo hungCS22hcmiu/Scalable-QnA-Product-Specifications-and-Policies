@@ -78,6 +78,55 @@ func gateFromEnv(lookup func(string) (string, bool)) (reuse.Gate, error) {
 	return g, nil
 }
 
+// bandFromEnv reads the MIXED lane's band (item 4.5, interfaces.md H v0.16, ADR-016) from LANE_SIGMA and
+// LANE_SIGMA_HI, in os.LookupEnv's shape as gateFromEnv does, and for the same reason: getenvFloat reads
+// an empty value as unset and runs the default, so `LANE_SIGMA_HI=0,60` would quietly run the off arm
+// under a run id meant for the on arm. Unset LANE_SIGMA is reuse.PinnedLo; unset LANE_SIGMA_HI equals
+// LANE_SIGMA. Set-but-empty, unparseable (spaces included) and unpinned values are errors that name both
+// values and ADR-016, and the caller stops the process before it opens Redis or the evaluation log. The
+// band must be one of the two ADR-016 pins, [0.20, 0.20) (off, the default) or [0.20, 0.60) (on). Pure,
+// on gateFromEnv's pattern, so the rule is testable. On error the band returned is the closed one.
+func bandFromEnv(lookup func(string) (string, bool)) (reuse.LaneBand, error) {
+	closed := reuse.LaneBand{Lo: reuse.PinnedLo, Hi: reuse.PinnedLo}
+	loRaw, loSet := lookup("LANE_SIGMA")
+	hiRaw, hiSet := lookup("LANE_SIGMA_HI")
+	show := func(v string, set bool) string {
+		if !set {
+			return "unset"
+		}
+		return strconv.Quote(v)
+	}
+	refuse := func(why string) (reuse.LaneBand, error) {
+		return closed, fmt.Errorf("LANE_SIGMA=%s LANE_SIGMA_HI=%s %s: ADR-016 pins two bands, "+
+			"[%.2f, %.2f) (MIXED off, the default) and [%.2f, %.2f) (MIXED on, LANE_SIGMA_HI=%.2f). "+
+			"The arm is chosen for the whole run, so a value that is almost right stops the gateway",
+			show(loRaw, loSet), show(hiRaw, hiSet), why,
+			reuse.PinnedLo, reuse.PinnedLo, reuse.PinnedLo, reuse.PinnedHiOn, reuse.PinnedHiOn)
+	}
+
+	lo := reuse.PinnedLo
+	if loSet {
+		v, err := strconv.ParseFloat(loRaw, 64)
+		if err != nil {
+			return refuse("has a LANE_SIGMA that is not a number")
+		}
+		lo = v
+	}
+	hi := lo
+	if hiSet {
+		v, err := strconv.ParseFloat(hiRaw, 64)
+		if err != nil {
+			return refuse("has a LANE_SIGMA_HI that is not a number")
+		}
+		hi = v
+	}
+	band := reuse.LaneBand{Lo: lo, Hi: hi}
+	if !band.Pinned() {
+		return refuse("is not a pinned band")
+	}
+	return band, nil
+}
+
 // runCounts is everything that can make a finished run inadmissible. A struct rather than
 // positional arguments, so two int64 counts cannot be passed in the wrong order.
 type runCounts struct {
@@ -170,6 +219,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("gateway: %v", err)
 	}
+	// The MIXED lane's band is read the same way and for the same reason (item 4.5, ADR-016): a band
+	// that is not one of the two pinned ones, or a typo that would fall back to the default, must stop
+	// the process before it opens Redis or leaves a run directory behind.
+	band, err := bandFromEnv(os.LookupEnv)
+	if err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
 
 	redisAddr := getenv("REDIS_URL", "localhost:6379")
 	ollamaURL := getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -202,36 +258,27 @@ func main() {
 		Tau:   getenvFloat("REUSE_TAU", 0.85),
 		Theta: getenvFloat("REUSE_THETA", 0.60),
 	}
-	// The lane band is the two-lane experiment's selector, same DEMO-value status as tau/theta
-	//. LANE_SIGMA = 0.2 sits in the gap measured on dev-v0
-	// 2026-09-06: spec questions scored 0.00 and policy questions 0.40-0.80, nothing in between.
+	// The lane band is the two-lane experiment's selector. It is NOT a demo value and not swept: ADR-016
+	// pins two bands and the MIXED lane is an on/off arm, read and checked by bandFromEnv above. The
+	// default LANE_SIGMA = 0.20 sits in the gap measured on dev-v0 2026-09-06: spec questions scored 0.00
+	// and policy questions 0.40-0.80, nothing in between.
 	//
-	// LANE_SIGMA_HI defaults to LANE_SIGMA, which COLLAPSES the band and disables the MIXED lane
-	// entirely -- the original two-lane rule, bit for bit. That default is deliberate, not
-	// laziness:
+	// LANE_SIGMA_HI defaults to LANE_SIGMA, which COLLAPSES the band and turns the MIXED lane off -- the
+	// original two-lane rule, bit for bit. That default is deliberate: turning the lane on is a RULE
+	// CHANGE, so it must be asked for (LANE_SIGMA_HI=0.60) and every record names the arm in mixed_lane.
+	// Stratum D is "impossible in dev-v0" per data-card.md 2 -- it needs the product<->policy join key of
+	// the v1 corpus model requirement 1 -- so the arm's effect is read on v1, not on this corpus.
 	//
-	//  1. Turning it on is a RULE CHANGE and must be pre-registered before any reported run
-	//     (approvals.md). A rule that enables itself by default cannot be pre-registered.
-	//  2. Stratum D is "impossible in dev-v0" per data-card.md 2 -- it needs the product<->policy
-	//     join key of the v1 corpus model requirement 1, which lands with v1. The operating point belongs to
-	//     the sweep on that corpus, not to a demo default chosen from this one.
-	//
-	// [0.20, 0.60) is the MEASURED candidate, not a guess: on dev-v0 2026-09-06, policy_frac was
-	// 0.00 for all 10 spec questions, 0.20-0.40 for 5 of 6 mixed ones and 0.60-0.80 for all 10
-	// policy ones. An earlier comment here claimed dev-v0 "cannot calibrate the band"; that was
-	// reasoning ahead of measurement and it was WRONG -- MIXED and POLICY separate cleanly. The
-	// real boundary problem is at Lo: the sixth mixed question retrieved zero policy chunks and
-	// so classifies SPEC, with its policy half ungrounded. See approvals.md.
-	band := reuse.LaneBand{Lo: getenvFloat("LANE_SIGMA", 0.20)}
-	band.Hi = getenvFloat("LANE_SIGMA_HI", band.Lo)
-	mixedLane := "DISABLED (collapsed band)"
-	if band.Hi > band.Lo {
-		mixedLane = "ENABLED -- must be pre-registered before any reported run"
-	}
-	log.Printf("gateway: tau=%.3f theta=%.2f lane_band=[%.2f,%.2f) dim=%d index=%s  (all DEMO values, swept later)\n"+
-		"         MIXED lane: %s",
-		thresholds.Tau, thresholds.Theta, band.Lo, band.Hi, embed.Dim,
-		cache.CacheIndexName, mixedLane)
+	// [0.20, 0.60) is the MEASURED band, not a guess: on dev-v0 2026-09-06, policy_frac was 0.00 for all
+	// 10 spec questions, 0.20-0.40 for 5 of 6 mixed ones and 0.60-0.80 for all 10 policy ones. An earlier
+	// comment here claimed dev-v0 "cannot calibrate the band"; that was reasoning ahead of measurement
+	// and it was WRONG -- MIXED and POLICY separate cleanly. The real boundary problem is at Lo: the
+	// sixth mixed question retrieved zero policy chunks and so classifies SPEC, with its policy half
+	// ungrounded. See approvals.md.
+	log.Printf("gateway: tau=%.3f theta=%.2f dim=%d index=%s  (all DEMO values, swept later)",
+		thresholds.Tau, thresholds.Theta, embed.Dim, cache.CacheIndexName)
+	log.Printf("gateway: lane_band=[%.2f,%.2f) mixed_lane=%s (pinned, ADR-016)",
+		band.Lo, band.Hi, band.Arm())
 
 	// Admission control. The permit count is the frozen generation slot count (ADR-003): the slots
 	// the model runner ACTUALLY serves, which `make env-check` verifies against the live runner.

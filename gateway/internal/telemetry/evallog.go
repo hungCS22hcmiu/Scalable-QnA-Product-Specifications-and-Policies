@@ -41,6 +41,13 @@ type Record struct {
 	// key presence, so a record that lost the key when it was empty would read as the wrong thing.
 	SupportGate string `json:"support_gate"`
 
+	// MixedLane is the MIXED lane's arm, "on" or "off" (interfaces.md H v0.16, ADR-016, item 4.5), on
+	// EVERY record, written from reuse.LaneBand.Arm() by the handler. A plain string so this package keeps
+	// importing nothing from the repository (docs/architecture.md), and WITHOUT omitempty: the reading
+	// rule for old logs in H keys on presence (no key reads as off), so a record that lost the key when
+	// it was empty would read as the wrong thing.
+	MixedLane string `json:"mixed_lane"`
+
 	QueryRaw        string  `json:"query_raw"`
 	QueryNormalized string  `json:"query_normalized"`
 	T1Key           string  `json:"t1_key"`

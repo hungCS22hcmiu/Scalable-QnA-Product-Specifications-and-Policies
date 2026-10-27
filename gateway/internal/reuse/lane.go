@@ -90,8 +90,15 @@ func PolicyFraction(chunkIDs []string) float64 {
 	return float64(n) / float64(len(chunkIDs))
 }
 
+// The two pinned lane bands (ADR-016). The MIXED lane is an on/off arm, not a swept parameter:
+// neither bound is tuned, and a run uses exactly one of the two bands below.
+const (
+	PinnedLo   = 0.20 // ADR-016: sigma_lo in both arms, and sigma_hi of the off arm
+	PinnedHiOn = 0.60 // ADR-016: sigma_hi of the on arm
+)
+
 // LaneBand is the lane selector, widened from one sigma to two so LaneMixed has somewhere to
-// live. Both bounds are swept, never hand-set, exactly as Tau and Theta are (rules.md #10).
+// live. ADR-016 pins two bands and treats the MIXED lane as an on/off arm: neither bound is swept.
 //
 //	policy_frac >= Hi           -> POLICY
 //	Lo <= policy_frac < Hi      -> MIXED
@@ -99,11 +106,28 @@ func PolicyFraction(chunkIDs []string) float64 {
 //
 // ⚠️ Lo == Hi COLLAPSES the band and reproduces the old single-sigma rule exactly: the MIXED
 // interval is empty and every question lands in one of the two original lanes. That degenerate
-// setting is the pre-registered baseline, and it is the default -- see cmd/gateway/main.go. The
-// mixed lane is a rule change and must not switch itself on.
+// setting is the off arm, and it is the default -- see cmd/gateway/main.go. The mixed lane is a
+// rule change and must not switch itself on.
 type LaneBand struct {
 	Lo float64
 	Hi float64
+}
+
+// Pinned reports whether b is one of ADR-016's two bands, compared exactly. Exact comparison is
+// safe: ParseFloat("0.20"), ParseFloat("0.2") and the literal 0.20 are the same float64, and a
+// value such as 0.2000001 differs and is refused, which is the point.
+func (b LaneBand) Pinned() bool {
+	return b == LaneBand{Lo: PinnedLo, Hi: PinnedLo} || b == LaneBand{Lo: PinnedLo, Hi: PinnedHiOn}
+}
+
+// Arm is the record's mixed_lane value (interfaces.md H v0.16): "on" when the band is open
+// (Hi > Lo), else "off". It does not check Pinned; start-up does that once. A zero LaneBand is
+// closed, so it reads "off", which is what Classify does with it.
+func (b LaneBand) Arm() string {
+	if b.Hi > b.Lo {
+		return "on"
+	}
+	return "off"
 }
 
 // Classify picks the lane. Inclusive at both bounds, matching Decide's inclusive theta -- a
