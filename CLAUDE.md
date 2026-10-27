@@ -41,8 +41,8 @@ Both services are real and running end-to-end.
 - `cd rag && pip3 install -e '.[dev]'` — install the RAG service + dev tools.
 - **Before any local-AI command** (`make ingest`, `rag ask`, gRPC generation) — check memory is
   under the ~9–10 GB "other apps" ceiling **every time, not once**. Authoritative signal:
-  `sysctl kern.memorystatus_vm_pressure_level` with the model loaded — `0` = green (proceed),
-  `1`/`2` = yellow/urgent (close apps and recheck). Pressure has regressed to yellow purely from
+  `sysctl kern.memorystatus_vm_pressure_level` with the model loaded — `1` = green (proceed),
+  `2` = yellow, `4` = red (close apps and recheck; ADR-014). Pressure has regressed to yellow purely from
   ordinary app load — extra browser tabs, editor windows, chat sessions — with no code or config
   change. **Runs taken under yellow/red are invalid and must be discarded and repeated.**
 - Redis must be **`redis-stack-server`**, not plain Homebrew `redis` — the plain formula ships a
@@ -81,27 +81,26 @@ cache**. Full framing: `docs/Final_Proposal.md` §1 and §2.
 
 **Read `.claude/README.md` once before working here.**
 
-The schedule is **phases with binary exit criteria** (`docs/super-plan.md`), and rigor is set by the
-**scope** of a change, not by the calendar. Any instruction that says "from W8" or "this week" is
-stale — report it rather than acting on it.
+The schedule is **phases with binary exit criteria** (`docs/super-plan.md`). Any instruction that
+says "from W8" or "this week" is stale — report it rather than acting on it.
 
-- **Orienting:** `/phase` → work. `/task-status` answers "where am I". The phase's `**Exit:**` line
-  prints in the session banner; run it **by hand** to close a phase — each criterion names a command
-  or an artefact, never a judgement.
-- **Changes:** open with `/feature` · `/bugfix` · `/refactor` · `/investigate`, or
-  `/task <slug> <L|M|S>`. Each writes a durable trail under `docs/work/<YYYY-MM-DD>-<slug>/` and
-  a `SCOPE`. Then `/verify` → `/ai-review` → `/done`. On a failed `/verify`: exactly **one** quick fix, then `/rca`.
-  **Tests are immutable** unless an RCA proves staleness and the human confirms.
-- **The scope ladder** — `L` (`docs/contracts/interfaces.md`, the `.proto`, `reuse/`, anything
-  measured) needs spec → impact → design → **opus design-review** → plan; `M` (ordinary code) needs
-  spec → impact → plan; `S` (tests, docs, one-liners) needs a one-paragraph spec. **Between two,
-  take the larger.**
+- **Phase:** the session banner prints the phase and its `**Exit:**` line. Run that line **by hand**
+  to close a phase — each criterion names a command or an artefact, never a judgement. `/done`
+  updates `.claude/state/phase` when a phase closes.
+- **A task is code or data work taken from a super-plan item.** Open it with `/task`, `/bugfix` (a
+  critical bug: RCA first, failing test first) or `/refactor` (same behaviour, tests untouched).
+  Investigations, doc edits and small fixes are not tasks.
+- **The flow:** `/task` writes Spec + Impact → `/approve` → Design → `/approve` → `plan.md` →
+  `/approve` → the `executor` agent runs the plan and the main session re-checks every done
+  condition → `/done` writes `deliverables.md`. Each `/approve` is the human's review — never run it
+  on your own. The documents, sections and limits are in `.claude/rules/task-docs.md`.
+- **Tests are immutable** unless an RCA proves staleness and the human confirms. On a failed check:
+  exactly **one** quick fix, then stop and run `rca-analyst` (`.claude/rules/execution.md`).
 - **Commands:** use the **Makefile** (`make help`) — do not invent ad-hoc invocations.
-- **No hook blocks any more.** `frozen-guard.sh` and `gate-check.sh` were removed 2026-09-22 because
-  both read deleted files and were failing open silently. The surviving hooks are advisory:
-  `inject-context.sh` (banner), `done-check.sh` (end-of-turn reminder), `format-lint.sh`.
-  **Consequence: nothing will stop you changing a frozen value.** Writing down what a change
-  invalidates, in the task's `approvals.md`, is now the only record that it happened.
+- **No hook blocks.** The hooks are the banner (`inject-context.sh`) and the formatter
+  (`format-lint.sh`). **Nothing will stop you changing a frozen value.** The only record that one
+  changed is the frozen-values line in §2 Impact of the task's `design.md` (and, for a numbered
+  decision, its `Invalidates:` line in `decisions.md`).
 
 ## Documents
 
@@ -131,8 +130,9 @@ stale — report it rather than acting on it.
   only before the corpus freeze.
 - **`docs/work/`** — task trails. One directory per task, named `<YYYY-MM-DD>-<slug>` after the
   day it opened, so a listing reads oldest first; `.claude/state/active-task` holds the full name
-  of the one in progress. Each holds `SCOPE`, `spec.md`, `impact.md`, `design.md`, `review.md`,
-  `plan.md`, `approvals.md`, `READY_TO_IMPLEMENT`.
+  of the one in progress. Since 2026-10-27 each holds `design.md`, `plan.md`, `deliverables.md`, a
+  one-word `STAGE`, and raw outputs under `evidence/`. Older trails keep their old layout (`SCOPE`,
+  `spec.md`, `impact.md`, `review.md`, `approvals.md`).
 - **`docs/learning/`** — submitted prose and study notes. **Gitignored**, same reason as above.
 - **`README.md`** (repo root) — landing page.
 

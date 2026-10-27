@@ -1,13 +1,10 @@
 # --- Not published ------------------------------------------------------------
 # docs/ is version-controlled: the frozen source of truth is the most valuable
 # artifact here and a local-only copy is a single point of failure.
-# .claude/ is tracked for exactly the same reason: the workflow is part of the
-# reproducibility story, and the task trail under docs/work/ is raw material for
-# the design and evaluation chapters. Only per-machine state stays out.
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
-.claude/state/*
-!.claude/state/.gitkeep
+# The task trail under docs/work/ is raw material for the design and evaluation
+# chapters, so it stays tracked. .claude/ (the workflow tooling) is local-only
+# since 2026-10-27.
+.claude/
 
 # Submitted prose stays off a public remote: a public copy of text that is also
 # handed in can register as a plagiarism-detection match against its own author.

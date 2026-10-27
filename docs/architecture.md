@@ -258,8 +258,8 @@ guidelines, and since 2026-09-22 **no hook enforces any of them** — the guard 
 removed when the files it read were deleted.
 
 1. A frozen value changes only deliberately, and the change record states **which prior runs it
-   invalidates**. That sentence is now written by hand into the task's `approvals.md` (and, for a
-   numbered decision, the `Invalidates:` line in `decisions.md`) or it is written nowhere.
+   invalidates**. That sentence is now written by hand into §2 Impact of the task's `design.md` (and,
+   for a numbered decision, the `Invalidates:` line in `decisions.md`) or it is written nowhere.
 2. Redis evicts nothing (`make redis-check` fails the run otherwise). Only the gateway removes
    entries, by trimming cache entries through `lru:entries`, and it never touches `dep:*`
    (`interfaces.md` §D, since v0.6).

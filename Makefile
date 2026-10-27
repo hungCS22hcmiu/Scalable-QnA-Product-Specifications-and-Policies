@@ -40,7 +40,7 @@ LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-setup: ## Report the tooling /verify needs but cannot find (W5 setup task)
+setup: ## Report the tooling make verify needs but cannot find
 	@command -v redis-server  >/dev/null || echo "  brew install redis"
 	@command -v protoc        >/dev/null || echo "  brew install protobuf"
 	@command -v ruff          >/dev/null || echo "  pip3 install ruff pytest"
@@ -305,7 +305,7 @@ lint: ## Format check + vet + python lint
 	@if command -v ruff >/dev/null; then ruff check $(RAG) experiments; \
 	else echo "ruff SKIPPED — not installed"; fi
 
-verify: lint ## Full verification: lint + build + test (see /verify)
+verify: lint ## Full verification: lint + build + test
 	cd $(GATEWAY) && go build ./...
 	@$(MAKE) --no-print-directory test
 

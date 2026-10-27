@@ -278,12 +278,12 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   req/s over a large `K`, in its first seconds. A Phase 7 run of that kind checks `Dropped()` and
   `AnswersMissing()` first (`docs/work/2026-10-06-answer-text-storage/evidence/drain-rate.md`).
 - **Workflow:** `/verify`'s **proto-drift row checks nothing**. Both stub directories are gitignored,
-  so `git diff --exit-code` on them is always clean (`.claude/commands/verify.md:17`). It was reported
-  clean on earlier closes. `git diff --exit-code contracts/` checks the `.proto` source, not that the
+  so `git diff --exit-code` on them is always clean (`.claude/commands/verify.md:17`, a file removed
+  2026-10-27; no check replaced the row). It was reported clean on earlier closes. `git diff --exit-code contracts/` checks the `.proto` source, not that the
   stubs match it. **And:** `make test` and `make verify` do not run `-race`, so the new `missing` mutex
   has no CI guard (it was race-tested by hand).
-- **Stale `v0.9` strings** (`CLAUDE.md:106`, `.claude/agents/contract-reviewer.md:11`,
-  `architecture.md:30`) await the author's OK to edit. **Candidate follow-up:** a verifier script for a
+- **Stale `v0.9` strings** (`CLAUDE.md:106`, `.claude/agents/contract-reviewer.md:11` — that file
+  was removed 2026-10-27, `architecture.md:30`) await the author's OK to edit. **Candidate follow-up:** a verifier script for a
   finished run's `raw/` (every non-empty hash has a file whose bytes hash to its name; nothing
   unnamed), worth having before the first real run.
 
