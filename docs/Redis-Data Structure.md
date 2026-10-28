@@ -31,6 +31,7 @@ areas. Each area has its own key prefix.
 │  │ t1:{sha256}             HASH   Tier 1    │                                │
 │  │ t2:{entry_id}           HASH   Tier 2    │ ◄─── idx:cache  (search index) │
 │  │ lru:entries             ZSET   only one  │                                │
+│  │ lru:t1keys:{entry_id}   SET    per entry │                                │
 │  └──────────────────────────────────────────┘                                │
 │                                                                              │
 │  AREA 3 — DEPENDENCY      written by the gateway's one writer (item 4.1)     │
@@ -290,7 +291,8 @@ question  "Does the EarBuds Pop 3 have ANC?"          product_id  "product-headp
 | `entry_id` | `06GKX34SBEKD749SN5JZKRYC10` | Links this record to its Tier-2 twin and to `lru:entries`. |
 
 **Who writes it:** the miss write-back (`handler.go`, after generation), and the *promotion* after a
-Tier-2 hit (§5.5). **Who reads it:** the first step of every request, with `HGETALL`.
+Tier-2 hit (§5.5). Every write also adds the key to the SET `lru:t1keys:{entry_id}`, in the same
+atomic step (§6). **Who reads it:** the first step of every request, with `HGETALL`.
 
 **Tier 1 runs no rule, so its safety comes from the corpus.** Two questions with different correct
 answers must never normalise to the same string. The corpus gate checks this before the corpus is
@@ -424,12 +426,19 @@ Both tiers are written by **one** miss, with the **same** `entry_id` and the **s
   [VEC] [TXT] [TAG] [NUM] = indexed by idx:cache
 
 lru:entries (ZSET) also gets the member 06GKX34SBEKD749SN5JZKRYC10
+lru:t1keys:06GKX34SBEKD749SN5JZKRYC10 (SET) holds the key t1:1f8fa611…350b
 ```
 
 **Promotion.** When Tier 2 serves a hit, the gateway also writes a **new Tier-1 record** for the exact
 words of *this* question, pointing to the same `entry_id`. The next identical question then stops at
-Tier 1 and skips the embed and the search. It runs in the background and never slows the hit. Its
-weak point is in §9.
+Tier 1 and skips the embed and the search. It runs in the background and never slows the hit.
+
+The promoted key is **tracked and conditional** (item 4.3). The write adds the key to
+`lru:t1keys:{entry_id}` in the same step (§6), so eviction and purge can find it. It is written **only
+while `t2:{entry_id}` still exists**. The check and the write are one Lua script. If the entry was
+evicted or purged just before, the script finds no `t2:` record and writes nothing. Without the check, a
+promotion could land after the removal and leave a Tier-1 key that serves an answer from outside the
+cache.
 
 ---
 
@@ -451,6 +460,13 @@ keeps this limit, not Redis.
   `CACHE_CAPACITY` from its run file's `K` is carried to P1.
 - Its name has no `t1:`/`t2:` prefix on purpose: those prefixes are what the index and the purge scan.
 
+**`lru:t1keys:{entry_id}`** sits beside it in the same region (item 4.3). It is a SET of every Tier-1
+key written for that entry: the miss key, the promoted keys, and the key of a Tier-1-only entry. Every
+Tier-1 write adds to it in the same atomic step as the `t1:` hash, whether or not `CACHE_CAPACITY` is
+set, because the purge needs it too. It is in the `lru:` region and not in `entry:{entry_id}` because
+eviction lives in `cache/`, and `cache/` never reads the dependency records. It is deleted with its entry.
+It is not a dependency record, so the rule that `dep:*` and `entry:*` are never evicted is not touched.
+
 **Trim**, after each miss write-back (`cache/capacity.go:TrimToCapacity`):
 
 ```
@@ -466,17 +482,20 @@ lru:entries   (ZSET, sorted by score = last access, Unix nanoseconds)
 
 1. ZCARD lru:entries                     how many entries?
 2. ZRANGE lru:entries 0 (excess−1)       the oldest ones are the victims
-3. for each victim:
-     HGET t2:{id} t1_key                 find its Tier-1 key
-     MULTI
-       DEL  t2:{id}
-       DEL  t1:{…}                       both tiers die together
-       ZREM lru:entries {id}
-     EXEC
+3. for each victim, one Lua script:
+     SMEMBERS lru:t1keys:{id}            every Tier-1 key written for it
+     HGET t2:{id} t1_key                 the older single pointer (entries with no SET)
+     for each such key:
+       DEL t1:{…}  only if its entry_id field is still {id}      both tiers die together
+     DEL  t2:{id}
+     DEL  lru:t1keys:{id}
+     ZREM lru:entries {id}
 ```
 
 Both tiers must go together. If only `t2:` were deleted, Tier 1 would keep serving the answer from a
-plain hash lookup, and the capacity limit would measure nothing.
+plain hash lookup, and the capacity limit would measure nothing. A promoted key or a Tier-1-only key is
+a Tier-1 key too, so it goes with the rest. The delete is conditional for the reason given in §8: a
+newer entry may have reused the key. The trim never touches `dep:*` or `entry:*`.
 
 ---
 
@@ -505,7 +524,8 @@ POST /ask { question, product_id }
   │      candidate passes the reuse rule ──► TIER2_HIT: return its answer
   │                HINCRBY t2:{id} hit_count 1        (background)
   │                ZADD lru:entries                   (only if capacity is set)
-  │                HSET t1:{this question's key}      (promotion, background)
+  │                HSET t1:{this question's key} + SADD lru:t1keys:{id}
+  │                                                   (promotion, background, only if t2:{id} exists)
   │ no candidate, or refused
   ▼
 ⑤ MISS ─── wait for the one generation slot (admission);
@@ -517,11 +537,12 @@ POST /ask { question, product_id }
   ▼
 ⑥ WRITE-BACK  (new entry_id)
      HSET t1:{key}        answer, source_chunk_ids, model_used, created_at, entry_id
+     SADD lru:t1keys:{entry_id} t1:{key}      (one MULTI with the HSET above)
      HSET t2:{entry_id}   embedding, query_text, answer, source_chunk_ids, t1_key,
                           dataset_epoch, source_overlap, hit_count, created_at,
                           namespace, lane
      ZADD lru:entries     (if capacity set)
-     trim                 ZCARD → ZRANGE → HGET → MULTI DEL DEL ZREM EXEC
+     trim                 ZCARD → ZRANGE → one Lua script per victim (§6)
   │
   ▼
 MISS: return the new answer
@@ -574,8 +595,10 @@ the in-process snapshot now lists these entry_ids  ──  Invalidate returns he
 HGET entry:{entry_id} t1_key  ─►  t1:1f8fa611…
       │
       ▼
-one Lua script:  DEL t2:{entry_id}
-                 DEL t1:1f8fa611…  only if its entry_id field is still this entry
+one Lua script:  DEL each Tier-1 key listed in lru:t1keys:{entry_id}, in t2:{entry_id}'s t1_key
+                 and in entry:'s t1_key  --  only if its entry_id field is still this entry
+                 DEL t2:{entry_id}
+                 DEL lru:t1keys:{entry_id}
                  ZREM lru:entries {entry_id}
       │
       ▼
@@ -589,7 +612,8 @@ a write-back whose dataset_epoch differs from the current epoch is discarded   (
 **Why the Tier-1 delete is conditional.** Tier 1 is keyed by the normalised question. A newer entry for
 the same question writes the same `t1:` key. A plain `DEL` from the older entry's purge would remove
 the newer entry too. The Lua script compares the `entry_id` field and deletes only on a match, in one
-step, so nothing can overwrite the key between the check and the delete.
+step, so nothing can overwrite the key between the check and the delete. The trim (§6) runs the same
+script, so a purge and an eviction agree on what an entry owns.
 
 **The in-process snapshot.** The writer keeps a copy-on-write set of invalidated `entry_id`s and swaps
 it in **before** it deletes anything in Redis. A hit reads Redis first and checks the set second, so a
@@ -610,7 +634,8 @@ that lands between the write-back and the registration is caught too (item 4.2).
 1. **`dep:*` and `entry:*` must never be evicted.** That is why Redis runs `noeviction` and the gateway
    does LRU itself (§1, §6).
 2. **Every `t2:` record carries `t1_key`.** Otherwise purge and trim cannot find Tier 1 (§5.2).
-   `entry:` carries it too, for the Tier-1-only entry.
+   `entry:` carries it too, for the Tier-1-only entry. Every Tier-1 key, promoted ones included, is also
+   in `lru:t1keys:{entry_id}` (item 4.3).
 3. **Write-back is guarded by the epoch.** Otherwise a generation still running during an edit writes
    the old answer back after the purge. Built in item 4.2.
 
@@ -627,12 +652,12 @@ that lands between the write-back and the registration is caught too (item 4.2).
    write-back never sets it and nothing updates it. The real overlap is in the evaluation log.
 4. **Resolved in `interfaces.md` v0.18.** §E used to name a Redis key `dataset:epoch`, which ADR-008
    forbids. §E now names the epoch file (`DATASET_EPOCH_FILE`).
-5. **Promoted Tier-1 keys are orphans.** `t1_key` holds one key, the one from the miss. A promoted key
-   (§5.5) is not recorded anywhere, so trim and purge will not delete it. The hit path refuses it
-   inside the same gateway process, because its record names the same `entry_id`; after a restart a
-   leftover promoted key would serve. It is harmless while capacity is unbounded and must be fixed
-   before capacity is bounded or a run restarts the gateway after an edit (item 4.3; `handler.go`, the
-   comment above the promotion).
+5. **Resolved in `interfaces.md` v0.19 (item 4.3).** `t1_key` used to be the only record of a Tier-1
+   key, so a promoted key (§5.5) was not found by trim or purge, and a Tier-1-only entry left an orphan
+   when evicted. Now every Tier-1 key is recorded in `lru:t1keys:{entry_id}` (§6), the promotion is
+   written only while `t2:` exists, and the trim and the purge delete every listed key that still names
+   the entry. Keys promoted before this change are not cleaned up: a measured run starts on a cache it
+   wrote itself (run rule 11).
 
 ---
 

@@ -396,15 +396,8 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		// wrote Tier 1 -- a Tier-2 hit never did. Fire-and-forget for the same reason as the
 		// hit_count bump above: this must never add a Redis round-trip to the hit path.
 		//
-		// ⚠️ Known limitation, not fixed here: the Tier-2 record's t1_key field is singular
-		// (interfaces.md §D, capacity.go's eviction reads exactly one), and was written for the
-		// entry's ORIGINAL Tier-1 key at MISS time. This promoted key is a second, untracked
-		// Tier-1 pointer at the same entry_id -- harmless today (cache_capacity defaults
-		// UNBOUNDED, so TrimToCapacity never evicts anything, and C2/invalidation is 0% built,
-		// the approvals.md), but once either lands, this key will not be found and
-		// cleaned up alongside its entry, and could go stale/orphaned. Revisit before capacity
-		// is bounded or C2 ships: either track multiple t1_keys per entry, or decide
-		// promotion should not persist across an eviction/purge cycle.
+		// Every Tier-1 key of an entry is recorded in lru:t1keys:{entry_id}, so eviction and purge find
+		// this one. The promotion is written only while t2:{entry_id} exists (interfaces.md §D v0.19).
 		go func(entryID, question, productID, answer, modelUsed string, sources []string) {
 			putCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bumpTimeout)
 			defer cancel()
@@ -413,6 +406,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 				SourceChunkIDs: sources,
 				ModelUsed:      modelUsed,
 				EntryID:        entryID,
+				Promotion:      true,
 			}); err != nil {
 				log.Printf("gateway: tier-1 promotion failed for %s: %v", entryID, err)
 			}

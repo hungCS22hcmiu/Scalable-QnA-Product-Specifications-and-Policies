@@ -206,11 +206,8 @@ through `reuse.Thresholds.Judge`, which returns the one refusal cause. Its first
 `Handler.SupportGate`, and written to every evaluation record as `support_gate`. The four-conjunct rule
 is still the design this row is built toward, with θ the missing term.
 
-**Two parts of these paths are written but do nothing yet.** Each waits for a named item:
+**One part of these paths is written but does nothing yet.** It waits for a named item:
 
-- **A promoted Tier-1 key is not tracked.** The Tier-2 record holds one `t1_key`, the one written at
-  miss time. The key a Tier-2 serve promotes is a second pointer at the same entry, and neither the
-  trim nor a future purge can find it (item 4.3).
 - **The trim does nothing by default.** `CACHE_CAPACITY` unset or `0` means unbounded, so hit rates
   today are an upper bound. It is set to `round(0.25 × K)`, with the `K` of the run file, once `K` is frozen (item 3.6).
 
@@ -268,8 +265,9 @@ removed when the files it read were deleted.
 2. Redis evicts nothing (`make redis-check` fails the run otherwise). Only the gateway removes
    entries, by trimming cache entries through `lru:entries`, and it never touches `dep:*`
    (`interfaces.md` §D, since v0.6).
-3. `t1_key` is written with every Tier-2 record, or Tier-1 survives invalidation. A Tier-1 key
-   added later by promotion is **not** covered yet (item 4.3, §3).
+3. `t1_key` is written with every Tier-2 record, or Tier-1 survives invalidation. Every Tier-1 key,
+   promoted ones included, is also recorded in `lru:t1keys:{entry_id}` in the same atomic step as its
+   write (item 4.3), so the trim and the purge find it. A promotion is written only while `t2:` exists.
 4. `dataset_epoch` is stamped at retrieval and **compared at write-back**, and it is never a Redis
    key (ADR-008). Built in item 4.2: Python reads the epoch file before the chunk texts, the gateway
    compares at write-back, and the dependency map's writer compares again at registration.

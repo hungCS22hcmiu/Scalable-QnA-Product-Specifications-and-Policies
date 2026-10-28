@@ -1,0 +1,45 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0 -- /Library/Frameworks/Python.framework/Versions/3.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/hung/Desktop/Sem1/thesis/rag
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 1 item
+
+tests/test_store_index_ready.py::test_get_vector_store_returns_only_after_background_indexing_finishes FAILED [100%]
+
+=================================== FAILURES ===================================
+____ test_get_vector_store_returns_only_after_background_indexing_finishes _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10701a8b0>
+
+    @requires_redis
+    def test_get_vector_store_returns_only_after_background_indexing_finishes(monkeypatch):
+        monkeypatch.setattr(config, "CORPUS_INDEX_NAME", THROWAWAY_INDEX)
+        # Refuse to run against the live index: this test drops the index it names.
+        assert config.CORPUS_INDEX_NAME != LIVE_INDEX, (
+            "refusing to run: the patched name is the live index"
+        )
+    
+        client = store.get_redis_client()
+        try:
+            _drop_if_exists(client, THROWAWAY_INDEX)
+            expected = _corpus_key_count(client)
+            assert expected > 0, "no corpus::* keys -- run `make ingest` first"
+    
+            store.get_vector_store(overwrite=False)
+            # Read at once, with no sleep: a half-built index shows here, not a few milliseconds later.
+            info = client.ft(THROWAWAY_INDEX).info()
+    
+            indexing = float(info["indexing"])
+            num_docs = int(float(info["num_docs"]))
+>           assert indexing == 0, (
+                f"get_vector_store returned while the index was still building: {info}"
+            )
+E           AssertionError: get_vector_store returned while the index was still building: {'index_name': 'idx:test-ready', 'index_options': [], 'index_definition': [b'key_type', b'HASH', b'prefixes', [b'corpus:'], b'default_score', b'1'], 'attributes': [[b'identifier', b'id', b'attribute', b'id', b'type', b'TAG', b'SEPARATOR', b','], [b'identifier', b'doc_id', b'attribute', b'doc_id', b'type', b'TAG', b'SEPARATOR', b','], [b'identifier', b'text', b'attribute', b'text', b'type', b'TEXT', b'WEIGHT', b'1'], [b'identifier', b'vector', b'attribute', b'vector', b'type', b'VECTOR', b'algorithm', b'FLAT', b'data_type', b'FLOAT32', b'dim', 768, b'distance_metric', b'COSINE'], [b'identifier', b'chunk_id', b'attribute', b'chunk_id', b'type', b'TAG', b'SEPARATOR', b','], [b'identifier', b'ordinal', b'attribute', b'ordinal', b'type', b'NUMERIC'], [b'identifier', b'category', b'attribute', b'category', b'type', b'TAG', b'SEPARATOR', b','], [b'identifier', b'kind', b'attribute', b'kind', b'type', b'TAG', b'SEPARATOR', b','], [b'identifier', b'dataset_version', b'attribute', b'dataset_version', b'type', b'TAG', b'SEPARATOR', b',']], 'num_docs': 4, 'max_doc_id': 4, 'num_terms': 95, 'num_records': 143, 'inverted_sz_mb': '0.010835647583007813', 'vector_index_sz_mb': '3.008392333984375', 'total_inverted_index_blocks': 942, 'offset_vectors_sz_mb': '1.0776519775390625e-4', 'doc_table_size_mb': '0.015715599060058594', 'sortable_values_size_mb': '0', 'key_table_size_mb': '1.659393310546875e-4', 'tag_overhead_sz_mb': '6.361007690429688e-4', 'text_overhead_sz_mb': '0.0031709671020507813', 'total_index_memory_sz_mb': '0.031311988830566406', 'geoshapes_sz_mb': '0', 'records_per_doc_avg': '35.75', 'bytes_per_record_avg': '79.45454406738281', 'offsets_per_term_avg': '0.7902097702026367', 'offset_bits_per_record_avg': '8', 'hash_indexing_failures': 0, 'total_indexing_time': '1.8200000524520874', 'indexing': 1, 'percent_indexed': '0.09090909090909091', 'number_of_uses': 1, 'cleaning': 0, 'gc_stats': [b'bytes_collected', b'0', b'total_ms_run', b'0', b'total_cycles', b'0', b'average_cycle_time_ms', b'nan', b'last_run_time_ms', b'0', b'gc_numeric_trees_missed', b'0', b'gc_blocks_denied', b'0'], 'cursor_stats': [b'global_idle', 0, b'global_total', 0, b'index_capacity', 128, b'index_total', 0], 'dialect_stats': [b'dialect_1', 0, b'dialect_2', 0, b'dialect_3', 0, b'dialect_4', 0], 'Index Errors': [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A', b'background indexing status', b'OK'], 'field statistics': [[b'identifier', b'id', b'attribute', b'id', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'doc_id', b'attribute', b'doc_id', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'text', b'attribute', b'text', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'vector', b'attribute', b'vector', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'chunk_id', b'attribute', b'chunk_id', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'ordinal', b'attribute', b'ordinal', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'category', b'attribute', b'category', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'kind', b'attribute', b'kind', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']], [b'identifier', b'dataset_version', b'attribute', b'dataset_version', b'Index Errors', [b'indexing failures', 0, b'last indexing error', b'N/A', b'last indexing error key', b'N/A']]]}
+E           assert 1.0 == 0
+
+tests/test_store_index_ready.py:70: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_store_index_ready.py::test_get_vector_store_returns_only_after_background_indexing_finishes
+============================== 1 failed in 1.03s ===============================

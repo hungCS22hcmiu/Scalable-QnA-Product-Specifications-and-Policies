@@ -20,4 +20,10 @@ type Entry struct {
 	ModelUsed      string
 	CreatedAt      time.Time
 	EntryID        string
+
+	// Promotion marks a Tier-1 write that copies an entry which already lives in Tier 2 (the handler's
+	// promotion after a Tier-2 hit). Such a write happens only while t2:{EntryID} still exists, and the
+	// key is recorded in lru:t1keys:{EntryID} (interfaces.md §D, v0.19). Store.Put needs a non-empty
+	// EntryID for it. The handler sets this on the Tier-2 promotion and nowhere else.
+	Promotion bool
 }

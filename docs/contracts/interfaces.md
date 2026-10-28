@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.18 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-28
+**Status:** Draft v0.19 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-28
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -386,10 +386,16 @@ Bounded, LRU (proposal §6.3). **Capacity is `round(0.25 × K)`**, where `K` is 
 >   verifies this and fails the run otherwise.
 > - **The gateway enforces the count.** A sorted set `lru:entries` holds `entry_id` scored by last
 >   access; after each write-back the gateway trims to `round(0.25 × K)` entries.
-> - **Both tiers of a victim are deleted together**, the Tier-1 record found through the `t1_key`
->   stored on the Tier-2 record. Dropping only `t2:` would leave Tier 1 serving the same answer from a
->   bare hash lookup that runs no reuse rule — so the entry would still be served while absent from the
->   cache the experiment believes it is bounding, and the capacity sweep would measure nothing.
+> - **Both tiers of a victim are deleted together.** Dropping only `t2:` would leave Tier 1 serving the
+>   same answer from a bare hash lookup that runs no reuse rule — so the entry would still be served
+>   while absent from the cache the experiment believes it is bounding, and the capacity sweep would
+>   measure nothing.
+> - **A victim's Tier-1 keys (v0.19) come from two places and nothing else:** the members of its
+>   `lru:t1keys:{entry_id}` set (below), and the `t1_key` field of its `t2:` record. In one Lua script the
+>   gateway deletes each such key **only if its `entry_id` field still names the victim** (a newer entry
+>   that reused the key keeps it), then deletes `t2:{entry_id}`, the set, and the `lru:entries` member. An
+>   entry written before the set existed has no set and goes through `t1_key` alone. `dep:*` and `entry:*`
+>   are still never touched.
 >
 > This is **stronger** than the v0.3 split, not a relaxation: the dependency region is now safe by
 > construction rather than by a configuration a later `CONFIG SET` could silently undo. The capacity
@@ -408,6 +414,19 @@ KEY   t1:{sha256(normalized_query)}      # HASH
 ```
 
 Normalization (lowercase, collapse whitespace, strip punctuation) is specified in `decisions.md` and must match the Tier-1 write path exactly.
+
+**Every Tier-1 key of an entry — `lru:t1keys:{entry_id}` (v0.19, item 4.3).**
+
+```
+KEY   lru:t1keys:{entry_id}   # SET of Tier-1 keys (full names, "t1:…")
+```
+
+- **Content.** Every Tier-1 key ever written for the entry: the key written at the miss, every promoted key (a Tier-2 hit copies the answer into Tier 1 under the key of the query that hit), and the key of a Tier-1-only entry (the embedding failed, so there is no `t2:` record).
+- **Rule: every Tier-1 write adds to it, in the same atomic step as the Tier-1 hash.** The miss write-back runs `HSET t1:…` and `SADD lru:t1keys:{entry_id} t1:…` in one `MULTI`. A key written without its set member would be untracked: an orphan after eviction, serving an entry that is outside the cache.
+- **Promotion condition.** A promotion is written **only while `t2:{entry_id}` exists**. The existence check, the `HSET` and the `SADD` are one Lua script. The promotion runs in the background after a Tier-2 hit, so the entry can be evicted or purged just before it. If `t2:` is gone, the script writes nothing and the call returns without an error. With two calls, a promotion could land after the removal and leave a Tier-1 pointer at a removed entry.
+- **Eviction and purge** read the set, then delete each key that still names the entry (compare, then delete), then the set itself (steps in the capacity text above and in §E). Both run the same script.
+- **Why it is in the `lru:` region and not in `entry:{entry_id}` (§E).** Eviction lives in the cache package, and that package never reads the dependency records. `lru:` is the cache's own bookkeeping region: `make demo-reset` and `make footprint` delete it together with `t1:` and `t2:`, and nothing reads it but the cache package. It is not a dependency record, so the rule that `dep:*` and `entry:*` are never evicted (§D warning above) is not touched.
+- `t1_key` on the Tier-2 record keeps its meaning ("the Tier-1 key this entry was co-written with"). The set is in addition to it.
 
 > ⚠️ **Tier 1 runs no reuse rule, so its safety is a corpus invariant.** This lookup is a bare hash equality test — no similarity check, no containment check. Two workload queries with different correct answers that normalise to the same string would be served wrongly from first write, permanently, with nothing to detect it. Worse, the resulting false hit has **no bucket** in the evaluation §4's two-cause split and would be charged to the reuse rule, which never ran. The corpus therefore carries the invariant *"no two queries with different `reference_answer` or `doc_ids` share a `normalize(q)`"*, checked before the snapshot is hashed (`data-card.md` §7). Note that stripping punctuation collapses `Model A-1` and `Model A1` — harmless within one product, not harmless across two.
 
@@ -446,7 +465,7 @@ KEY   entry:{entry_id} # HASH  (v0.17; built in item 4.1)
       source_chunk_ids  <json array>   # the chunks it was registered under
 ```
 
-**Why `entry:{entry_id}` exists (v0.17).** The purge used to read `t1_key` from `t2:{entry_id}`. A write-back with no vector (the embedding failed) writes Tier 1 only, so that entry has no `t2:` record and its Tier-1 copy could not be purged. `entry:{entry_id}` is written at registration for every entry, with or without a Tier-2 record. Item 4.3 will add promoted Tier-1 keys to it. Like `dep:*`, it is never evicted: only the purge deletes it.
+**Why `entry:{entry_id}` exists (v0.17).** The purge used to read `t1_key` from `t2:{entry_id}`. A write-back with no vector (the embedding failed) writes Tier 1 only, so that entry has no `t2:` record and its Tier-1 copy could not be purged. `entry:{entry_id}` is written at registration for every entry, with or without a Tier-2 record. Promoted Tier-1 keys are tracked in §D's `lru:t1keys:{entry_id}` instead (v0.19), because eviction must find them and `cache/` never reads `entry:*`. Like `dep:*`, it is never evicted: only the purge deletes it.
 
 **Registration (v0.17).** After a write-back, whatever its two writes returned, the gateway calls `Register(entry_id, source_chunk_ids, t1_key, dataset_epoch)`. Before it writes, the writer applies the late rule (below, v0.18). Then it runs one transaction: `SADD dep:{c} entry_id` for each source chunk `c`, then `HSET entry:{entry_id} t1_key … source_chunk_ids …`. An entry with no sources writes `entry:{entry_id}` only. `Register` takes no context and waits while the queue is full: a registration that gave up on a cancelled client would leave an entry with no dependency record, and no purge could reach it. After shutdown, or when its Redis write fails, a registration is counted and logged, never dropped with no trace.
 
@@ -491,7 +510,7 @@ KEY   entry:{entry_id} # HASH  (v0.17; built in item 4.1)
 
 1. `SMEMBERS dep:{chunk_id}` — the entries that depend on the chunk.
 2. Swap the snapshot to include them. `Invalidate` returns here, with the entry IDs: from this point every hit on them is refused.
-3. For each `entry_id`: read `t1_key` from `entry:{entry_id}` (fall back to the `t2:` record's field), then in one Lua script delete `t2:{entry_id}`, delete the Tier-1 record **only if its `entry_id` field still names this entry** (a newer entry that reused the Tier-1 key survives), and `ZREM lru:entries entry_id`. Then `DEL entry:{entry_id}`.
+3. For each `entry_id`: read `t1_key` from `entry:{entry_id}`, then run one Lua script (the one the trim runs, §D). Its candidate Tier-1 keys are the members of `lru:t1keys:{entry_id}`, the `t2:` record's `t1_key` and `entry:`'s `t1_key` (v0.19). It deletes each candidate **only if its `entry_id` field still names this entry** (a newer entry that reused a Tier-1 key survives), then `t2:{entry_id}`, `lru:t1keys:{entry_id}`, and `ZREM lru:entries entry_id`. Then `DEL entry:{entry_id}`.
 4. `DEL dep:{chunk_id}`.
 
 An entry evicted earlier may still be listed in `dep:{chunk_id}`; purging it is a no-op for the tiers, and step 3 removes its `entry:` record. A Redis error on one entry is counted and logged (`PurgeErrors`), the tombstone stays, and the loop goes on. `Invalidate` after shutdown is an error and purges nothing. The Go call is the whole of item 4.1's interface: how an edit reaches the gateway belongs to item 4.4.
@@ -732,10 +751,11 @@ Field notes:
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.18** (2026-10-28).
+**Current version: v0.19** (2026-10-28).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.19** | 2026-10-28 | **Every Tier-1 key of an entry is tracked** (item 4.3). §D gains the `lru:t1keys:{entry_id}` set and its rules: every Tier-1 write adds to it in the same atomic step as the hash, a promotion is written only while `t2:{entry_id}` exists, and eviction deletes each listed key that still names the victim, then `t2:`, the set and the `lru:entries` member. §E's step 3 reads the set too, and its plan for `entry:` is corrected: promoted keys are tracked in the set, not in `entry:`. No wire shape, §A, §B, §H or `.proto` change; the Python service is not touched. Under bounded capacity an evicted entry can no longer be served through a promoted or an orphaned Tier-1 key, so the Tier-1 hit count can only fall to its true value. Under `mutation: on` a purge also removes promoted keys. Under unbounded capacity with `mutation: off` nothing changes |
 | **v0.18** | 2026-10-28 | **The dataset epoch is real, and the write-back guard is built** (item 4.2, ADR-008). §E replaces the `dataset:epoch` Redis key with the file named by `DATASET_EPOCH_FILE`, and adds the guard (any mismatch or a failed read discards), the two order rules, the late rule and `LateDiscards`. §H gives `writeback_discarded` its rules (leader only; `entry_id ""` and `entry_sources` null) and adds invariant I13 (under `mutation: off` it is never true). `dataset_epoch` (§B) keeps its meaning and is now a real value (≥ 1) instead of 0, so `dataset_epoch_at_retrieval` carries information for the first time. `rag.server` and the gateway refuse to start without a valid epoch file. No wire shape, §A, §B, §D or `.proto` change. Under `mutation: off` nothing else changes; under `mutation: on` any edit discards the write-backs in flight. |
 | **v0.17** | 2026-10-28 | **C2's dependency map is built** (item 4.1). §E gains the `entry:{entry_id}` record, the registration and purge steps, and the hit-path check, and a note that ADR-008's epoch is not the `dataset:epoch` key. §H gains the extension key `invalidated_entry_id`. No wire shape, §A, §B, §D or `.proto` change. Under `mutation: off` nothing changes; under `mutation: on` a hit on an invalidated entry becomes a miss and the record names it. The Python service is not touched; the epoch guard is item 4.2 |
 | **v0.16** | 2026-10-27 | **The MIXED lane is an on/off arm, named in every record** (**ADR-016**, item 4.5). §H gains one required key, **`mixed_lane`** (`"on"` \| `"off"`, on every record, never null, no `omitempty`), invariants I10, I11 and I12, and the sentence that a log without the key reads as off (a `composite` record disproves that). **A configuration-4 run is identified by `(config_id, mutation, support_gate, mixed_lane)`.** A band other than ADR-016's two, `[0.20, 0.20)` and `[0.20, 0.60)`, or an empty or unparseable `LANE_SIGMA` or `LANE_SIGMA_HI`, stops the gateway at start. No wire shape, §A, §B, §D or `.proto` change. |

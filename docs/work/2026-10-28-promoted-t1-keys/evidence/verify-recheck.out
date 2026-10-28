@@ -1,0 +1,57 @@
+cd gateway && go vet ./...
+All checks passed!
+cd gateway && go build ./...
+cd gateway && go test ./...
+ok  	github.com/hung/thesis/gateway/cmd/gateway	1.061s
+ok  	github.com/hung/thesis/gateway/internal/admission	0.513s
+ok  	github.com/hung/thesis/gateway/internal/cache	1.328s
+?   	github.com/hung/thesis/gateway/internal/catalog	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/coalesce	0.299s
+ok  	github.com/hung/thesis/gateway/internal/deps	1.689s
+?   	github.com/hung/thesis/gateway/internal/embed	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/httpapi	2.075s
+ok  	github.com/hung/thesis/gateway/internal/ragclient	2.032s
+?   	github.com/hung/thesis/gateway/internal/ragpb	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/reuse	1.711s
+ok  	github.com/hung/thesis/gateway/internal/telemetry	2.135s
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hung/Desktop/Sem1/thesis/rag
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2
+collected 50 items
+
+tests/test_chunkid.py .....                                              [ 10%]
+tests/test_dataset_version.py ...                                        [ 16%]
+tests/test_epoch.py .....................                                [ 58%]
+tests/test_ingest_nodes.py .....                                         [ 68%]
+tests/test_retrieve_scoping.py ..F..                                     [ 78%]
+tests/test_retrieve_texts.py ...                                         [ 84%]
+tests/test_server_bind.py ..                                             [ 88%]
+tests/test_server_epoch.py ......                                        [100%]
+
+=================================== FAILURES ===================================
+_____ test_retrieve_unscoped_behaviour_is_unchanged_when_product_id_absent _____
+
+    @requires_redis
+    def test_retrieve_unscoped_behaviour_is_unchanged_when_product_id_absent():
+        query = "what is the power rating of this item exactly right now"
+        unscoped, _ = retrieve(query, top_k=5)
+        explicit_none, _ = retrieve(query, top_k=5, product_id=None)
+>       assert [c.chunk_id for c in unscoped] == [c.chunk_id for c in explicit_none]
+E       AssertionError: assert ['product-kit...n-03#chunk-0'] == ['product-kit...n-10#chunk-0']
+E         
+E         At index 0 diff: 'product-kitchen-08#chunk-0' != 'product-kitchen-09#chunk-0'
+E         Use -v to get more diff
+
+tests/test_retrieve_scoping.py:62: AssertionError
+----------------------------- Captured stdout call -----------------------------
+21:33:18 redisvl.index.index INFO   Index already exists, not overwriting.
+------------------------------ Captured log call -------------------------------
+INFO     redisvl.index.index:index.py:456 Index already exists, not overwriting.
+=========================== short test summary info ============================
+FAILED tests/test_retrieve_scoping.py::test_retrieve_unscoped_behaviour_is_unchanged_when_product_id_absent
+========================= 1 failed, 49 passed in 2.02s =========================
+make[1]: *** [test] Error 1
+make: *** [verify] Error 2

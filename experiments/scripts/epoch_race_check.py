@@ -225,7 +225,8 @@ def purge_entry(r: redis.Redis, rec: dict) -> list[str]:
     if t1_key and r.hget(t1_key, "entry_id") == eid:
         r.delete(t1_key)
         done.append(t1_key)
-    for key in (f"t2:{eid}", f"entry:{eid}"):
+    # lru:t1keys:{eid} is the cache's per-entry set of Tier-1 keys (interfaces.md §D v0.19).
+    for key in (f"t2:{eid}", f"entry:{eid}", f"lru:t1keys:{eid}"):
         if r.delete(key):
             done.append(key)
     for chunk in rec.get("entry_sources") or []:
