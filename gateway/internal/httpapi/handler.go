@@ -15,6 +15,7 @@ import (
 	"github.com/hung/thesis/gateway/internal/cache"
 	"github.com/hung/thesis/gateway/internal/catalog"
 	"github.com/hung/thesis/gateway/internal/coalesce"
+	"github.com/hung/thesis/gateway/internal/deps"
 	"github.com/hung/thesis/gateway/internal/embed"
 	"github.com/hung/thesis/gateway/internal/ragclient"
 	"github.com/hung/thesis/gateway/internal/reuse"
@@ -59,6 +60,24 @@ type cacheStore interface {
 }
 
 var _ cacheStore = (*cache.Store)(nil) // the real store must keep satisfying it
+
+// dependencyMap is the part of *deps.Map that the request path uses (C2, interfaces.md §E): Register
+// after a write-back, Invalidated on a hit. An interface so the tests can drive the hit path with a
+// fake map and no Redis.
+type dependencyMap interface {
+	Register(deps.Registration)
+	Invalidated(entryID string) bool
+}
+
+var _ dependencyMap = (*deps.Map)(nil) // the real map must keep satisfying it
+
+// epochSource is the dataset epoch as the write-back guard reads it (interfaces.md §E, ADR-008).
+// *deps.EpochFile is the production implementation; it re-reads its file on every call.
+type epochSource interface {
+	Current() (uint64, error)
+}
+
+var _ epochSource = (*deps.EpochFile)(nil) // the real source must keep satisfying it
 
 // Handler serves POST /ask: cache.Get -> miss -> ragclient.Answer -> cache.Put. Single call
 // site, so W16's admission control has exactly one place to insert later
@@ -111,6 +130,19 @@ type Handler struct {
 	// for the query and for the write-back) and the record's mixed_lane label (LaneBand.Arm()).
 	LaneBand reuse.LaneBand
 
+	// Deps is the dependency map (C2). A nil Deps disables both the registration and the hit-path check,
+	// so a Handler built as a struct literal (every test that predates item 4.1) behaves as it did.
+	// cmd/gateway always sets it: a gateway without a map registers nothing, silently, and no purge can
+	// then reach its entries (done condition 12 reads main.go for it).
+	Deps dependencyMap
+
+	// Epoch is the dataset epoch the write-back guard reads (item 4.2, interfaces.md §E). Nil turns the
+	// guard off, so a Handler built as a struct literal (every test that predates item 4.2) writes back
+	// as before. cmd/gateway always sets it: a gateway without a source never discards, and
+	// writeback_discarded then stays false, which reads as "no race happened" (done condition 9 reads
+	// main.go for it).
+	Epoch epochSource
+
 	// Catalog backs GET /products for the demo UI. Nil is valid and yields an empty list --
 	// the gateway must start and serve /ask whether or not a corpus index exists.
 	Catalog *catalog.Catalog
@@ -140,6 +172,11 @@ type generation struct {
 	EntryID        string
 	Lane           reuse.Lane
 	Namespace      string
+
+	// Discarded marks a generation whose write-back the epoch guard refused: nothing was written to
+	// either tier or the dependency map, so there is no entry. Every request that shared the
+	// generation then reports entry_id "" (interfaces.md §H).
+	Discarded bool
 }
 
 // retryAfterSeconds is the frozen Retry-After of interfaces.md A's shed response.
@@ -220,6 +257,13 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cache lookup failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// C2's hit-path check, AFTER the Redis read: the dependency map swaps its tombstones in before it
+	// deletes anything, so a read that could still see a purged entry also sees its tombstone here.
+	// The request then goes on as a Tier-1 miss, and the record names the entry it refused.
+	if hit && h.Deps != nil && h.Deps.Invalidated(entry.EntryID) {
+		rec.InvalidatedEntryID = entry.EntryID
+		hit = false
+	}
 	if hit {
 		modelUsed := entry.ModelUsed
 		rec.Cache, rec.EntryID = cacheTier1Hit, entry.EntryID
@@ -291,6 +335,10 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 
 	// --- Tier 2: nearest neighbour, then the lane rule. ---
 	t2 := h.tryTier2(ctx, req.ProductID, vec, retrieved, &timings)
+	// The field names the FIRST invalidated entry this request met: Tier 1's wins if it set one.
+	if rec.InvalidatedEntryID == "" {
+		rec.InvalidatedEntryID = t2.InvalidatedEntryID
+	}
 
 	// The similarity travels on any judged candidate, served or refused. The overlap travels on a
 	// banded one (sim >= tau), which is a hit unless the support gate then refused it: a SUPPORT or
@@ -442,6 +490,35 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		writeLane := reuse.Classify(result.SourceChunkIDs, h.LaneBand)
 		writeNS := reuse.Namespace(writeLane, result.SourceChunkIDs, req.ProductID)
 
+		// The epoch guard (item 4.2, interfaces.md §E): any difference between the epoch Answer read
+		// the chunk texts under and the epoch now discards the write-back, and so does a failed read.
+		// A generation that started before an edit and finished after its purge would otherwise write
+		// the old answer back with no trace. The compare is against ANSWER's epoch, because Answer
+		// read the texts the answer was made from. Nothing below runs on this path: no Put, PutTier2,
+		// Register, touch or TrimToCapacity. The client still gets the answer.
+		if h.Epoch != nil {
+			now, eerr := h.Epoch.Current()
+			if eerr != nil || now != result.DatasetEpoch {
+				// The leader's own record: this closure never runs for a coalesced follower, so only
+				// the leader carries the flag and a discard is counted once.
+				rec.WritebackDisc = true
+				if eerr != nil {
+					log.Printf("gateway: request_id=%s write-back discarded: epoch read failed: %v", requestID, eerr)
+				} else {
+					log.Printf("gateway: request_id=%s write-back discarded: answer epoch %d, current epoch %d",
+						requestID, result.DatasetEpoch, now)
+				}
+				return &generation{
+					Text:           result.Text,
+					SourceChunkIDs: result.SourceChunkIDs,
+					ModelUsed:      result.ModelUsed,
+					Lane:           writeLane,
+					Namespace:      writeNS,
+					Discarded:      true,
+				}, nil
+			}
+		}
+
 		// A failed write-back must NOT fail the request. The generation already succeeded, and it
 		// is the most expensive resource in the system -- discarding it because a cache write
 		// failed spends it for nothing, which is backwards on this thesis's own premise. It also
@@ -468,13 +545,26 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 				T1Key:          t1Key,
 				Namespace:      writeNS,
 				Lane:           string(writeLane),
-				// Stored, not acted on. The epoch GUARD (discard write-back if the epoch
-				// advanced) is Phase 2 -- but the field must be captured now, because it cannot
+				// Stored with the entry. The guard above compares it at write-back; the field cannot
 				// be reconstructed after the fact (interfaces.md E).
 				DatasetEpoch: result.DatasetEpoch,
 			}, vec); err != nil {
 				log.Printf("gateway: tier-2 write-back failed for request_id=%s: %v", requestID, err)
 			}
+		}
+
+		// Register the entry's dependencies, WHATEVER the two writes above returned: a failed Tier-2 write
+		// can leave the Tier-1 copy in Redis, and an entry with no dependency record survives every purge
+		// (interfaces.md §E). Register takes no context, on purpose: this closure runs in the coalesced
+		// generation, and a client that left cancels ctx. A registration that gave up on a cancelled
+		// context would leave the entry unpurgeable, with no error (design.md §3, failure mode 1).
+		if h.Deps != nil {
+			h.Deps.Register(deps.Registration{
+				EntryID:      entryID,
+				Sources:      result.SourceChunkIDs,
+				T1Key:        t1Key,
+				DatasetEpoch: result.DatasetEpoch,
+			})
 		}
 
 		// Record the access and enforce capacity. Both are off the answer's critical path in the
@@ -554,6 +644,12 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	result := gen
 	rec.Cache, rec.EntryID = cacheMiss, gen.EntryID
 	rec.EntrySources = gen.SourceChunkIDs
+	if gen.Discarded {
+		// interfaces.md H: no entry was written, so the record names none -- for the leader and for
+		// every follower that shared the discarded generation. The response below still lists the
+		// answer's sources; only the record changes.
+		rec.EntryID, rec.EntrySources = "", nil
+	}
 	rec.SetAnswer(gen.Text)
 	rec.Coalesced = shared
 	_, _ = permitWait, queueDepth

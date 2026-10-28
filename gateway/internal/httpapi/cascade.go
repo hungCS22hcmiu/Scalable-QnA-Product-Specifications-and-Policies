@@ -51,6 +51,11 @@ type tier2Outcome struct {
 	Candidate   cache.Candidate
 	Decision    reuse.Decision
 
+	// InvalidatedEntryID is set, with Found false, when the nearest candidate's entry had been
+	// invalidated by the dependency map (C2). The candidate is dropped BEFORE it is judged, so no
+	// cause is set and the request is a plain MISS (interfaces.md §H v0.17).
+	InvalidatedEntryID string
+
 	// --- two-lane experiment ---
 	// NSDecision is the lane rule's verdict on the candidate. It is NOT the serve decision any more:
 	// the support gate can still refuse a candidate it reused. Serve on Served. Decision above is
@@ -147,6 +152,15 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 	// The rule still runs in reuse/ over whatever came back. The filter above is an optimisation
 	// and this is the enforcement: if the two ever disagree, the Go check refuses.
 	c := scoped[0]
+
+	// C2's hit-path check, after the Redis read (see Ask's Tier-1 check). An invalidated candidate is
+	// dropped here, before DecideLane: it is not judged, so it earns no refusal cause and the request is
+	// a MISS with refusal_cause null. A promoted Tier-1 key shares this entry_id, so it is refused too.
+	if h.Deps != nil && h.Deps.Invalidated(c.Entry.EntryID) {
+		out.InvalidatedEntryID = c.Entry.EntryID
+		return out
+	}
+
 	out.Found, out.Candidate = true, c
 	out.NSDecision = h.Thresholds.DecideLane(reuse.LaneInput{
 		Similarity: c.Similarity,

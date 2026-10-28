@@ -34,8 +34,15 @@ export OLLAMA_NUM_PARALLEL := 1
 OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
+# The dataset epoch file (item 4.2, ADR-008, interfaces.md E): one integer outside Redis, stamped by
+# rag.server on every retrieval and compared by the gateway at write-back. ABSOLUTE, because the gateway
+# (cd gateway) and rag.server (cd rag) run from different directories and both must read ONE file.
+# Exported, so every recipe inherits it, `seam-check`'s rag.server included. `make epoch-advance` creates it.
+DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
+export DATASET_EPOCH_FILE
+
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -389,6 +396,18 @@ support-check: ## Item 2.1: lexical support gate on live retrieved text, oracle 
 	   echo "FAIL — the test did not genuinely run (a skip, no matching test, or a cached result)"; exit 1; \
 	 fi; \
 	 echo "  PASS — fixture text matches Redis, live retrieval scored, texts aligned. Verdicts are LOGGED, not asserted. Log: $$log"
+
+epoch-advance: ## Item 4.2: advance the dataset epoch (ADR-008); creates the file at 1
+	cd $(RAG) && $(PY) -m rag.epoch advance
+
+# Item 4.2 DC 10: the live race. The script owns both processes (rag.server on :50053, the gateway on
+# :18080) and its own epoch file in a temp directory, so it never touches data/dataset-epoch. Loads the
+# LLM: check the pressure level first, every time. Never run beside `make verify` or another Redis test.
+EVIDENCE ?= docs/work/2026-10-28-epoch-guard/evidence/race
+
+epoch-race-check: ## Item 4.2 DC 10: epoch advanced mid-generation, write-back discarded (loads the LLM, NOT a measurement)
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"
+	$(PY) experiments/scripts/epoch_race_check.py --evidence-dir $(EVIDENCE)
 
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }

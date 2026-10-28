@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "answer": "Here is a detailed list of every specification provided in the context for the Oakline Dining Table 6-Seat, along with an explanation of what each meaning means for a buyer:\n\n*   **Material:** Solid oak\n    *   **Meaning:** The table is constructed entirely from a single type of wood called oak. Solid oak typically implies a high-quality finish and durability, as it uses natural solid timber rather than engineered woods like particleboard or MDF, offering greater strength and stability.\n*   **Dimensions:** 180x90x75cm\n    *   **Meaning:** This refers to the size of the table (likely: Length x Width x Height). A length of 180 cm makes it suitable for larger dining spaces or sideboards, while a width of 90 cm is standard and manageable. A height of 75 cm ensures sufficient clearance between the tabletop and the floor for comfortable seating.\n*   **Seats:** 6\n    *   **Meaning:** The table is configured to accommodate exactly six people comfortably, meeting typical family needs without requiring any additional chairs.\n*   **Assembly:** Required, ~45 min\n    *   **Meaning:** This item does not come pre-assembled and the buyer must construct it themselves. The estimated time required for this process is approximately forty-five minutes, giving buyers a realistic expectation before purchasing.\n*   **Finish:** Natural matte\n    *   **Meaning:** The surface of the solid oak will have a natural wood grain appearance rather than a painted or varnished look. \"Matte\" indicates that the sheen on the wood is flat and non-glossy, which helps hide minor scratches better than glossy finishes while still showing off the natural beauty of the material.",
+  "cache": "MISS",
+  "latency_ms": 14522,
+  "similarity": null,
+  "source_overlap": null,
+  "sources": [
+    "product-furniture-01#chunk-0"
+  ],
+  "model_used": "qwen3.5-2b",
+  "request_id": "06GR4KMZMDBB2H0KJ992079TKM",
+  "lane": "SPEC",
+  "namespace": "product-furniture-01",
+  "overlap_decision": null
+}

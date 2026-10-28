@@ -30,10 +30,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 CORPUS_INDEX_NAME = "idx:corpus"
 CORPUS_KEY_PREFIX = "corpus:"
 
-# --- Dataset epoch stub ---
-# Real epoch tracking (interfaces.md §E) is dependency-map/invalidation scope, W9-W11.
-# retrieve() returns this constant until then.
-DATASET_EPOCH_STUB = 0
+# The dataset epoch is a file, read at call time: see rag/epoch.py (interfaces.md E, ADR-008).
 
 # --- generation LLM ---
 LLM_MODEL = "qwen3.5:2b-q4_K_M"    # Ollama tag actually invoked

@@ -41,6 +41,10 @@ data/raw/
 # the files with the workload-* make targets. Every version is covered, not only v1 (review F7).
 data/workload-*.json
 !data/workload-manifest.json
+# The dataset epoch file and its lock (item 4.2, ADR-008): one integer that changes with every ingest
+# and every edit. Machine state, not corpus; `make epoch-advance` creates it.
+data/dataset-epoch
+data/dataset-epoch.lock
 
 # --- Build output --------------------------------------------------------------
 # Generated protobuf stubs (regenerate with `make proto`)

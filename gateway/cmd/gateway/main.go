@@ -19,6 +19,7 @@ import (
 	"github.com/hung/thesis/gateway/internal/admission"
 	"github.com/hung/thesis/gateway/internal/cache"
 	"github.com/hung/thesis/gateway/internal/catalog"
+	"github.com/hung/thesis/gateway/internal/deps"
 	"github.com/hung/thesis/gateway/internal/embed"
 	"github.com/hung/thesis/gateway/internal/httpapi"
 	"github.com/hung/thesis/gateway/internal/ragclient"
@@ -127,6 +128,26 @@ func bandFromEnv(lookup func(string) (string, bool)) (reuse.LaneBand, error) {
 	return band, nil
 }
 
+// epochFromEnv opens the dataset epoch file named by DATASET_EPOCH_FILE (item 4.2, interfaces.md §E,
+// ADR-008), in os.LookupEnv's shape as gateFromEnv and bandFromEnv are. Unset and set-but-empty are
+// both errors, and so is everything deps.OpenEpochFile refuses: a relative path, a missing file, a
+// value that is not an integer, a value below 1. Without a readable epoch the write-back guard could
+// only fail closed on every request, or never fire, and neither is a run to start. The caller stops
+// the process before it opens Redis, the RAG connection or the evaluation log. Pure apart from the
+// file read, on bandFromEnv's pattern, so the rule is testable. On error the file returned is nil.
+func epochFromEnv(lookup func(string) (string, bool)) (*deps.EpochFile, uint64, error) {
+	v, set := lookup("DATASET_EPOCH_FILE")
+	if !set || v == "" {
+		return nil, 0, errors.New("DATASET_EPOCH_FILE is not set (or is empty): the gateway needs the dataset " +
+			"epoch file that rag.server also reads (ADR-008). `make epoch-advance` creates it")
+	}
+	f, n, err := deps.OpenEpochFile(v)
+	if err != nil {
+		return nil, 0, fmt.Errorf("DATASET_EPOCH_FILE=%q: %w", v, err)
+	}
+	return f, n, nil
+}
+
 // runCounts is everything that can make a finished run inadmissible. A struct rather than
 // positional arguments, so two int64 counts cannot be passed in the wrong order.
 type runCounts struct {
@@ -226,6 +247,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("gateway: %v", err)
 	}
+	// The dataset epoch file, for the same reason and in the same place (item 4.2, ADR-008): no epoch,
+	// no start. The path is logged so a run can show that the gateway and rag.server read ONE file.
+	epochFile, epochNow, err := epochFromEnv(os.LookupEnv)
+	if err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
+	log.Printf("gateway: dataset_epoch_file=%s epoch=%d (ADR-008)", epochFile.Path(), epochNow)
 
 	redisAddr := getenv("REDIS_URL", "localhost:6379")
 	ollamaURL := getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -247,6 +275,15 @@ func main() {
 	if err := store.EnsureCacheIndex(context.Background()); err != nil {
 		log.Fatalf("gateway: creating %s: %v", cache.CacheIndexName, err)
 	}
+
+	// C2: the dependency map. One writer goroutine owns dep:* and entry:*; *cache.Store is its Purger
+	// (deps/ imports no internal package). 1024 queued messages is far above one write-back at a time
+	// (ADR-003); a full queue makes Register wait, never drop. Closed at shutdown, below.
+	depMap := deps.New(rdb, store, 1024)
+	// The writer's late check reads the same epoch file as the write-back guard (interfaces.md §E): it
+	// closes the gap between that guard and the registration. Without a source the gap stays open and
+	// nothing shows it (TestMainWiresEpoch reads this file for it).
+	depMap.SetEpochSource(epochFile)
 
 	// nomic-embed-text, 768-dim -- frozen, and must match the dim idx:cache declares.
 	embedder := embed.New(ollamaURL, embed.Model)
@@ -346,6 +383,12 @@ func main() {
 	handler.ConfigID = getenvInt("CONFIG_ID", 0)
 	handler.Mutation = getenv("MUTATION", "off")
 	handler.SupportGate = supportGate
+	// Always set: a gateway without a map registers nothing, silently, and no purge can reach its
+	// entries (design.md failure mode 8; TestMainWiresDeps reads this file for it).
+	handler.Deps = depMap
+	// Always set, for the same reason: a gateway without an epoch source never discards a stale
+	// write-back, and writeback_discarded stays false, which reads as "no race happened".
+	handler.Epoch = epochFile
 
 	// Printed AFTER the assignment and read back from the handler, never from the parsed variable
 	// (design.md F14): if the assignment above were ever forgotten, this line would still say what the
@@ -399,6 +442,26 @@ func main() {
 	log.Printf("gateway listening on %s (redis=%s rag=%s)", httpAddr, redisAddr, ragGRPCAddr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Printf("gateway: %v", err)
+	}
+	// Drain the dependency map before the evaluation log closes. ListenAndServe returns as soon as
+	// Shutdown STARTS, so a write-back still in flight can register after Close; it is counted in
+	// Dropped(), not lost (the existing F-F window, not widened).
+	closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := depMap.Close(closeCtx); err != nil {
+		log.Printf("gateway: closing the dependency map: %v", err)
+	}
+	closeCancel()
+	if d, e, p := depMap.Dropped(), depMap.RegisterErrors(), depMap.PurgeErrors(); d != 0 || e != 0 || p != 0 {
+		log.Printf("gateway: the dependency map is INCOMPLETE: %d registration(s) dropped after close, "+
+			"%d registration write(s) failed, %d purge call(s) failed. An entry without its dependency "+
+			"record survives every purge (interfaces.md §E).", d, e, p)
+	}
+	// Not incompleteness: each of these was written to the tiers and then purged, because the dataset
+	// epoch advanced between the write-back check and the registration (interfaces.md §E, the late rule).
+	if n := depMap.LateDiscards(); n > 0 {
+		log.Printf("gateway: %d write-back(s) discarded late: the dataset epoch advanced before the entry "+
+			"was registered, so it was purged from both tiers. These are discarded write-backs, not "+
+			"incompleteness.", n)
 	}
 	closeErr, verdict := finishRun(evalLog)
 	if closeErr != nil {

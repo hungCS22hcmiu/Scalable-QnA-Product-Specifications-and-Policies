@@ -1,0 +1,40 @@
+{
+  "request_id": "06GR4MDY2HFRRFXDC4WYY5XEM8",
+  "run_id": "epoch-race-20261028-114234",
+  "config_id": 0,
+  "mutation": "on",
+  "ts": "2026-10-28T11:42:37.588634Z",
+  "support_gate": "on",
+  "mixed_lane": "off",
+  "query_raw": "In detail, list every specification of the Oakline Dining Table 6-Seat one by one and say what each one means for a buyer. (ref 46929aa)",
+  "query_normalized": "in detail list every specification of the oakline dining table 6seat one by one and say what each one means for a buyer ref 46929aa",
+  "t1_key": "t1:3d658a8b5f7e348418a00d1aa50b23533e86f851c46c6c112f3a38bd03cc1442",
+  "stratum": null,
+  "cache": "MISS",
+  "similarity": null,
+  "source_overlap": null,
+  "entered_band": false,
+  "refusal_cause": null,
+  "support_lex": null,
+  "support_numeric_ok": null,
+  "retrieved_chunk_ids": [
+    "product-furniture-01#chunk-0"
+  ],
+  "entry_sources": [
+    "product-furniture-01#chunk-0"
+  ],
+  "entry_id": "06GR4MEV4WBJ45FHGAAJMR3WPC",
+  "t_total_ms": 7445.135,
+  "t_tier1_ms": 0.302,
+  "t_embed_ms": 46.915,
+  "t_search_ms": 0.402,
+  "t_overlap_ms": 145.452,
+  "t_permit_wait_ms": null,
+  "t_generate_ms": 7296.506,
+  "shed": false,
+  "permit_queue_depth": 0,
+  "dataset_epoch_at_retrieval": 1,
+  "writeback_discarded": false,
+  "answer_sha256": "c4b31afd2dde3a450f545ec24ea3670596c84e8bce23430008f814c0c44c0aad",
+  "product_id": "product-furniture-01"
+}

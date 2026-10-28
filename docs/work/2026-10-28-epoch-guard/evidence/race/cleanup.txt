@@ -1,0 +1,6 @@
+removed:
+  t1:165cf932d0519b6749c306a700772bd620927d441c580fee6c57fcc90be1dd97
+  t2:06GR4KPRAXP31AJAHN8G2NWCYM
+  entry:06GR4KPRAXP31AJAHN8G2NWCYM
+  dep:product-furniture-01#chunk-0 -= 06GR4KPRAXP31AJAHN8G2NWCYM
+keys new since the start that remain (should be none):

@@ -54,7 +54,7 @@ thesis/
 │       │                           · the gateway-side LRU count, lru:entries (capacity.go)
 │       ├── reuse/                  lanes + overlap rule + support arms + the refusal cause (cause.go)  → proposal §5 C1   [C1]
 │       ├── deps/                   dependency map, COW, writer goroutine
-│       │                                                    → contracts/interfaces.md §E  [C2]  NOT BUILT: a stub doc.go
+│       │                                                    → contracts/interfaces.md §E  [C2]  built (item 4.1)
 │       ├── admission/              permit pool, queue, shed → proposal §6.1
 │       ├── coalesce/               collapses concurrent duplicate misses onto one execution
 │       ├── ragclient/              pooled gRPC + epoch      → contracts/interfaces.md §B
@@ -149,14 +149,15 @@ Tier-2   httpapi → embed ∥ ragclient.Retrieve → reuse (lane) → cache.tie
 Miss     httpapi → coalesce → admission → ragclient.Answer → ⟦gRPC seam⟧ → rag/ → Ollama
 ```
 
-**The import graph, as of 2026-10-16** (`go list` over `gateway/internal/*`, which is where to
-re-derive it; unchanged since 2026-10-07):
+**The import graph, as of 2026-10-28** (`go list` over `gateway/internal/*`, which is where to
+re-derive it; item 4.1 added the `httpapi → deps` edge):
 
 ```
 cmd/gateway ─► httpapi ─┬─► admission
                         ├─► cache
                         ├─► catalog        demo UI only, never reached from /ask
                         ├─► coalesce
+                        ├─► deps           imports no internal package; reaches the tiers through `Purger`
                         ├─► embed
                         ├─► ragclient ─► ragpb (generated)
                         ├─► reuse
@@ -166,9 +167,10 @@ cmd/gateway ─► httpapi ─┬─► admission
 `httpapi` is the **only** package that imports its siblings. Every other internal package imports
 none of them — `ragclient` imports only the generated `ragpb` — which is why `reuse/` is falsifiable
 in isolation and `telemetry/` can be imported from anywhere. `cmd/gateway` imports `httpapi` and
-every leaf that `httpapi` does except `coalesce`. **This is an observation, not a rule**: Phase 4's `deps/` will legitimately need `cache`,
-and nothing here forbids a new edge between two leaf packages. What the table below forbids is
-unchanged, and any new edge should be checked against it.
+every leaf that `httpapi` does except `coalesce`, and it passes `*cache.Store` to `deps.New` as the `Purger`. **This is an observation, not a rule**:
+`deps/` reaches the two tiers through that small interface and so imports no sibling, and nothing here
+forbids a new edge between two leaf packages. What the table below forbids is unchanged, and any new
+edge should be checked against it.
 
 **A leaf importing `httpapi` is a layering violation.** Import cycles do not compile; a *runtime* cycle
 (A calls B calls A) is a defect the compiler cannot see.
@@ -176,7 +178,7 @@ unchanged, and any new edge should be checked against it.
 | Package | Owns | Must never |
 | :--- | :--- | :--- |
 | `reuse/` | The C1 decision: lane classification, then two chunk-ID sets + similarity → reuse or not | Touch Redis, gRPC, or HTTP. It stays infrastructure-free so C1 is falsifiable in isolation |
-| `deps/` | *(not built)* The **only** writer to the dependency records (`dep:*`), serialized through one goroutine | Be written from a request goroutine; hold a lock across a Redis round-trip |
+| `deps/` | The **only** writer to the dependency records (`dep:*`, `entry:*`), serialized through one goroutine; the copy-on-write snapshot of invalidated `entry_id`s; reaches both tiers only through the `Purger` interface (item 4.1) | Be written from a request goroutine; hold a lock across a Redis round-trip; import a sibling package |
 | `admission/` | The **sole** acquire/release point for a generation permit | Be bypassed by any miss path — one chokepoint or the memory guarantee is void |
 | `coalesce/` | Collapsing concurrent duplicate misses onto one execution; it wraps the `admission/` call, so followers share the leader's result | Hold a permit of its own — `admission/` stays the sole chokepoint |
 | `cache/` | Key normalization, both tiers, and the entry-count bound (`lru:entries`; Redis evicts nothing) | Make a reuse decision — that is `reuse/` |
@@ -192,7 +194,7 @@ unchanged, and any new edge should be checked against it.
 | **Tier-2 hit** | `→ embed ∥ ragclient.Retrieve` (concurrent) `→ reuse` lane + namespace `→ cache.tier2` kNN **scoped to that namespace** (one search) `→ reuse.DecideLane → reuse.Thresholds.Judge`. On a serve, the hit-count bump and a Tier-1 promotion run in the background, off the hit path | ~tens of ms: the slower of embed and retrieve, plus one search. The unfiltered short-circuit phase is retired (ADR-004) |
 | **Miss** | `→ coalesce` (one leader per Tier-1 key) `→ admission.Acquire → ragclient.Answer` (it sends the chunk IDs already retrieved, so Python grounds on them and does not retrieve again) `→ LLM →` write back **both** tiers + `t1_key` + epoch `→ cache.TrimToCapacity` (deletes both tiers of each victim) | seconds |
 | **Shed** | permit unavailable inside budget → `503 busy, retry` | counted as graceful degradation, never as served load |
-| **Invalidation** | *(not built — Phase 4)* edit → channel → single writer → COW swap → Redis purge (both tiers), **off** the critical path | — |
+| **Invalidation** | `deps.Invalidate(event)` → channel → single writer → `SMEMBERS dep:{chunk}` → COW swap of the tombstones → `Purger.PurgeEntry` per entry (both tiers) → `DEL entry:E`, `DEL dep:{chunk}`. The Redis purge runs **off** the caller's path. A hit checks the snapshot after it reads Redis (item 4.1). How an edit reaches the gateway is item 4.4 | — |
 
 **What the Tier-2 row serves today is `similarity ∧ namespace ∧ support` with the gate on, and
 `similarity ∧ namespace` with it off** (items 2.3 and 2.4, ADR-009 and ADR-010).
@@ -204,21 +206,24 @@ through `reuse.Thresholds.Judge`, which returns the one refusal cause. Its first
 `Handler.SupportGate`, and written to every evaluation record as `support_gate`. The four-conjunct rule
 is still the design this row is built toward, with θ the missing term.
 
-**Three parts of these paths are written but do nothing yet.** Each waits for a named item:
+**Two parts of these paths are written but do nothing yet.** Each waits for a named item:
 
-- **The epoch is a constant.** Python returns `DATASET_EPOCH_STUB = 0` (`rag/src/rag/config.py`), and
-  write-back stores it but never compares it, so `writeback_discarded` is logged and never set
-  (item 4.2). When it is built, the epoch must come from the corpus of record, never from a Redis key
-  (ADR-008).
 - **A promoted Tier-1 key is not tracked.** The Tier-2 record holds one `t1_key`, the one written at
   miss time. The key a Tier-2 serve promotes is a second pointer at the same entry, and neither the
   trim nor a future purge can find it (item 4.3).
 - **The trim does nothing by default.** `CACHE_CAPACITY` unset or `0` means unbounded, so hit rates
   today are an upper bound. It is set to `round(0.25 × K)`, with the `K` of the run file, once `K` is frozen (item 3.6).
 
+**The dataset epoch is built (item 4.2).** It is one integer in a file named by `DATASET_EPOCH_FILE`,
+never a Redis key (ADR-008). `rag.server` reads it first in each RPC and stamps it. The gateway
+compares it at write-back and discards the write-back on any difference or read error
+(`writeback_discarded`). The dependency map's writer compares it once more at registration, which closes
+the gap between the guard and the registration (`LateDiscards`). Neither service starts without the
+file. The rules are in `interfaces.md` §E.
+
 **Where the contributions live:** C1 → `reuse/` · C2 → `deps/` (+ the epoch check in `ragclient/` and
 write-back) · resource governance → `admission/` · the measurement protocol → `experiments/`.
-C2 is not built.
+C2's dependency map and blind purge are built (item 4.1), and so is the epoch guard (item 4.2).
 
 ## 4. Command surface
 
@@ -240,16 +245,16 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 
 > ⚠️ **The week-based table that stood here was retired on 2026-09-21.** It had become misleading in both directions: it scheduled
 > `gateway/internal/{admission,telemetry}` for "W16–W17" when both were built and tested, and it
-> gave `gateway/internal/deps/` a slot it never occupied — that package is still a six-line
-> `doc.go`. A build order that disagrees with the tree teaches you to stop trusting it.
+> gave `gateway/internal/deps/` a slot it never occupied — that package stayed a six-line
+> `doc.go` until item 4.1. A build order that disagrees with the tree teaches you to stop trusting it.
 
-**What is actually built, 2026-10-16** — the inventory, not a schedule:
+**What is actually built, 2026-10-28** — the inventory, not a schedule:
 
 | State | Packages |
 | :--- | :--- |
-| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) · `experiments/scripts/select_pqa.py` and `answerability_check.py` (item 3.2; the selection ran 2026-10-20: 152 draft products) · `experiments/scripts/build_workload.py` (item 3.4; the draft build ran 2026-10-22: 1,274 queries) |
+| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi, deps}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4; `deps` is the dependency map and blind purge, item 4.1, and the epoch reader and late check, item 4.2) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) · `experiments/scripts/select_pqa.py` and `answerability_check.py` (item 3.2; the selection ran 2026-10-20: 152 draft products) · `experiments/scripts/build_workload.py` (item 3.4; the draft build ran 2026-10-22: 1,274 queries) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
-| **Not built** | `gateway/internal/deps/` (C2, a stub `doc.go`) · the epoch guard on write-back (item 4.2) · a restore path for `data/v1/` (it has no git; `make corpus-assemble` rebuilds it from the drafts and `data/policies-v1/`; Phase 4) · the replay harness, judge harness and figure generators (`experiments/scripts/` — items 5.1, 5.4) |
+| **Not built** | a restore path for `data/v1/` (it has no git; `make corpus-assemble` rebuilds it from the drafts and `data/policies-v1/`; Phase 4) · the replay harness, judge harness and figure generators (`experiments/scripts/` — items 5.1, 5.4) |
 
 ## 6. Invariants that fail silently
 
@@ -266,8 +271,8 @@ removed when the files it read were deleted.
 3. `t1_key` is written with every Tier-2 record, or Tier-1 survives invalidation. A Tier-1 key
    added later by promotion is **not** covered yet (item 4.3, §3).
 4. `dataset_epoch` is stamped at retrieval and **compared at write-back**, and it is never a Redis
-   key (ADR-008). Today it is a constant and the comparison is not built (item 4.2), so no run has
-   this guarantee yet.
+   key (ADR-008). Built in item 4.2: Python reads the epoch file before the chunk texts, the gateway
+   compares at write-back, and the dependency map's writer compares again at registration.
 5. `experiments/results/*/raw/` is write-once.
 6. The vector index is **FLAT**, frozen study-wide — no mid-study HNSW.
 7. No ML runtime on the hit path; embeddings come from Ollama.

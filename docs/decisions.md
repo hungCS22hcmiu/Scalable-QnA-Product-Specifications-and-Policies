@@ -47,7 +47,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-005 | Served answer text is stored content-addressed in `raw/answers/` | in force | none — no runs yet; a log written before the 1.5 commit has no answer store and cannot be judged |
 | ADR-006 | `t_generate_ms` means "this request's own `Answer` call was attempted" | in force (one open item: the 1 ms threshold) | none — no runs yet; ABANDONED and GENERATION_FAILED records' `t_generate_ms` is null before the F-H commit and not comparable across it, and any derived overhead is not either |
 | ADR-007 | Redis holds only derived state; the corpus of record is the versioned file corpus | in force (one open item: P1 must record `redis_version` + `rdb_last_save_time`) | none — no runs yet; no run ever depended on Redis persistence config, which was unrecorded until this entry; the restart-voids-a-run rule binds forward from P1's manifest |
-| ADR-008 | The dataset epoch is sourced from outside the Redis keyspace it guards | in force (binds forward — the epoch is a constant stub until Phase 4) | none — no runs yet; `dataset_epoch_at_retrieval` carries no information while `DATASET_EPOCH_STUB = 0` |
+| ADR-008 | The dataset epoch is sourced from outside the Redis keyspace it guards | in force (built in item 4.2, 2026-10-28: the epoch is the file named by `DATASET_EPOCH_FILE`) | none — no runs yet; `dataset_epoch_at_retrieval` carries no information while `DATASET_EPOCH_STUB = 0` |
 | ADR-009 | The support gate is served, and every judged Tier-2 candidate carries one refusal cause | in force (the real-answer sample, `plan.md` steps 1c–1e, **ran 2026-10-14**: `docs/work/2026-10-14-real-answer-sample/`, no stop rule fired, nothing tuned) | none citable — no runs yet; logs written before the 2.3 commit carry `cache = TIER2_HIT`, `entered_band`, `source_overlap` and `t_search_ms` under an older meaning and lack the five new keys; the 2026-10 item-1.6 Tier-2 hits were served with no gate |
 | ADR-010 | The support gate is switchable per run, and every record names the arm | in force (binds forward — no run has taken either arm yet; the real-answer sample of ADR-009 has run, `docs/work/2026-10-14-real-answer-sample/`) | none citable — no runs yet; a log from the 2.3 commit up to the 2.4 commit lacks `support_gate` and is gate-on, and a log from before the 2.3 commit is neither arm |
 | ADR-011 | `v1`'s 152 products are drawn by one pre-registered rule; R2 is a pre-filter, not a label | in force (3.4 re-labels every R2-answerable workload query) | none — no runs yet; replaces the 3.1 manifest `bf0feb48…` with `741d52e3…` |
@@ -788,6 +788,12 @@ the cache, so Redis down is an outage, not a degradation (see the second rationa
 
 ### ADR-008 — The dataset epoch is sourced from outside the Redis keyspace it guards
 **Decided (method | frozen)** · 2026-10-10 · *`interfaces.md` §E, `rag/src/rag/config.py`, `rag/src/rag/retrieve.py`, `gateway/internal/deps/` (unbuilt); trail `docs/work/2026-10-10-redis-as-sole-store/`*
+
+> **Built 2026-10-28 (item 4.2, trail `docs/work/2026-10-28-epoch-guard/`).** The epoch is one integer
+> in the file named by `DATASET_EPOCH_FILE`, never a Redis key (`interfaces.md` §E v0.18). Ingest and
+> `make epoch-advance` write it; `rag.server` stamps it and the gateway compares it at write-back. The
+> "Today it is…" sentence below describes 2026-10-10. Hits do not compare epochs (the epoch is global):
+> see that trail's design §3, Unknowns, for what this means for the rollback case below.
 
 When C2 is built in Phase 4, `dataset_epoch` **must not be stored as a Redis key.** It is derived
 from the corpus of record — the manifest hash, or a file written by the ingest step — so that

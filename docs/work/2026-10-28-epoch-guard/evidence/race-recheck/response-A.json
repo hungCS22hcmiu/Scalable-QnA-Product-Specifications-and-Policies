@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "answer": "Based on the context provided here are the specifications for the Oakline Dining Table 6-Seat, listed one by one with their meanings:\n\n*   **Material**: Solid oak \u2013 This means the table is made from solid wood, which typically offers durability, a natural grain appearance, and resistance to wear and tear.\n*   **Dimensions**: 180x90x75cm \u2013 These measurements describe the physical size of the product: 180 cm in width, 90 cm in height, and 75 cm in depth (measured from floor to floor). These stats help buyers determine if it fits their kitchen or dining room layout.\n*   **Seats**: 6 \u2013 This indicates that the table is designed to accommodate six people comfortably when eating together.\n*   **Assembly**: Required, ~45 min \u2013 The unit must be assembled by the buyer, taking approximately 45 minutes; a detailed user manual will likely include an assembly guide or video.\n*   **Finish**: Natural matte \u2013 This refers to the surface coating, which gives the table a non-glossy, understated look and offers protection against scuffs and spills while maintaining an authentic wood appearance.",
+  "cache": "MISS",
+  "latency_ms": 7444,
+  "similarity": null,
+  "source_overlap": null,
+  "sources": [
+    "product-furniture-01#chunk-0"
+  ],
+  "model_used": "qwen3.5-2b",
+  "request_id": "06GR4MDY2HFRRFXDC4WYY5XEM8",
+  "lane": "SPEC",
+  "namespace": "product-furniture-01",
+  "overlap_decision": null
+}

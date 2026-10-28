@@ -10,7 +10,7 @@ from llama_index.core import StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import BaseNode, Document
 
-from rag import chunkid, config, store
+from rag import chunkid, config, epoch, store
 from rag.embedding import OllamaEmbedding
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "data" / config.DATASET_VERSION
@@ -93,7 +93,24 @@ def records_to_nodes(records: list[dict], dataset_version: str) -> list[BaseNode
     return all_nodes
 
 
+def _write_index(nodes: list[BaseNode]) -> None:
+    """Embed the nodes and write them to the Redis FLAT index, replacing what was there."""
+    vector_store = store.get_vector_store(overwrite=True)
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+    embed_model = OllamaEmbedding()
+
+    VectorStoreIndex(
+        nodes,
+        storage_context=storage_context,
+        embed_model=embed_model,
+        show_progress=True,
+    )
+
+
 def main() -> None:
+    # The epoch path is checked first, so a long ingest cannot fail at the end for want of it.
+    epoch_path = epoch.require_path()
+
     records = load_records(DATA_DIR)
     print(f"loaded {len(records)} records from {DATA_DIR}")
 
@@ -101,18 +118,14 @@ def main() -> None:
 
     print(f"split into {len(all_nodes)} chunks")
 
-    vector_store = store.get_vector_store(overwrite=True)
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
-    embed_model = OllamaEmbedding()
-
-    VectorStoreIndex(
-        all_nodes,
-        storage_context=storage_context,
-        embed_model=embed_model,
-        show_progress=True,
-    )
+    _write_index(all_nodes)
 
     print(f"indexed {len(records)} docs, {len(all_nodes)} chunks -> {config.CORPUS_INDEX_NAME}")
+
+    # Advance only after every chunk is written (interfaces.md E): a write-back in flight during
+    # a rebuild then carries the old epoch and is discarded. Advancing before the write would
+    # let a retrieval between the two read old chunks under the new epoch.
+    print(f"dataset epoch advanced to {epoch.advance()} ({epoch_path})")
 
 
 if __name__ == "__main__":

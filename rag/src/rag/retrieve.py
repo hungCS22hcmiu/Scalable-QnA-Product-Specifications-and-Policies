@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from llama_index.core import VectorStoreIndex
 from llama_index.core.vector_stores.types import MetadataFilter, MetadataFilters
 
-from rag import config, store
+from rag import config, epoch, store
 from rag.embedding import OllamaEmbedding
 
 
@@ -38,8 +38,10 @@ def fetch_by_ids(chunk_ids: list[str]) -> tuple[list[RetrievedChunk], int]:
     text into the answer that no provenance record accounts for; a short context is visible in the
     answer, an invented one is not.
     """
+    # Epoch first, before any chunk text (interfaces.md E order rule).
+    ep = epoch.read()
     if not chunk_ids:
-        return [], config.DATASET_EPOCH_STUB
+        return [], ep
 
     client = store.get_redis_client()
     chunks: list[RetrievedChunk] = []
@@ -58,7 +60,7 @@ def fetch_by_ids(chunk_ids: list[str]) -> tuple[list[RetrievedChunk], int]:
                 ordinal=int(fields[2]) if fields[2] else 0,
             )
         )
-    return chunks, config.DATASET_EPOCH_STUB
+    return chunks, ep
 
 
 def _to_chunks(nodes) -> list[RetrievedChunk]:
@@ -122,14 +124,16 @@ def _ensure_own_chunk(index, nodes: list, query: str, product_id: str, top_k: in
 def retrieve(
     query: str, top_k: int = config.TOP_K, product_id: str | None = None
 ) -> tuple[list[RetrievedChunk], int]:
-    """Returns (ranked chunks, dataset_epoch). Epoch is a stub until W9-11 (interfaces.md §E)."""
+    """Returns (ranked chunks, dataset_epoch). The epoch is read first, before any chunk text
+    (interfaces.md E order rule); 0 means the epoch file could not be read (rag/epoch.py)."""
+    ep = epoch.read()
     vector_store = store.get_vector_store(overwrite=False)
     index = VectorStoreIndex.from_vector_store(vector_store, embed_model=OllamaEmbedding())
     nodes = index.as_retriever(similarity_top_k=top_k).retrieve(query)
     if product_id:
         nodes = _drop_other_products(nodes, product_id)
         nodes = _ensure_own_chunk(index, nodes, query, product_id, top_k)
-    return _to_chunks(nodes), config.DATASET_EPOCH_STUB
+    return _to_chunks(nodes), ep
 
 
 def make_retriever(top_k: int = config.TOP_K):

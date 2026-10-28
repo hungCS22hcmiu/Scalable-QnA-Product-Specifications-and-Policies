@@ -33,11 +33,12 @@ areas. Each area has its own key prefix.
 │  │ lru:entries             ZSET   only one  │                                │
 │  └──────────────────────────────────────────┘                                │
 │                                                                              │
-│  AREA 3 — DEPENDENCY      Phase 4 — NOT BUILT YET                            │
-│  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐                                │
-│    dep:{chunk_id}          SET                                               │
-│  │ entry:*                 reserved name    │                                │
-│  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘                                │
+│  AREA 3 — DEPENDENCY      written by the gateway's one writer (item 4.1)     │
+│  ┌──────────────────────────────────────────┐                                │
+│  │ dep:{chunk_id}          SET    of entry_id│                                │
+│  │ entry:{entry_id}        HASH   t1_key,    │                                │
+│  │                                source_ids │                                │
+│  └──────────────────────────────────────────┘                                │
 └──────────────────────────────────────────────────────────────────────────────┘
 
 NOT in Redis:  the source JSON files ......... data/dev-v0/*.json, data/v1/*.json
@@ -319,7 +320,7 @@ purge find both tiers.
 | `answer` | string | — | The answer, same text as in Tier 1. |
 | `source_chunk_ids` | JSON array string | — | **Provenance**: the chunks the answer was built from. The reuse rule compares them with what the *new* question retrieves. |
 | `t1_key` | string | TAG | The full Tier-1 key written in the same miss, e.g. `t1:1f8fa611…`. |
-| `dataset_epoch` | integer | NUMERIC | The corpus version when the answer was made. **Always `0` today** (a stub until Phase 4). |
+| `dataset_epoch` | integer | NUMERIC | The corpus version when the answer was made: the epoch file's value (≥ 1) since item 4.2. |
 | `namespace` | string | TAG | The partition this entry belongs to (§5.3). |
 | `lane` | `SPEC` / `POLICY` / `MIXED` | TAG | The kind of question (§5.3). |
 | `source_overlap` | float | — | Written as `0` and never updated (see §9). |
@@ -413,7 +414,7 @@ Both tiers are written by **one** miss, with the **same** `entry_id` and the **s
 │ answer            "No. The EarBuds Pop 3 …"          │
 │ source_chunk_ids  ["product-headphones-03#chunk-0"] ─┼──► corpus::{chunk_id}
 │ t1_key            t1:1f8fa611…350b             [TAG] │
-│ dataset_epoch     0                            [NUM] │
+│ dataset_epoch     1                            [NUM] │
 │ namespace         product-headphones-03        [TAG] │
 │ lane              SPEC                         [TAG] │
 │ source_overlap    0                                  │
@@ -539,51 +540,79 @@ Some details that matter:
 
 ---
 
-## 8. Area 3 — invalidation, not built yet (Phase 4)
+## 8. Area 3 — invalidation (built in item 4.1)
 
-`gateway/internal/deps/` holds only a six-line `doc.go`. Nothing below exists in code. It is what `interfaces.md`
-§E and ADR-008 require.
+`gateway/internal/deps/` is the only code that writes `dep:*` and `entry:*`. One writer goroutine does
+it, fed by one channel. What follows is what `interfaces.md` §E and ADR-008 require, as built. The epoch
+guard is built in item 4.2 (below).
 
-**`dep:{chunk_id}`** will be a SET of every `entry_id` whose answer used that chunk — the
+**`dep:{chunk_id}`** is a SET of every `entry_id` whose answer used that chunk — the
 `source_chunk_ids` field, turned around. It is the "reverse index" that lets a chunk edit find every
-answer built on it. The gateway will also keep a read-only copy in memory, changed by one writer
-goroutine.
+answer built on it. After each write-back the gateway sends the entry to the writer, which adds the
+`entry_id` to the SET of each of its source chunks.
 
-**`entry:*`** is a reserved name. No code writes it. The Makefile counts it as a thesis key
+**`entry:{entry_id}`** is a HASH with two fields: `t1_key` and `source_chunk_ids` (a JSON array). The
+writer creates it in the same transaction as the `dep:` entries. It exists because a write-back with no
+vector (the embedding failed) writes Tier 1 only. That entry has no `t2:` record to read `t1_key`
+from, so without `entry:` its Tier-1 copy could not be purged. The Makefile counts it as a thesis key
 (`demo-reset`), `make footprint` refuses to delete it, and a test checks that the trim never deletes
-`dep:*` or `entry:*` keys (`capacity_test.go:TestEvictionLeavesDependencyRecordsAlone`).
+`dep:*` or `entry:*` keys (`capacity_test.go:TestEvictionLeavesDependencyRecordsAlone`). Only the purge
+deletes them, so an evicted entry can stay listed in a `dep:` SET. Purging it later does nothing to the
+tiers and removes its `entry:` record.
 
 ```
-(PLANNED — dashed in the map of §1)
-
-a chunk is edited:  policy-warranty#chunk-0
+a chunk is edited:  policy-warranty#chunk-0        (Go call: Invalidate(event); item 4.4 sends it)
       │
       ▼
 SMEMBERS dep:policy-warranty#chunk-0  ─►  { 06GKX34SBE…, 06GKX34SBF…, … }
+      │
+      ▼
+the in-process snapshot now lists these entry_ids  ──  Invalidate returns here;
+                                                       a hit on any of them is refused from now on
       │ for each entry_id
       ▼
-HGET t2:{entry_id} t1_key  ─►  t1:1f8fa611…
+HGET entry:{entry_id} t1_key  ─►  t1:1f8fa611…
       │
       ▼
-DEL t2:{entry_id}     DEL t1:1f8fa611…          "blind purge": every entry, no judgement
+one Lua script:  DEL t2:{entry_id}
+                 DEL t1:1f8fa611…  only if its entry_id field is still this entry
+                 ZREM lru:entries {entry_id}
       │
       ▼
-the epoch advances  —  read from the corpus side, NOT from a Redis key (ADR-008)
-a write-back whose dataset_epoch is older than the current epoch is discarded
+DEL entry:{entry_id}          then, after all entries:  DEL dep:policy-warranty#chunk-0
+                              "blind purge": every entry, no judgement
+
+the epoch advances  —  one integer in a file outside Redis, NOT a Redis key (ADR-008)
+a write-back whose dataset_epoch differs from the current epoch is discarded   (item 4.2)
 ```
+
+**Why the Tier-1 delete is conditional.** Tier 1 is keyed by the normalised question. A newer entry for
+the same question writes the same `t1:` key. A plain `DEL` from the older entry's purge would remove
+the newer entry too. The Lua script compares the `entry_id` field and deletes only on a match, in one
+step, so nothing can overwrite the key between the check and the delete.
+
+**The in-process snapshot.** The writer keeps a copy-on-write set of invalidated `entry_id`s and swaps
+it in **before** it deletes anything in Redis. A hit reads Redis first and checks the set second, so a
+hit that could still see a purged entry also sees its tombstone. If a Redis call fails during a purge,
+the failure is counted and logged and the tombstone stays: this process still refuses the entry, but a
+restarted process would serve the leftover Redis copy.
 
 **Why the epoch is not in Redis (ADR-008).** If Redis restarts from an old snapshot, the purged entries
 come back **and** a Redis epoch counter goes back with them. The check then compares old with old,
-agrees, and serves stale data. An epoch read from the corpus files does not go back, so the mismatch
-is seen. Today the epoch is the constant `DATASET_EPOCH_STUB = 0` (`rag/src/rag/config.py`).
+agrees, and serves stale data. An epoch in a file outside Redis does not go back, so the mismatch
+is seen. The epoch is one integer in the file named by `DATASET_EPOCH_FILE`. The RAG service reads it
+first in each call and stamps it. The gateway reads it again at write-back, and discards the write-back on
+any difference or read error. The dependency map's writer reads it once more at registration, so an edit
+that lands between the write-back and the registration is caught too (item 4.2).
 
 **The three correctness invariants**, all about Redis:
 
 1. **`dep:*` and `entry:*` must never be evicted.** That is why Redis runs `noeviction` and the gateway
    does LRU itself (§1, §6).
 2. **Every `t2:` record carries `t1_key`.** Otherwise purge and trim cannot find Tier 1 (§5.2).
+   `entry:` carries it too, for the Tier-1-only entry.
 3. **Write-back is guarded by the epoch.** Otherwise a generation still running during an edit writes
-   the old answer back after the purge.
+   the old answer back after the purge. Built in item 4.2.
 
 ---
 
@@ -596,12 +625,14 @@ is seen. Today the epoch is the constant `DATASET_EPOCH_STUB = 0` (`rag/src/rag/
    `idx:cache` (`cache/tier2.go`).
 3. **`source_overlap` is always 0.** §D calls it "last overlap score computed for this entry". The
    write-back never sets it and nothing updates it. The real overlap is in the evaluation log.
-4. **§E still names a Redis key `dataset:epoch`.** ADR-008 forbids storing the epoch in Redis. ADR-008
-   is the later decision.
+4. **Resolved in `interfaces.md` v0.18.** §E used to name a Redis key `dataset:epoch`, which ADR-008
+   forbids. §E now names the epoch file (`DATASET_EPOCH_FILE`).
 5. **Promoted Tier-1 keys are orphans.** `t1_key` holds one key, the one from the miss. A promoted key
-   (§5.5) is not recorded anywhere, so trim and purge will not delete it. It is harmless today
-   (no capacity, no invalidation) and must be fixed before either one is switched on
-   (`handler.go`, the comment above the promotion).
+   (§5.5) is not recorded anywhere, so trim and purge will not delete it. The hit path refuses it
+   inside the same gateway process, because its record names the same `entry_id`; after a restart a
+   leftover promoted key would serve. It is harmless while capacity is unbounded and must be fixed
+   before capacity is bounded or a run restarts the gateway after an edit (item 4.3; `handler.go`, the
+   comment above the promotion).
 
 ---
 
@@ -620,7 +651,7 @@ is seen. Today the epoch is the constant `DATASET_EPOCH_STUB = 0` (`rag/src/rag/
 | **provenance / `source_chunk_ids`** | The chunks an answer was generated from. The core of the reuse rule and of invalidation. |
 | **lane** | SPEC, POLICY or MIXED: the kind of question, from the policy fraction of its retrieved chunks. |
 | **namespace** | The cache group a question is searched in: a product, a policy, or a pair. |
-| **`dataset_epoch`** | The corpus version an answer was made under. Used to reject stale write-backs. Stub `0` today. |
+| **`dataset_epoch`** | The corpus version an answer was made under. Used to reject stale write-backs. The epoch file's value (≥ 1) since item 4.2. |
 | **write-back** | Writing a new answer into both tiers after a miss. |
 | **promotion** | After a Tier-2 hit, also writing a Tier-1 record for the exact words of that question. |
 | **capacity, K** | Cache size = `round(0.25 × K)` entries; `K` = distinct questions in the run file: 622 (validation) or 652 (test), so 156 or 163 entries. |

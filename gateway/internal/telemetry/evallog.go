@@ -71,17 +71,21 @@ type Record struct {
 	EntrySources      []string `json:"entry_sources"`
 	EntryID           string   `json:"entry_id"`
 
-	TotalMS       float64  `json:"t_total_ms"`
-	Tier1MS       float64  `json:"t_tier1_ms"`
-	EmbedMS       *float64 `json:"t_embed_ms"`
-	SearchMS      *float64 `json:"t_search_ms"`
-	OverlapMS     *float64 `json:"t_overlap_ms"`
-	PermitWaitMS  *float64 `json:"t_permit_wait_ms"`
-	GenerateMS    *float64 `json:"t_generate_ms"`
-	Shed          bool     `json:"shed"`
-	PermitQueue   int      `json:"permit_queue_depth"`
-	DatasetEpoch  *uint64  `json:"dataset_epoch_at_retrieval"`
-	WritebackDisc bool     `json:"writeback_discarded"`
+	TotalMS      float64  `json:"t_total_ms"`
+	Tier1MS      float64  `json:"t_tier1_ms"`
+	EmbedMS      *float64 `json:"t_embed_ms"`
+	SearchMS     *float64 `json:"t_search_ms"`
+	OverlapMS    *float64 `json:"t_overlap_ms"`
+	PermitWaitMS *float64 `json:"t_permit_wait_ms"`
+	GenerateMS   *float64 `json:"t_generate_ms"`
+	Shed         bool     `json:"shed"`
+	PermitQueue  int      `json:"permit_queue_depth"`
+	DatasetEpoch *uint64  `json:"dataset_epoch_at_retrieval"`
+	// WritebackDisc is true iff THIS request's own write-back was discarded by the epoch guard
+	// (interfaces.md E and H, v0.18). Never true on a coalesced follower: the write-back runs once, in
+	// the leader's closure, so a discard is counted once. The record then has entry_id "" and
+	// entry_sources null, because no entry was written. Under mutation: off it is never true.
+	WritebackDisc bool `json:"writeback_discarded"`
 
 	AnswerSHA256 string `json:"answer_sha256"`
 	// answerText is the text AnswerSHA256 names. Unexported, so it never reaches the JSON line, and
@@ -107,6 +111,11 @@ type Record struct {
 	// candidate on a refusal.
 	CandidateEntryID string   `json:"candidate_entry_id,omitempty"`
 	CandidateSources []string `json:"candidate_sources,omitempty"`
+	// InvalidatedEntryID is an interfaces.md H v0.17 extension: present iff the request met an entry the
+	// dependency map had invalidated and did not serve it. On Tier 1 the request went on to Tier 2; on
+	// Tier 2 the candidate was dropped before it was judged. It names the FIRST such entry the request
+	// met. Never present under mutation: off, because no event fires and so no hit is refused.
+	InvalidatedEntryID string `json:"invalidated_entry_id,omitempty"`
 	// ProductID records the request's product scope now that it is part of the Tier-1 key
 	// (⚠️ BYPASS 2026-09-09, reverses the rejection -- cache.Key). Required, not optional,
 	// because handler.go's offline stratum join on query_normalized was exact only under

@@ -1,0 +1,16 @@
+PASS  A: HTTP 200, a MISS with an answer  [status=200 cache=MISS]
+PASS  A: record writeback_discarded false  [got False]
+PASS  A: record names an entry  [entry_id='06GR4MEV4WBJ45FHGAAJMR3WPC']
+PASS  A: its t1:, t2: and entry: keys exist in Redis
+PASS  A: dataset_epoch_at_retrieval is the file's value 1  [got 1]
+PASS  B: HTTP 200 with an answer (the client still gets it)  [status=200 answer_len=1779]
+PASS  B: cache MISS  [response=MISS record=MISS]
+PASS  B: dataset_epoch_at_retrieval is 1 (read before the advance)  [got 1]
+PASS  B: record writeback_discarded true  [got True]
+PASS  B: record entry_id is empty  [got '']
+PASS  B: record entry_sources is null  [got None]
+PASS  no t1:, t2: or entry: key appeared between A's end and B's end
+PASS  epoch file now holds 2  [holds '2']
+PASS  gateway log names the epoch file  [/var/folders/wk/wqg1xf3130g_tcp6099t3kjh0000gp/T/epoch-race-pdttk7v9/dataset-epoch]
+PASS  rag.server log names the epoch file  [/var/folders/wk/wqg1xf3130g_tcp6099t3kjh0000gp/T/epoch-race-pdttk7v9/dataset-epoch]
+PASS  gateway exited cleanly after SIGINT  [exit code 0]

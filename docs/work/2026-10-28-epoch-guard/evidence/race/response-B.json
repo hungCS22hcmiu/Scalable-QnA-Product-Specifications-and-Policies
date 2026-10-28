@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "answer": "Based on the context provided, here is the detailed breakdown of the SoundMax ANC Pro specifications:\n\n*   **Over-ear type**: This indicates that the headphones rest on top of the ears rather than resting entirely around your ears, a style often prioritizing comfort for long listening sessions.\n*   **ANC (Active Noise Control)**: The \"yes\" confirms these headphones can actively block out ambient noise (like plane engines or busy traffic) to create a quieter environment for you.\n*   **40-hour battery life**: This means the device offers roughly 16 hours of continuous music playback, providing significant power for extended use without frequent charging.\n*   **Bluetooth 5.3 and 3.5mm connectivity**: The \"yes\" indicates two ways to connect; Bluetooth allows wire-free convenience with faster data transfer, while the 3.5mm jack provides wired compatibility if a cable is needed.\n*   **250g weight**: This measures the physical mass of the headphones, which helps in estimating how comfortable they feel when worn for long periods.\n*   **Mic (with implied noise-cancelling capabilities)**: The presence of a microphone suggests the device can have two-way communication features (like hands-free calling), which often accompanies ANC technology to reduce ambient noise during calls.",
+  "cache": "MISS",
+  "latency_ms": 7758,
+  "similarity": null,
+  "source_overlap": null,
+  "sources": [
+    "product-headphones-01#chunk-0"
+  ],
+  "model_used": "qwen3.5-2b",
+  "request_id": "06GR4KPRCG619R7JYZZEY9W4HW",
+  "lane": "SPEC",
+  "namespace": "product-headphones-01",
+  "overlap_decision": null
+}

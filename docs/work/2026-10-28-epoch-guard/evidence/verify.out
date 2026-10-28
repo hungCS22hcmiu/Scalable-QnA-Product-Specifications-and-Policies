@@ -1,0 +1,46 @@
+cd gateway && go vet ./...
+All checks passed!
+cd gateway && go build ./...
+cd gateway && go test ./...
+ok  	github.com/hung/thesis/gateway/cmd/gateway	0.423s
+ok  	github.com/hung/thesis/gateway/internal/admission	1.457s
+ok  	github.com/hung/thesis/gateway/internal/cache	0.980s
+?   	github.com/hung/thesis/gateway/internal/catalog	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/coalesce	1.947s
+ok  	github.com/hung/thesis/gateway/internal/deps	3.233s
+?   	github.com/hung/thesis/gateway/internal/embed	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/httpapi	3.100s
+ok  	github.com/hung/thesis/gateway/internal/ragclient	3.566s
+?   	github.com/hung/thesis/gateway/internal/ragpb	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/reuse	2.951s
+ok  	github.com/hung/thesis/gateway/internal/telemetry	3.902s
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hung/Desktop/Sem1/thesis/rag
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2
+collected 50 items
+
+tests/test_chunkid.py .....                                              [ 10%]
+tests/test_dataset_version.py ...                                        [ 16%]
+tests/test_epoch.py .....................                                [ 58%]
+tests/test_ingest_nodes.py .....                                         [ 68%]
+tests/test_retrieve_scoping.py .....                                     [ 78%]
+tests/test_retrieve_texts.py ...                                         [ 84%]
+tests/test_server_bind.py ..                                             [ 88%]
+tests/test_server_epoch.py ......                                        [100%]
+
+============================== 50 passed in 2.02s ==============================
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 39%]
+........................................................................ [ 49%]
+........................................................................ [ 59%]
+........................................................................ [ 68%]
+........................................................................ [ 78%]
+........................................................................ [ 88%]
+........................................................................ [ 98%]
+...........                                                              [100%]
+731 passed in 46.73s

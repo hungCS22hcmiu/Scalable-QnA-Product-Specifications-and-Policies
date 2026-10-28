@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "answer": "*   **type: over-ear** \u2013 This means the headphones rest on top of your ears, providing excellent sound isolation and a more comfortable listening experience compared to in-ear or over-on ear options. They are ideal for long listening sessions because they do not interfere with breathing.\n*   **anc: yes** \u2013 This indicates the device includes Active Noise Cancellation technology. The ANC works by using sensors to analyze background noise (like plane engines or airplane cabin hum) and generate an equalizing sound wave that cancels it out, resulting in a much quieter environment inside the headphones.\n*   **battery: 40 hours** \u2013 This refers to the duration the device can last on a single charge. With ANC enabled and normal use, you could typically listen to music for up to 24 hours before needing to recharge; the remaining battery would be consumed by the active noise cancellation features.\n*   **connectivity: Bluetooth 5.3, 3.5mm** \u2013 \"Bluetooth 5.3\" allows for faster, more stable, and higher-quality wireless data transfer compared to older versions like 4.2. The inclusion of \"3.5mm\" means the headphones also support wired audio output via a standard TRRS connector (used for phone calls) in case you do not have a charging case.\n*   **weight: 250g** \u2013 The physical mass is approximately 250 grams. This is relatively light, which reduces neck fatigue during extended wear, especially when wearing them over your head while doing other tasks like reading or watching videos on your phone.\n*   **mic: yes** \u2013 This implies there is an integrated microphone in the device. A buyer can use this for hands-free calling (calling others with their headphones), video calls (like FaceTime on iPhone), or recording audio from the device itself (such as taking a voice memo).",
+  "cache": "MISS",
+  "latency_ms": 10964,
+  "similarity": null,
+  "source_overlap": null,
+  "sources": [
+    "product-headphones-01#chunk-0"
+  ],
+  "model_used": "qwen3.5-2b",
+  "request_id": "06GR4MEV5P60K8J08K5WBW3Q80",
+  "lane": "SPEC",
+  "namespace": "product-headphones-01",
+  "overlap_decision": null
+}

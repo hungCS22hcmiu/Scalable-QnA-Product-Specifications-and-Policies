@@ -1,0 +1,16 @@
+2026/10/28 18:39:12 gateway: dataset_epoch_file=/var/folders/wk/wqg1xf3130g_tcp6099t3kjh0000gp/T/epoch-race-b6dglvzp/dataset-epoch epoch=1 (ADR-008)
+2026/10/28 18:39:12 gateway: tau=0.850 theta=0.60 dim=768 index=idx:cache  (all DEMO values, swept later)
+2026/10/28 18:39:12 gateway: lane_band=[0.20,0.20) mixed_lane=off (pinned, ADR-016)
+2026/10/28 18:39:12 gateway: admission permits=1 queue_budget=2  (permits = the frozen served slot count,
+         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)
+2026/10/28 18:39:12 gateway: cache_capacity=0  UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen
+2026/10/28 18:39:12 gateway: evaluation log -> /var/folders/wk/wqg1xf3130g_tcp6099t3kjh0000gp/T/epoch-race-b6dglvzp/results/epoch-race-20261028-113909/raw/requests.jsonl, answer text -> raw/answers/
+2026/10/28 18:39:12 gateway: support_gate=on  (default: a candidate that clears tau and the namespace is refused
+         when the cached answer is not supported by this request's evidence)
+2026/10/28 18:39:12 gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first
+         (interfaces.md rule 11). Records carry support_gate so a log names its arm.
+2026/10/28 18:39:12 gateway listening on 127.0.0.1:18080 (redis=localhost:6379 rag=127.0.0.1:50053)
+2026/10/28 18:39:27 gateway: request_id=06GR4KMZMDBB2H0KJ992079TKM cache=MISS t_tier1=829.083µs t_embed=73.880959ms t_search=958.833µs t_overlap=165.778583ms
+2026/10/28 18:39:35 gateway: request_id=06GR4KPRCG619R7JYZZEY9W4HW write-back discarded: answer epoch 1, current epoch 2
+2026/10/28 18:39:35 gateway: request_id=06GR4KPRCG619R7JYZZEY9W4HW cache=MISS t_tier1=130.75µs t_embed=28.848ms t_search=334.334µs t_overlap=52.407125ms
+2026/10/28 18:39:36 gateway: shutting down, flushing the evaluation log

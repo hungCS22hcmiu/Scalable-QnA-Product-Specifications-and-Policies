@@ -1,0 +1,33 @@
+rag.server listening on 127.0.0.1:50053 dataset_epoch_file=/var/folders/wk/wqg1xf3130g_tcp6099t3kjh0000gp/T/epoch-race-pdttk7v9/dataset-epoch epoch=1
+18:42:45 redisvl.index.index INFO   Index already exists, not overwriting.
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/hung/Desktop/Sem1/thesis/rag/src/rag/server.py", line 89, in <module>
+    serve()
+    ~~~~~^^
+  File "/Users/hung/Desktop/Sem1/thesis/rag/src/rag/server.py", line 85, in serve
+    server.wait_for_termination()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/hung/Library/Python/3.13/lib/python/site-packages/grpc/_server.py", line 1481, in wait_for_termination
+    return _common.wait(
+           ~~~~~~~~~~~~^
+        self._state.termination_event.wait,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self._state.termination_event.is_set,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        timeout=timeout,
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/hung/Library/Python/3.13/lib/python/site-packages/grpc/_common.py", line 154, in wait
+    _wait_once(wait_fn, MAXIMUM_WAIT_TIMEOUT, spin_cb)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hung/Library/Python/3.13/lib/python/site-packages/grpc/_common.py", line 114, in _wait_once
+    wait_fn(timeout=timeout)
+    ~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/threading.py", line 659, in wait
+    signaled = self._cond.wait(timeout)
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/threading.py", line 363, in wait
+    gotit = waiter.acquire(True, timeout)
+KeyboardInterrupt

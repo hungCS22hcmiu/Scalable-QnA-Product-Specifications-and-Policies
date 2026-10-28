@@ -1,0 +1,5 @@
+# keys that appeared while A ran (S1 - S0)
++ entry:06GR4MEV4WBJ45FHGAAJMR3WPC
++ t1:3d658a8b5f7e348418a00d1aa50b23533e86f851c46c6c112f3a38bd03cc1442
++ t2:06GR4MEV4WBJ45FHGAAJMR3WPC
+# keys that appeared between A's end and B's end (S2 - S1): must be empty
