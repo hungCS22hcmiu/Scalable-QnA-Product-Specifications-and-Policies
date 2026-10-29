@@ -402,6 +402,9 @@ func main() {
 	// Always set, for the same reason: a gateway without an epoch source never discards a stale
 	// write-back, and writeback_discarded stays false, which reads as "no race happened".
 	handler.Epoch = epochFile
+	// POST /invalidate (item 4.4) waits for the purge through this. Always set: without it the route
+	// answers 503 and an edit can never learn that its purge ran.
+	handler.Invalidator = depMap
 
 	// Printed AFTER the assignment and read back from the handler, never from the parsed variable
 	// (design.md F14): if the assignment above were ever forgotten, this line would still say what the
@@ -419,6 +422,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ask", handler.Ask)
+	// The edit path (item 4.4): loopback callers only, checked in the handler.
+	mux.HandleFunc("/invalidate", handler.Invalidate)
 
 	// Demo UI support (the demo UI contract). Neither endpoint is on a measured path, and
 	// /stats is explicitly not the measurement channel -- that is the evaluation log.

@@ -25,7 +25,7 @@
 | Policy corpus (~13 docs) | self-authored | author-owned → releasable | frozen 2026-10-23, snapshot `a5708fefa62c…` (ADR-015) |
 | Answerability check labels | **ePQA** (Amazon Science), 3 CSVs — §1 | **CDLA-Sharing-1.0**: redistribution permitted under the same terms; used for a counts-only check, nothing derived is tracked | pinned 2026-10-20 |
 | Paraphrase stress set | mined + machine-generated | derivative — see below | `TODO(W8)` |
-| Update set (~20 edits) | self-authored edits | author-owned | `TODO(W8)` |
+| Update set (20 edits) | self-authored edits of `v1` chunk text — §5 | policy edits author-owned; product edits carry **Amazon-PQA** text → the set is **gitignored**, only its hash manifest is tracked | built 2026-10-29, sha256 in `data/update-set-manifest.json` (§5) |
 | Judged evaluation set | auto-generated + ~100 human-verified | author-owned | thesis W14 |
 | Run outputs: `experiments/results/*/raw/` (evaluation log, served answer text) | the gateway, over the artifacts above | **derivative of Amazon-PQA** (verbatim question text; LLM answers grounded on PQA chunks) → **gitignored, never published**; `manifest.yaml` may be tracked (ADR-005) | per run |
 
@@ -172,7 +172,14 @@ Schema (one row per edit):
 | `after` | string | edited chunk text |
 | `expected_effect` | string | which cached answers should go stale (substantive) or stay valid (cosmetic) |
 
-`TODO(W8): ~20 edits (built W10), balanced across substantive/cosmetic; include the 30→14 day return edit used in the demo step 5.`
+**Built in item 4.4 (2026-10-29).**
+- **File.** `data/update-set-v1.json`, a JSON array of rows with the seven fields above. It is **gitignored**, because the product `before` and `after` carry Amazon-PQA text. The tracked record is `data/update-set-manifest.json`: the file's sha256 (`df3ae7d4efd5…e247c2`) and the counts, no text. `make update-set-verify` checks the set offline against the `v1` chunk texts.
+- **Counts.** 20 edits on 20 different chunks: 10 `substantive` and 10 `cosmetic`. In each half, 5 edits are on policy chunks and 5 on product chunks.
+- **Which chunks.** Only chunks that the validation queries retrieve (the probe, `make update-set-probe`): every edited chunk is retrieved by questions from at least 5 clusters. So an edit has dependents to purge.
+- **Drafting rules.** A `substantive` edit changes a fact an answer could state: a number, a window, a condition or a spec value. A `cosmetic` edit rewords the text and keeps every fact and every number; the validator checks that every number of `before` is still in `after`. `expected_effect` says which cached answers should go stale, or why none should.
+- **The demo edit.** `edit-001` changes "30 days" to "14 days" in the first chunk of `policy-return-electronics`.
+- **Review.** The author reviewed every label on 2026-10-29. The four product rewordings (a section label and one phrase each) were accepted as `cosmetic`.
+- **Use.** An edit changes Redis only, through `rag.edit`; `data/v1/` is never written. Precision is counted per edit, not per entry: a dependent of a `substantive` edit counts as "needed" even when its answer does not use the changed fact. The runs that use the set record no statistic for the thesis (`citable: no`).
 
 ## 6. Judged evaluation set (Contribution 1)
 Replaces the train/validation/test reuse-safety dataset of v0.1 — **nothing is trained** after the scope reduction, so the set exists only to score correctness.

@@ -21,8 +21,8 @@ def _version(**env: str) -> str:
     return out.stdout.strip()
 
 
-def test_unset_gives_dev_v0():
-    assert _version() == "dev-v0"
+def test_unset_gives_v1():
+    assert _version() == "v1"
 
 
 def test_environment_gives_v1():
@@ -31,4 +31,4 @@ def test_environment_gives_v1():
 
 def test_empty_counts_as_unset():
     # "" would make ingest read data/ itself, and every *.json under it.
-    assert _version(DATASET_VERSION="") == "dev-v0"
+    assert _version(DATASET_VERSION="") == "v1"

@@ -1,0 +1,54 @@
+=== RUN   TestInvalidateEndpointRepliesWithThePurgeResult
+2026/10/29 14:32:53 invalidate: chunk=policy-return#c0 change_type=substantive purged=2 failed=0 errors=0 status=200
+--- PASS: TestInvalidateEndpointRepliesWithThePurgeResult (0.00s)
+=== RUN   TestInvalidateEndpointFailedPurgeIs500
+=== RUN   TestInvalidateEndpointFailedPurgeIs500/a_failed_SREM
+2026/10/29 14:32:53 invalidate: chunk=c change_type=substantive purged=1 failed=0 errors=1 status=500
+=== RUN   TestInvalidateEndpointFailedPurgeIs500/the_purge_errored
+2026/10/29 14:32:53 invalidate: chunk=policy-return#c0 change_type=substantive status=500: redis is down
+=== RUN   TestInvalidateEndpointFailedPurgeIs500/a_failed_entry
+2026/10/29 14:32:53 invalidate: chunk=c change_type=substantive purged=1 failed=1 errors=0 status=500
+--- PASS: TestInvalidateEndpointFailedPurgeIs500 (0.00s)
+    --- PASS: TestInvalidateEndpointFailedPurgeIs500/a_failed_SREM (0.00s)
+    --- PASS: TestInvalidateEndpointFailedPurgeIs500/the_purge_errored (0.00s)
+    --- PASS: TestInvalidateEndpointFailedPurgeIs500/a_failed_entry (0.00s)
+=== RUN   TestInvalidateEndpointRefusesNonLoopback
+2026/10/29 14:32:53 invalidate: refused a caller that is not on loopback: 203.0.113.5:1234
+2026/10/29 14:32:53 invalidate: refused a caller that is not on loopback: not-an-address
+2026/10/29 14:32:53 invalidate: refused a caller that is not on loopback: [2001:db8::1]:80
+--- PASS: TestInvalidateEndpointRefusesNonLoopback (0.00s)
+=== RUN   TestInvalidateEndpointRefusesBadBody
+=== RUN   TestInvalidateEndpointRefusesBadBody/a_missing_change_type
+2026/10/29 14:32:53 invalidate: bad request: change_type must be "substantive" or "cosmetic"
+=== RUN   TestInvalidateEndpointRefusesBadBody/two_JSON_objects
+2026/10/29 14:32:53 invalidate: bad request: the body must hold exactly one JSON object
+=== RUN   TestInvalidateEndpointRefusesBadBody/a_body_over_1_MB
+2026/10/29 14:32:53 invalidate: bad request: http: request body too large
+=== RUN   TestInvalidateEndpointRefusesBadBody/not_JSON
+2026/10/29 14:32:53 invalidate: bad request: invalid character 'h' in literal true (expecting 'r')
+=== RUN   TestInvalidateEndpointRefusesBadBody/an_unknown_field
+2026/10/29 14:32:53 invalidate: bad request: json: unknown field "surprise"
+=== RUN   TestInvalidateEndpointRefusesBadBody/an_empty_chunk_id
+2026/10/29 14:32:53 invalidate: bad request: chunk_id is empty
+=== RUN   TestInvalidateEndpointRefusesBadBody/a_missing_chunk_id
+2026/10/29 14:32:53 invalidate: bad request: chunk_id is empty
+=== RUN   TestInvalidateEndpointRefusesBadBody/change_type_minor
+2026/10/29 14:32:53 invalidate: bad request: change_type must be "substantive" or "cosmetic"
+--- PASS: TestInvalidateEndpointRefusesBadBody (0.01s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/a_missing_change_type (0.00s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/two_JSON_objects (0.00s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/a_body_over_1_MB (0.01s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/not_JSON (0.00s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/an_unknown_field (0.00s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/an_empty_chunk_id (0.00s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/a_missing_chunk_id (0.00s)
+    --- PASS: TestInvalidateEndpointRefusesBadBody/change_type_minor (0.00s)
+=== RUN   TestInvalidateEndpointRefusesGet
+--- PASS: TestInvalidateEndpointRefusesGet (0.00s)
+=== RUN   TestInvalidateEndpointWithoutMapIs503
+--- PASS: TestInvalidateEndpointWithoutMapIs503 (0.00s)
+=== RUN   TestInvalidateEndpointClosedMapIs503
+2026/10/29 14:32:53 invalidate: chunk=policy-return#c0 change_type=substantive status=503: deps: map is closed, invalidation refused
+--- PASS: TestInvalidateEndpointClosedMapIs503 (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/httpapi	0.430s

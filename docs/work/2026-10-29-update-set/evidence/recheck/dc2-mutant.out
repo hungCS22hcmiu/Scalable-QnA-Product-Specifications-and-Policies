@@ -1,0 +1,32 @@
+FF..                                                                     [100%]
+=================================== FAILURES ===================================
+________________ test_apply_calls_write_then_advance_then_post _________________
+
+    def test_apply_calls_write_then_advance_then_post():
+        r = Recorder()
+        applied = edit.apply(EDIT, write=r.write, advance=r.advance, post=r.post, embed=r.embed)
+    
+>       assert r.calls == ["embed", "write", "advance", "post"]
+E       AssertionError: assert ['embed', 'ad...rite', 'post'] == ['embed', 'wr...ance', 'post']
+E         
+E         At index 1 diff: 'advance' != 'write'
+E         Use -v to get more diff
+
+rag/tests/test_edit_order.py:57: AssertionError
+________________________ test_given_vector_skips_embed _________________________
+
+    def test_given_vector_skips_embed():
+        r = Recorder()
+        edit.apply(EDIT, write=r.write, advance=r.advance, post=r.post, embed=r.embed, vector=b"given")
+    
+>       assert r.calls == ["write", "advance", "post"]
+E       AssertionError: assert ['advance', 'write', 'post'] == ['write', 'advance', 'post']
+E         
+E         At index 0 diff: 'advance' != 'write'
+E         Use -v to get more diff
+
+rag/tests/test_edit_order.py:78: AssertionError
+=========================== short test summary info ============================
+FAILED rag/tests/test_edit_order.py::test_apply_calls_write_then_advance_then_post
+FAILED rag/tests/test_edit_order.py::test_given_vector_skips_embed - Assertio...
+2 failed, 2 passed in 0.73s

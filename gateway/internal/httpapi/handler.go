@@ -143,6 +143,11 @@ type Handler struct {
 	// main.go for it).
 	Epoch epochSource
 
+	// Invalidator serves POST /invalidate (item 4.4, interfaces.md §E). It is a separate field from Deps
+	// so that dependencyMap stays as it is and every fake that predates item 4.4 still compiles. Nil
+	// makes the endpoint answer 503; cmd/gateway always sets it.
+	Invalidator invalidator
+
 	// Catalog backs GET /products for the demo UI. Nil is valid and yields an empty list --
 	// the gateway must start and serve /ask whether or not a corpus index exists.
 	Catalog *catalog.Catalog

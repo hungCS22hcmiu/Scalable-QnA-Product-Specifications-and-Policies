@@ -65,23 +65,24 @@ def test_retrieve_unscoped_behaviour_is_unchanged_when_product_id_absent():
 
 @requires_redis
 def test_product_scoping_prevents_cross_product_contamination():
-    """The original bug, reproduced and pinned. product-laptops-02 (UltraBook Air 13) has no
-    "power" spec at all; product-kitchen-05 (Air Fryer XL) does ("power": "1800W"). Unscoped,
-    the literal word "power" pulls in the kitchen chunk regardless of which product is actually
-    being asked about -- confirmed live 2026-09-09/10. Scoped by product_id, that chunk must
-    never come back.
+    """The original bug, reproduced and pinned. In v1, product-furniture-b001e4w9zk has no
+    "power" spec at all; product-laptops-b07l5mpbs7 lists one ("Power supply type 45 W AC power
+    adapter"). Unscoped, the literal word "power" pulls in laptop chunks regardless of which
+    product is actually being asked about -- first confirmed live 2026-09-09/10 on dev-v0, with
+    product-laptops-02 and product-kitchen-05; moved to v1 on 2026-10-29, when dev-v0 was
+    retired. Scoped by product_id, no laptop chunk must come back.
     """
     query = "what is the power rating of this item exactly right now"
 
-    scoped, _ = retrieve(query, top_k=5, product_id="product-laptops-02")
+    scoped, _ = retrieve(query, top_k=5, product_id="product-furniture-b001e4w9zk")
     scoped_doc_ids = {c.doc_id for c in scoped}
-    assert not any(d.startswith("product-kitchen") for d in scoped_doc_ids)
+    assert not any(d.startswith("product-laptops") for d in scoped_doc_ids)
 
-    # Companion sanity check: truly unscoped, this exact query DOES pull in a kitchen chunk --
+    # Companion sanity check: truly unscoped, this exact query DOES pull in a laptop chunk --
     # proves the test above exercises the actual bug precondition, not a vacuous pass.
     unscoped, _ = retrieve(query, top_k=5)
     unscoped_doc_ids = {c.doc_id for c in unscoped}
-    assert any(d.startswith("product-kitchen") for d in unscoped_doc_ids)
+    assert any(d.startswith("product-laptops") for d in unscoped_doc_ids)
 
 
 @requires_redis
@@ -95,9 +96,13 @@ def test_scoping_does_not_flood_policy_chunks_for_a_plain_spec_question():
     collapsed into the same policy-dominated namespace. This asserts the corrected behaviour:
     a plain spec question scoped to a product that HAS the answer must not come back
     policy-dominated.
+
+    Moved to v1 on 2026-10-29, when dev-v0 was retired: product-laptops-b07l5mpbs7 lists its
+    power supply ("45 W AC power adapter"), so it stands in for product-kitchen-05, and the
+    question says "laptop" where it said "appliance".
     """
     scoped, _ = retrieve(
-        "how many watts does this appliance use", top_k=5, product_id="product-kitchen-05"
+        "how many watts does this laptop use", top_k=5, product_id="product-laptops-b07l5mpbs7"
     )
     policy_count = sum(1 for c in scoped if c.doc_id.startswith("policy-"))
     assert policy_count < len(scoped), (
@@ -105,4 +110,4 @@ def test_scoping_does_not_flood_policy_chunks_for_a_plain_spec_question():
         f"({policy_count}/{len(scoped)} policy chunks) -- PolicyFraction would misclassify "
         f"this as the POLICY lane"
     )
-    assert any(c.doc_id == "product-kitchen-05" for c in scoped)
+    assert any(c.doc_id == "product-laptops-b07l5mpbs7" for c in scoped)

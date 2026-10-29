@@ -49,12 +49,13 @@ thesis/
 │   │                               bandFromEnv, retiredEnv, incomplete, finishRun) are pure functions with tests beside it
 │   └── internal/
 │       ├── httpapi/                POST /ask, the cascade, 503 shedding → contracts/interfaces.md §A
+│       │                           · POST /invalidate (invalidate.go, item 4.4): loopback only, replies after the purge → §E
 │       │                           · /products and /stats for the demo UI (browse.go)
 │       ├── cache/                  tier1, tier2, key norm   → contracts/interfaces.md §D, the key-normalisation function
 │       │                           · the gateway-side LRU count, lru:entries (capacity.go)
 │       ├── reuse/                  lanes + overlap rule + support arms + the refusal cause (cause.go)  → proposal §5 C1   [C1]
 │       ├── deps/                   dependency map, COW, writer goroutine
-│       │                                                    → contracts/interfaces.md §E  [C2]  built (item 4.1)
+│       │                                                    → contracts/interfaces.md §E  [C2]  built (item 4.1); InvalidateWait + PurgeResult (item 4.4)
 │       ├── admission/              permit pool, queue, shed → proposal §6.1
 │       ├── coalesce/               collapses concurrent duplicate misses onto one execution
 │       ├── ragclient/              pooled gRPC + epoch      → contracts/interfaces.md §B
@@ -70,6 +71,8 @@ thesis/
 │   └── src/rag/
 │       ├── server.py               gRPC: Answer + Retrieve
 │       ├── ingest.py               chunk → embed → index    → data-card.md
+│       ├── edit.py                 one source edit: embed, write text + vector, advance the epoch, POST /invalidate
+│       │                           (item 4.4)       → contracts/interfaces.md §E
 │       ├── retrieve.py             top-k, FLAT, frozen
 │       ├── generate.py             Ollama call
 │       ├── chunkid.py              {doc_id}#chunk-{ordinal} → contracts/interfaces.md §C
@@ -85,6 +88,8 @@ thesis/
 │   │                               · select_pqa · answerability_check (item 3.2) · check_policies (item 3.3)
 │   │                               · build_workload (item 3.4: make workload-embed / -build / -verify)
 │   │                               · freeze_corpus (item 3.6: make corpus-assemble / -index-check / -freeze / -verify)
+│   │                               · update_set (item 4.4: make update-set-probe / -verify) · cache_reset (make cache-reset)
+│   │                               · update_set_check (make update-set-check, the live run) · score_update_set (make update-set-score)
 │   │                               · loadgen_footprint · load_burst (not citable) · verify_admission.sh
 │   │                               NOT BUILT: replay, judge, figures
 │   │                               → super-plan items 5.1, 5.4
@@ -121,6 +126,8 @@ thesis/
     ├── workload-manifest.json      TRACKED: hashes and counts of the item 3.4 build, no PQA text, no asin. NOT the v1 snapshot digest
     ├── v1-freeze.json              TRACKED: the v1 freeze record (item 3.6, ADR-015): the snapshot digest, chunk digest, K, the stack and
     │                               `known_failures` (G1, ADR-014). Digests, counts and statistics only: no file name, asin or path
+    ├── update-set-manifest.json    TRACKED: sha256 and counts of the update set (item 4.4), no text
+    ├── update-set-v1.json          gitignored (PQA text in the product edits): the 20 edits → data-card.md §5
     ├── workload-v1*.json           gitignored (PQA text): the whole workload and its -validation and -test files.
     │                               Outside v1/ on purpose: rag.ingest globs that folder
     └── raw/                        gitignored permanently, never redistributed
@@ -235,6 +242,7 @@ Use `make`; do not invent ad-hoc invocations. `make help` is the authority; the 
 | **Check the envelope** | `env-check` (ADR-003, loads both models) · `redis-check` · `measure` (gates a *measured* run on green pressure) |
 | **Exploratory, not citable** | `load-smoke` · `mu-hit` · `footprint` (**deletes** `t1:` / `t2:` / `lru:` cache keys; needs `make dev`) |
 | **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash (with `ACCEPT_FAILED=G1`, ADR-014: prints it as a recorded failure and exits 3) · `corpus-assemble` · `corpus-index-check` · `corpus-freeze` · `corpus-verify` — item 3.6, ADR-015 · `pqa-fetch` (curl, resume) · `pqa-build` (Stops 0–3, then the interim files and `data/pqa-manifest.json`) · `pqa-verify` (offline hash check) — item 3.1 · `pqa-select`, `pqa-select-verify`, `pqa-audit-sheet`, `pqa-audit-score`, `epqa-fetch`, `pqa-answerability` — item 3.2 · `policy-check` (schema, terms, ≥ 3 chunks, G5 on `data/policies-v1/`; offline) — item 3.3 |
+| **Update set (item 4.4, not citable)** | `update-set-probe` (embedding model) · `update-set-verify` (offline) · `cache-reset` (run rule 11: `SCAN` + `UNLINK` of `t1:` `t2:` `lru:` `dep:` `entry:`, never `FLUSHDB`; refuses under a gateway) · `update-set-check` (live run, loads both models) · `update-set-score` (reads the saved evidence only) |
 | **Housekeeping** | `setup` · `proto` · `spike` (spent: the envelope is frozen) · `check` (documentation consistency sweep) |
 | **Not yet runnable** | `figures` — it invokes `experiments/scripts/make_figures.py`, which does not exist (super-plan item 5.4) |
 

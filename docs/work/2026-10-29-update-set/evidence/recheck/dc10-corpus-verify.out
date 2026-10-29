@@ -1,0 +1,2 @@
+python3 experiments/scripts/freeze_corpus.py verify
+[PASS] v1 still matches v1-freeze.json: 167 files, 539 chunks, the embedding model and the retrieval config

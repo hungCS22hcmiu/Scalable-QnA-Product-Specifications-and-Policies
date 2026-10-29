@@ -1,0 +1,50 @@
+cd gateway && go vet ./...
+All checks passed!
+cd gateway && go build ./...
+ok  	github.com/hung/thesis/gateway/cmd/gateway	0.763s
+ok  	github.com/hung/thesis/gateway/internal/admission	0.494s
+ok  	github.com/hung/thesis/gateway/internal/cache	0.917s
+?   	github.com/hung/thesis/gateway/internal/catalog	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/coalesce	0.552s
+ok  	github.com/hung/thesis/gateway/internal/deps	1.452s
+?   	github.com/hung/thesis/gateway/internal/embed	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/httpapi	1.193s
+ok  	github.com/hung/thesis/gateway/internal/ragclient	0.630s
+?   	github.com/hung/thesis/gateway/internal/ragpb	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/reuse	0.541s
+ok  	github.com/hung/thesis/gateway/internal/telemetry	0.673s
+ok  	github.com/hung/thesis/gateway/internal/testredis	0.574s
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hung/Desktop/Sem1/thesis/rag
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2
+collected 62 items
+
+tests/test_chunkid.py .....                                              [  8%]
+tests/test_dataset_version.py ...                                        [ 12%]
+tests/test_edit_failures.py ......                                       [ 22%]
+tests/test_edit_order.py ....                                            [ 29%]
+tests/test_epoch.py .....................                                [ 62%]
+tests/test_ingest_nodes.py .....                                         [ 70%]
+tests/test_retrieve_scoping.py .....                                     [ 79%]
+tests/test_retrieve_texts.py ...                                         [ 83%]
+tests/test_server_bind.py ..                                             [ 87%]
+tests/test_server_epoch.py ......                                        [ 96%]
+tests/test_store_index_ready.py .                                        [ 98%]
+tests/test_store_index_timeout.py .                                      [100%]
+
+============================== 62 passed in 2.38s ==============================
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 28%]
+........................................................................ [ 38%]
+........................................................................ [ 47%]
+........................................................................ [ 57%]
+........................................................................ [ 66%]
+........................................................................ [ 76%]
+........................................................................ [ 85%]
+........................................................................ [ 95%]
+.....................................                                    [100%]
+757 passed in 47.12s

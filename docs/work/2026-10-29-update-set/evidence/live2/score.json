@@ -1,0 +1,153 @@
+{
+  "checks": {
+    "completeness_is_1": true,
+    "dependents_are_named_in_replies": true,
+    "every_edit_has_a_dependent": true,
+    "every_edit_has_a_reply": true,
+    "every_reply_is_ok_and_nothing_failed": true,
+    "exactness_is_0": true,
+    "labels_name_distinct_chunks": true,
+    "no_reask_hits_a_dependent": true,
+    "reply_entries_are_in_the_oracle": true,
+    "some_present_entries_depend_on_no_edited_chunk": true
+  },
+  "completeness": 1.0,
+  "counts": {
+    "dependents": 57,
+    "dependents_gone": 57,
+    "edits": 20,
+    "entries_in_oracle": 67,
+    "gone": 57,
+    "needed": 40,
+    "present_before": 67,
+    "reask_hits_on_dependents": 0
+  },
+  "dependents_not_gone": [],
+  "exactness": 0,
+  "failures": [],
+  "non_dependents_gone": [],
+  "ok": true,
+  "per_edit": [
+    {
+      "change_type": "substantive",
+      "dependents": 4,
+      "dependents_gone": 4,
+      "edit_id": "edit-001"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 2,
+      "dependents_gone": 2,
+      "edit_id": "edit-002"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 8,
+      "dependents_gone": 8,
+      "edit_id": "edit-003"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 3,
+      "dependents_gone": 3,
+      "edit_id": "edit-004"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 6,
+      "dependents_gone": 6,
+      "edit_id": "edit-005"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 3,
+      "dependents_gone": 3,
+      "edit_id": "edit-006"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 10,
+      "dependents_gone": 10,
+      "edit_id": "edit-007"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 3,
+      "dependents_gone": 3,
+      "edit_id": "edit-008"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 4,
+      "dependents_gone": 4,
+      "edit_id": "edit-009"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 3,
+      "dependents_gone": 3,
+      "edit_id": "edit-010"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 3,
+      "dependents_gone": 3,
+      "edit_id": "edit-011"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 4,
+      "dependents_gone": 4,
+      "edit_id": "edit-012"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 4,
+      "dependents_gone": 4,
+      "edit_id": "edit-013"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 10,
+      "dependents_gone": 10,
+      "edit_id": "edit-014"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 4,
+      "dependents_gone": 4,
+      "edit_id": "edit-015"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 7,
+      "dependents_gone": 7,
+      "edit_id": "edit-016"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 3,
+      "dependents_gone": 3,
+      "edit_id": "edit-017"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 4,
+      "dependents_gone": 4,
+      "edit_id": "edit-018"
+    },
+    {
+      "change_type": "substantive",
+      "dependents": 3,
+      "dependents_gone": 3,
+      "edit_id": "edit-019"
+    },
+    {
+      "change_type": "cosmetic",
+      "dependents": 5,
+      "dependents_gone": 5,
+      "edit_id": "edit-020"
+    }
+  ],
+  "precision": 0.7017543859649122
+}

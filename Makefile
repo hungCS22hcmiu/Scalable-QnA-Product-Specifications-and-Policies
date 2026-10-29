@@ -42,7 +42,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -59,10 +59,10 @@ spike: ## Feasibility spike — measure the memory envelope. SPENT: already froz
 	@echo "Baseline:"; vm_stat | head -4; sysctl hw.memsize; sysctl vm.swapusage
 
 # Loads nomic-embed-text: check `sysctl kern.memorystatus_vm_pressure_level` = 1 (normal, green) first, every time.
-# The corpus is data/$$DATASET_VERSION (default dev-v0); item 3.6 ingests v1 with
-#   DATASET_VERSION=v1 make ingest
+# The corpus is data/$$DATASET_VERSION (default v1 since 2026-10-29: the author retired dev-v0, item 4.4).
+#   DATASET_VERSION=dev-v0 make ingest   # the old development corpus, only if you need it
 # This is NOT Make's VERSION (that one is v1 for the gate, and would flip the default by accident).
-ingest: ## Build the index from the corpus in data/$DATASET_VERSION (default dev-v0). Memory check first
+ingest: ## Build the index from the corpus in data/$DATASET_VERSION (default v1). Memory check first
 	cd $(RAG) && $(PY) -m rag.ingest
 
 env-check: ## Verify the frozen envelope against the LIVE runner (ADR-003) -- loads both models, ~2.1 GB
@@ -463,6 +463,31 @@ epoch-race-check: ## Item 4.2 DC 10: epoch advanced mid-generation, write-back d
 	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"
 	$(PY) experiments/scripts/epoch_race_check.py --evidence-dir $(EVIDENCE)
 
+# Item 4.4: the update set and the edit path (docs/work/2026-10-29-update-set/design.md). All five are
+# citable: no. The probe loads the embedding model, the live run loads both models: check the pressure
+# level first, every time; it is recorded and never gates (design.md section 1). While update-set-check
+# runs, Redis differs from v1: run nothing else against Redis or Ollama.
+# EVIDENCE has a default above (4.2's), so the two targets below insist it was given on the command line.
+update-set-probe: ## Item 4.4: qa_id -> chunk_ids for every validation query, IDs only (v1 in Redis; OUT=file)
+	@test -n "$(OUT)" || { echo "FAIL -- give OUT=<file>, e.g. OUT=docs/work/2026-10-29-update-set/evidence/private/probe.json (qa_ids and chunk IDs stay private)"; exit 1; }
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"
+	$(PY) experiments/scripts/update_set.py probe --out $(OUT)
+
+update-set-verify: ## Item 4.4: check data/update-set-v1.json offline (counts, before/after, 30 -> 14 day edit, hash)
+	$(PY) experiments/scripts/update_set.py verify
+
+cache-reset: ## Item 4.4: delete t1: t2: lru: dep: entry: keys by SCAN+UNLINK, never FLUSHDB; refuses under a gateway
+	$(PY) experiments/scripts/cache_reset.py
+
+update-set-check: ## Item 4.4: live run, fill + 20 edits + completeness/exactness/precision + a forced race (EVIDENCE=new dir)
+	@test "$(origin EVIDENCE)" = "command line" || { echo "FAIL -- give EVIDENCE=<new folder>, e.g. EVIDENCE=docs/work/2026-10-29-update-set/evidence/live1"; exit 1; }
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"
+	$(PY) experiments/scripts/update_set_check.py --evidence-dir $(EVIDENCE)
+
+update-set-score: ## Item 4.4: score a saved run from its committed IDs only; prints score.json (EVIDENCE=dir)
+	@test "$(origin EVIDENCE)" = "command line" || { echo "FAIL -- give EVIDENCE=<folder>" >&2; exit 1; }
+	@$(PY) experiments/scripts/score_update_set.py $(EVIDENCE)
+
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
 	@lsof -ti tcp:8080 >/dev/null 2>&1 || { echo "FAIL -- no gateway on :8080 (make dev)"; exit 1; }
@@ -524,7 +549,7 @@ gate-corpus: ## Run the corpus sensitivity gate and, if it passes, print the sna
 #   ...the same from a fresh ingest, into run2/
 #   make corpus-freeze                            # data/v1-freeze.json, once
 #   make corpus-verify
-# Once frozen, Redis holds dev-v0 again (item 3.6 design). Every v1 run, and every reference generation,
+# Since 2026-10-29 Redis keeps v1 (dev-v0 is retired, item 4.4 design section 4). Every v1 run, and every reference generation,
 # starts with `DATASET_VERSION=v1 make ingest` and `make corpus-index-check`. None of these four is
 # part of `make verify`: data/v1/ is gitignored.
 corpus-assemble: ## Item 3.6: build data/v1/ from the drafts and the policy documents (bytes, copied)

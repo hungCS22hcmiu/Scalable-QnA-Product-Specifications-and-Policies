@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,10 @@ const (
 	depPrefix   = "dep:"
 	entryPrefix = "entry:"
 )
+
+// ErrClosed is what Invalidate and InvalidateWait return after Close. A caller tells "the gateway is
+// shutting down" (503) from "Redis failed" (500) with errors.Is.
+var ErrClosed = errors.New("deps: map is closed, invalidation refused")
 
 // Registration is what a write-back tells the map: this entry depends on these source chunks.
 type Registration struct {
@@ -54,11 +59,23 @@ type invalidateResult struct {
 	err error
 }
 
+// PurgeResult is what a finished purge did (interfaces.md §E, item 4.4). Purged and Failed are sorted
+// and never nil. An entry is Failed when any of its three Redis steps failed (reading t1_key, purging
+// the tiers, deleting entry:{E}); it then stays in dep:{chunk}, so a second Invalidate finds it again.
+// Errors holds the failure of the SREM that removes the purged members from dep:{chunk}.
+type PurgeResult struct {
+	ChunkID string
+	Purged  []string
+	Failed  []string
+	Errors  []string
+}
+
 // op is one message to the writer: a registration or an invalidation, never both.
 type op struct {
-	reg *Registration
-	ev  *Event
-	ack chan invalidateResult // buffered (1), so the writer never blocks on a caller that left
+	reg  *Registration
+	ev   *Event
+	ack  chan invalidateResult // buffered (1), so the writer never blocks on a caller that left
+	done chan PurgeResult      // buffered (1); set by InvalidateWait only, sent after the whole purge
 }
 
 // Map is the dependency map. ONE goroutine (run) writes dep:* and entry:*. Everything else talks to
@@ -136,7 +153,7 @@ func (m *Map) Invalidate(ev Event) ([]string, error) {
 	m.mu.RLock()
 	if m.closed {
 		m.mu.RUnlock()
-		return nil, errors.New("deps: map is closed, invalidation refused")
+		return nil, ErrClosed
 	}
 	ack := make(chan invalidateResult, 1)
 	m.ch <- op{ev: &ev, ack: ack}
@@ -144,6 +161,40 @@ func (m *Map) Invalidate(ev Event) ([]string, error) {
 
 	res := <-ack
 	return res.ids, res.err
+}
+
+// InvalidateWait is Invalidate that also waits for the Redis purge (item 4.4). It returns the result
+// once every dependent has been purged from both tiers and the purged members have left dep:{chunk}.
+// An error from reading dep:{chunk} returns at once, and nothing was purged.
+//
+// A cancelled ctx stops the WAIT, not the purge: the operation is already in the writer's queue and
+// runs to the end, and both reply channels are buffered, so the writer never blocks on a caller that
+// left. After Close it returns the same error as Invalidate.
+func (m *Map) InvalidateWait(ctx context.Context, ev Event) (PurgeResult, error) {
+	m.mu.RLock()
+	if m.closed {
+		m.mu.RUnlock()
+		return PurgeResult{}, ErrClosed
+	}
+	ack := make(chan invalidateResult, 1)
+	done := make(chan PurgeResult, 1)
+	m.ch <- op{ev: &ev, ack: ack, done: done}
+	m.mu.RUnlock()
+
+	select {
+	case res := <-ack:
+		if res.err != nil {
+			return PurgeResult{}, res.err
+		}
+	case <-ctx.Done():
+		return PurgeResult{}, ctx.Err()
+	}
+	select {
+	case res := <-done:
+		return res, nil
+	case <-ctx.Done():
+		return PurgeResult{}, ctx.Err()
+	}
 }
 
 // SetEpochSource turns on the writer's late check. A registration whose DatasetEpoch differs from the
@@ -209,7 +260,7 @@ func (m *Map) run() {
 		case o.reg != nil:
 			m.applyRegistration(ctx, *o.reg)
 		case o.ev != nil:
-			m.applyInvalidation(ctx, *o.ev, o.ack)
+			m.applyInvalidation(ctx, *o.ev, o.ack, o.done)
 		}
 	}
 }
@@ -293,10 +344,13 @@ func (m *Map) tombstone(ids ...string) {
 //  2. swap the snapshot         tombstones visible BEFORE anything is deleted
 //  3. ack the caller            it may now rely on the entries being refused
 //  4. purge each entry          both tiers, then entry:{E}
-//  5. DEL dep:{chunk}
+//  5. SREM dep:{chunk} <purged>  only the entries that were purged; Redis deletes the set when it empties
+//  6. done (InvalidateWait only) the PurgeResult
 //
-// A Redis error on one entry is counted and logged, and the loop goes on. The tombstone stays.
-func (m *Map) applyInvalidation(ctx context.Context, ev Event, ack chan invalidateResult) {
+// A Redis error on one entry is counted and logged, the entry is reported as failed, and the loop goes
+// on. The tombstone stays, and the failed entry stays in dep:{chunk}: DEL of the whole set would leave
+// nothing for a second Invalidate, or a restarted gateway, to find (item 4.4).
+func (m *Map) applyInvalidation(ctx context.Context, ev Event, ack chan invalidateResult, done chan PurgeResult) {
 	ids, err := m.rdb.SMembers(ctx, depPrefix+ev.ChunkID).Result()
 	if err != nil {
 		ack <- invalidateResult{err: err}
@@ -306,26 +360,51 @@ func (m *Map) applyInvalidation(ctx context.Context, ev Event, ack chan invalida
 	m.tombstone(ids...)
 	ack <- invalidateResult{ids: ids}
 
+	res := PurgeResult{ChunkID: ev.ChunkID, Purged: []string{}, Failed: []string{}, Errors: []string{}}
 	for _, id := range ids {
-		t1Key, err := m.rdb.HGet(ctx, entryPrefix+id, "t1_key").Result()
-		if err != nil && !errors.Is(err, redis.Nil) {
-			m.purgeFailed(id, "reading t1_key", err)
-			continue
-		}
-		// An empty t1Key (no entry:{E} record, or an empty field) makes the Purger read t2:{E}.
-		if err := m.purge.PurgeEntry(ctx, id, t1Key); err != nil {
-			// Keep entry:{E} when the tiers were not purged: it still holds the t1_key.
-			m.purgeFailed(id, "purging tiers", err)
-			continue
-		}
-		if err := m.rdb.Del(ctx, entryPrefix+id).Err(); err != nil {
-			m.purgeFailed(id, "deleting entry record", err)
+		if m.purgeOne(ctx, id) {
+			res.Purged = append(res.Purged, id)
+		} else {
+			res.Failed = append(res.Failed, id)
 		}
 	}
+	sort.Strings(res.Purged)
+	sort.Strings(res.Failed)
 
-	if err := m.rdb.Del(ctx, depPrefix+ev.ChunkID).Err(); err != nil {
-		m.purgeFailed(ev.ChunkID, "deleting dependency set", err)
+	if len(res.Purged) > 0 {
+		members := make([]any, len(res.Purged))
+		for i, id := range res.Purged {
+			members[i] = id
+		}
+		if err := m.rdb.SRem(ctx, depPrefix+ev.ChunkID, members...).Err(); err != nil {
+			m.purgeFailed(ev.ChunkID, "removing purged entries from the dependency set", err)
+			res.Errors = append(res.Errors, err.Error())
+		}
 	}
+	if done != nil {
+		done <- res
+	}
+}
+
+// purgeOne purges one entry from both tiers and deletes entry:{E}. It reports whether all three steps
+// worked.
+func (m *Map) purgeOne(ctx context.Context, id string) bool {
+	t1Key, err := m.rdb.HGet(ctx, entryPrefix+id, "t1_key").Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		m.purgeFailed(id, "reading t1_key", err)
+		return false
+	}
+	// An empty t1Key (no entry:{E} record, or an empty field) makes the Purger read t2:{E}.
+	if err := m.purge.PurgeEntry(ctx, id, t1Key); err != nil {
+		// Keep entry:{E} when the tiers were not purged: it still holds the t1_key.
+		m.purgeFailed(id, "purging tiers", err)
+		return false
+	}
+	if err := m.rdb.Del(ctx, entryPrefix+id).Err(); err != nil {
+		m.purgeFailed(id, "deleting entry record", err)
+		return false
+	}
+	return true
 }
 
 func (m *Map) purgeFailed(what, step string, err error) {

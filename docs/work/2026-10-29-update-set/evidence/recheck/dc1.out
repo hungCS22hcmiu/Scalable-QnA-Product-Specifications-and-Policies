@@ -1,0 +1,2 @@
+python3 experiments/scripts/update_set.py verify
+update-set-verify: ok (20 edits, 10 substantive, 10 cosmetic)

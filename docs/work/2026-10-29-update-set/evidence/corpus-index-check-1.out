@@ -1,0 +1,2 @@
+python3 experiments/scripts/freeze_corpus.py check-index
+[PASS] the index is the v1 corpus: 539 chunks; ids, texts, vectors and the embedding model's digest checked and compared with the record

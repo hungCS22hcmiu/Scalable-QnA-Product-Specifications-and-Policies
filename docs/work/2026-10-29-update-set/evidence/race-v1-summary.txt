@@ -1,0 +1,16 @@
+record A: cache=MISS writeback_discarded=False entry_id='06GRCNGD0DBKDGQH5NXEW42N84' dataset_epoch_at_retrieval=1
+record B: cache=MISS writeback_discarded=True entry_id='' dataset_epoch_at_retrieval=1
+
+key diff (from key-diff.txt):
+# keys that appeared while A ran (S1 - S0)
++ entry:06GRCNGD0DBKDGQH5NXEW42N84
++ t1:3f7311f8ba0331dacb175bf0fdd85feb7e740b3ba2a871129d90c6c5a941254c
++ t2:06GRCNGD0DBKDGQH5NXEW42N84
+# keys that appeared between A's end and B's end (S2 - S1): must be empty
+
+pressure (from pressure.txt):
+before the run: 1
+after the run:  2
+(1 = green, 2 = yellow, 4 = red; this check is citable: no)
+
+result: make epoch-race-check on v1 exited 0 (PASS); citable: no; run before 5.3 at pressure level 1, after at level 2 (recorded, not a gate).

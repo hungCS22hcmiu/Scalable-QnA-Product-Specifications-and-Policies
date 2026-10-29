@@ -1,0 +1,18 @@
+{
+ "update_set": "data/update-set-v1.json",
+ "dataset_version": "v1",
+ "sha256": "df3ae7d4efd560cb349a9c0ddbfc4fd036f6cfb12a9d53a1dbcc6ef260e247c2",
+ "edits": 20,
+ "by_change_type": {
+  "substantive": 10,
+  "cosmetic": 10
+ },
+ "by_kind_and_change_type": {
+  "substantive-policy": 5,
+  "substantive-product": 5,
+  "cosmetic-policy": 5,
+  "cosmetic-product": 5
+ },
+ "return_window_edit": "edit-001",
+ "note": "The set holds Amazon-PQA product text and is gitignored (docs/data-card.md section 5). This record holds the hash and counts only. Rebuild-check with make update-set-verify."
+}

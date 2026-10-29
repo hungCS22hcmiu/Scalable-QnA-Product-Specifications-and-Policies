@@ -1,0 +1,17 @@
+=== RUN   TestInvalidateWaitReturnsAfterThePurge
+--- PASS: TestInvalidateWaitReturnsAfterThePurge (0.00s)
+=== RUN   TestInvalidateWaitKeepsFailedEntriesInDep
+2026/10/29 14:32:53 deps: purge of E failed while purging tiers: purge refused by the test (counted in PurgeErrors)
+--- PASS: TestInvalidateWaitKeepsFailedEntriesInDep (0.00s)
+=== RUN   TestInvalidateWaitRetryPurgesAgain
+2026/10/29 14:32:53 deps: purge of E failed while purging tiers: purge refused by the test (flaky) (counted in PurgeErrors)
+--- PASS: TestInvalidateWaitRetryPurgesAgain (0.00s)
+=== RUN   TestInvalidateWaitPurgesOnlyThePurged
+2026/10/29 14:32:53 deps: purge of E2 failed while purging tiers: purge of E2 refused by the test (counted in PurgeErrors)
+--- PASS: TestInvalidateWaitPurgesOnlyThePurged (0.00s)
+=== RUN   TestInvalidateWaitHonoursContext
+--- PASS: TestInvalidateWaitHonoursContext (0.00s)
+=== RUN   TestInvalidateWaitAfterCloseFails
+--- PASS: TestInvalidateWaitAfterCloseFails (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/deps	0.515s

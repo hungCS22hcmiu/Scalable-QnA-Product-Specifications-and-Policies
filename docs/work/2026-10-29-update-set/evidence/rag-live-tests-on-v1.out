@@ -1,0 +1,66 @@
+...FF..                                                                  [100%]
+=================================== FAILURES ===================================
+__________ test_product_scoping_prevents_cross_product_contamination ___________
+
+    @requires_redis
+    def test_product_scoping_prevents_cross_product_contamination():
+        """The original bug, reproduced and pinned. product-laptops-02 (UltraBook Air 13) has no
+        "power" spec at all; product-kitchen-05 (Air Fryer XL) does ("power": "1800W"). Unscoped,
+        the literal word "power" pulls in the kitchen chunk regardless of which product is actually
+        being asked about -- confirmed live 2026-09-09/10. Scoped by product_id, that chunk must
+        never come back.
+        """
+        query = "what is the power rating of this item exactly right now"
+    
+        scoped, _ = retrieve(query, top_k=5, product_id="product-laptops-02")
+        scoped_doc_ids = {c.doc_id for c in scoped}
+        assert not any(d.startswith("product-kitchen") for d in scoped_doc_ids)
+    
+        # Companion sanity check: truly unscoped, this exact query DOES pull in a kitchen chunk --
+        # proves the test above exercises the actual bug precondition, not a vacuous pass.
+        unscoped, _ = retrieve(query, top_k=5)
+        unscoped_doc_ids = {c.doc_id for c in unscoped}
+>       assert any(d.startswith("product-kitchen") for d in unscoped_doc_ids)
+E       assert False
+E        +  where False = any(<generator object test_product_scoping_prevents_cross_product_contamination.<locals>.<genexpr> at 0x10d0eae90>)
+
+tests/test_retrieve_scoping.py:84: AssertionError
+----------------------------- Captured stdout call -----------------------------
+13:49:40 redisvl.index.index INFO   Index already exists, not overwriting.
+13:49:40 redisvl.index.index INFO   Index already exists, not overwriting.
+------------------------------ Captured log call -------------------------------
+INFO     redisvl.index.index:index.py:456 Index already exists, not overwriting.
+INFO     redisvl.index.index:index.py:456 Index already exists, not overwriting.
+_____ test_scoping_does_not_flood_policy_chunks_for_a_plain_spec_question ______
+
+    @requires_redis
+    def test_scoping_does_not_flood_policy_chunks_for_a_plain_spec_question():
+        """The regression, reproduced and pinned. A prior version of this fix pre-filtered the
+        candidate pool to "this product OR any policy chunk" -- in dev-v0 (4 policy docs, 1 chunk
+        per product) that pool has only 5 members, so nearly every candidate came back regardless
+        of relevance, and PolicyFraction (reuse/lane.go) saturated toward ~0.8 for almost any
+        product-scoped question. Confirmed live 2026-09-10: product-kitchen-05, which genuinely has
+        a power spec, got served product-laptops-02's cached "no power info" answer because both
+        collapsed into the same policy-dominated namespace. This asserts the corrected behaviour:
+        a plain spec question scoped to a product that HAS the answer must not come back
+        policy-dominated.
+        """
+        scoped, _ = retrieve(
+            "how many watts does this appliance use", top_k=5, product_id="product-kitchen-05"
+        )
+        policy_count = sum(1 for c in scoped if c.doc_id.startswith("policy-"))
+>       assert policy_count < len(scoped), (
+            f"retrieval for a plain spec question came back policy-dominated "
+            f"({policy_count}/{len(scoped)} policy chunks) -- PolicyFraction would misclassify "
+            f"this as the POLICY lane"
+        )
+E       AssertionError: retrieval for a plain spec question came back policy-dominated (0/0 policy chunks) -- PolicyFraction would misclassify this as the POLICY lane
+E       assert 0 < 0
+E        +  where 0 = len([])
+
+tests/test_retrieve_scoping.py:103: AssertionError
+----------------------------- Captured stdout call -----------------------------
+13:49:40 redisvl.index.index INFO   Index already exists, not overwriting.
+------------------------------ Captured log call -------------------------------
+INFO     redisvl.index.index:index.py:456 Index already exists, not overwriting.
+2 failed, 5 passed in 1.97s

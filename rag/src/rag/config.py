@@ -16,9 +16,10 @@ CHUNK_OVERLAP = 40
 TOP_K = 5
 
 # --- dataset version, bump for v1, never re-chunk in place ---
-# The default stays dev-v0 (the demo and the live tests read it). Item 3.6 ingests v1 with
-# `DATASET_VERSION=v1 make ingest`. An empty value counts as unset: "" would make ingest read data/.
-DATASET_VERSION = os.environ.get("DATASET_VERSION") or "dev-v0"
+# The default is v1, the frozen corpus (item 4.4, 2026-10-29: the author retired dev-v0). Set
+# DATASET_VERSION=dev-v0 to use the old development corpus; `make demo-reset` still does.
+# An empty value counts as unset: "" would make ingest read data/.
+DATASET_VERSION = os.environ.get("DATASET_VERSION") or "v1"
 
 # --- Connections ---
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
