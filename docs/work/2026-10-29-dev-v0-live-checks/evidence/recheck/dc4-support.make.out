@@ -1,0 +1,21 @@
+  memory pressure level: 1 (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)
+  info: 0 process(es) listening on :50051 (rag-server-reuseport; not used by this check)
+  rag.server pid 19430 on 127.0.0.1:50052, started from the working tree
+=== RUN   TestSupportLive
+=== RUN   TestSupportLive/fidelity
+=== RUN   TestSupportLive/paraphrase-query
+rag.server listening on 127.0.0.1:50052 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+20:28:03 redisvl.index.index INFO   Index already exists, not overwriting.
+    support_live_test.go:223: live chunk IDs [product-electronics-b07wnp64zn#chunk-0 policy-return-electronics#chunk-0 policy-return-phones-opened#chunk-0]
+    support_live_test.go:224: S_lex = 0.9545 over 22 content tokens: the gate ADMITS (tau_s = 0.60) -- logged, not asserted
+=== RUN   TestSupportLive/warranty-query
+20:28:03 redisvl.index.index INFO   Index already exists, not overwriting.
+    support_live_test.go:223: live chunk IDs [product-electronics-b07wnp64zn#chunk-0 policy-warranty-electronics#chunk-0]
+    support_live_test.go:224: S_lex = 0.4091 over 22 content tokens: the gate REFUSES (tau_s = 0.60) -- logged, not asserted
+--- PASS: TestSupportLive (0.16s)
+    --- PASS: TestSupportLive/fidelity (0.00s)
+    --- PASS: TestSupportLive/paraphrase-query (0.13s)
+    --- PASS: TestSupportLive/warranty-query (0.02s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/ragclient	0.582s
+  PASS — fixture text matches Redis, live retrieval scored, texts aligned. Verdicts are LOGGED, not asserted. Log: /Users/hung/Desktop/Sem1/thesis/docs/work/2026-10-29-dev-v0-live-checks/evidence/recheck/dc4-support.log

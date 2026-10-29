@@ -1,0 +1,23 @@
+Pre-registered v1 candidates for the RCA probe. Written BEFORE any probe retrieval ran
+(2026-10-29, rca-analyst). Queries and answer are not to be edited after the probe runs.
+
+seam-check L2 (splice case). Property (seam_live_test.go:39-41, item 1.4 design 3c row L2): a product
+whose only chunk has no power/watt term, so for powerQuery it does not rank naturally and scoping
+must splice it in at index 0.
+  powerQuery  = "what is the power rating of this item exactly right now"   (unchanged)
+  spliceDoc   = "product-laptops-b07k238ls2"   (Apple MacBook Air; v1 single-chunk product, no power/watt/volt term)
+  spliceChunk = "product-laptops-b07k238ls2#chunk-0"
+  policyQuery = "can I return an opened item"  (unchanged)
+
+support-check. Property (item 2.1 plan step 8b + implementation notes): same product, two
+product-scoped queries; the paraphrase query retrieves the product + the return policy the cached
+answer rests on (dev-v0: ADMITS, 0.8750); the warranty query retrieves the product + the warranty
+policy instead (dev-v0: REFUSES, 0.3125). Built the same way as the dev-v0 one: same query
+templates with only the product name swapped; answer authored only from facts in the product's
+chunk-0 and policy-return-electronics#chunk-0, echoing their wording.
+  supportProduct          = "product-electronics-b07wnp64zn"   (REETEC BT-X9 headphones, 4 chunks)
+  supportParaphraseQuery  = "How long is the battery on the REETEC wireless headphones, and how many days do I have to return them?"
+  supportWarrantyQuery    = "How long is the battery on the REETEC wireless headphones, and what does the warranty cover?"
+  supportCachedAnswer     = "The REETEC wireless headphones have a 500 mAh battery with up to 20 hours of playing time. " +
+                            "Headphones can be sent back within 30 days of the day you received them for a full refund or an exchange."
+Thu Oct 29 19:49:08 +07 2026

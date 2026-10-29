@@ -36,13 +36,15 @@ const seamDeadline = 90 * time.Second
 // ragclient's tests would point the dependency graph the wrong way.
 const corpusKeyPrefix = "corpus::"
 
-// The splice case: product-laptops-02's only chunk has no power or watt term, so for this query it
-// is expected not to rank naturally, and product scoping must splice it in at index 0
-// (retrieve.py _ensure_own_chunk). The test asserts that, rather than assuming it.
+// The splice case: product-laptops-b07k238ls2's only chunk has no power, watt or volt term (checked
+// on the v1 corpus with a read-only HGET on 2026-10-29: one chunk, 475 bytes, no match), so for this
+// query it is expected not to rank naturally, and product scoping must splice it in at index 0
+// (retrieve.py _ensure_own_chunk). The test asserts that, rather than assuming it. The pin is
+// v1's: the preflight in TestSeam fails if the chunk is absent from Redis.
 const (
 	powerQuery   = "what is the power rating of this item exactly right now"
-	spliceDoc    = "product-laptops-02"
-	spliceChunk  = "product-laptops-02#chunk-0"
+	spliceDoc    = "product-laptops-b07k238ls2"
+	spliceChunk  = "product-laptops-b07k238ls2#chunk-0"
 	policyQuery  = "can I return an opened item"
 	defaultRedis = "redis://localhost:6379/0"
 )
@@ -115,6 +117,13 @@ func TestSeam(t *testing.T) {
 			return "", fmt.Errorf("oracle: %s%s: %w", corpusKeyPrefix, id, err)
 		}
 		return txt, nil
+	}
+
+	// Preflight: the pinned chunk must exist in this corpus. Without it, a corpus switch shows up
+	// as "len(texts) = 0" in L2, which reads as a seam fault. It is an HGet through the oracle, so
+	// "HGet is the only command this test issues" stays true.
+	if _, err := oracle(spliceChunk); err != nil {
+		t.Fatalf("pin absent: %v -- this check is pinned to the v1 corpus; was the corpus switched?", err)
 	}
 
 	retrieve := func(t *testing.T, query, productID string) *ragclient.RetrieveResult {

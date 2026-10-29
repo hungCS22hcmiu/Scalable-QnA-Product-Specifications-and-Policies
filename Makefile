@@ -209,8 +209,21 @@ ask: ## One query end to end.  make ask Q="can I return this laptop?"
 # Only data/dev-v0/ is restored and checked: it is the corpus `make ingest` reads. A wider path would
 # also run `git checkout` over the tracked data/pqa-manifest.json (item 3.1) and silently revert a
 # regenerated, uncommitted manifest, and would list it as a file that "WILL be ingested".
-demo-reset: ## Restore corpus, flush both tiers, pre-warm nothing
+demo-reset: ## Restore the dev-v0 corpus, flush both tiers, pre-warm nothing. Refuses while Redis holds any other corpus (v1)
 	@redis-cli PING >/dev/null 2>&1 || { echo "FAIL -- redis not reachable (see CLAUDE.md)"; exit 1; }
+	@# The demo still runs on dev-v0 (docs/Issue_phase4.md, Issue 2), but the working corpus is v1 since
+	@# 2026-10-29. FLUSHALL + a dev-v0 ingest would wipe v1, idx:cache, dep: and entry: in one run, so
+	@# count every corpus chunk whose dataset_version is not dev-v0. Read per key, not through idx:corpus,
+	@# so a dropped index cannot hide them; a chunk with no version counts as not dev-v0.
+	@other=$$(redis-cli --scan --pattern 'corpus:*' \
+	   | awk '{print "HGET \"" $$0 "\" dataset_version"}' | redis-cli | grep -cvx 'dev-v0' || true); \
+	 if [ "$$other" != "0" ]; then \
+	   echo "FAIL -- Redis holds $$other corpus chunk(s) that are not dev-v0 (the working corpus is v1)."; \
+	   echo "       demo-reset runs FLUSHALL and re-ingests dev-v0, so it would wipe v1, idx:cache, dep: and"; \
+	   echo "       entry:. Restoring v1 afterwards takes make ingest, then make corpus-index-check."; \
+	   echo "       The demo moves to v1 in Phase 8 (docs/Issue_phase4.md, Issue 2). Nothing was changed."; \
+	   exit 1; \
+	 fi
 	@lsof -ti tcp:8080 >/dev/null 2>&1 && { \
 	   echo "FAIL -- the gateway is still listening on :8080. Stop it first, THEN reset."; \
 	   echo "       FLUSHALL drops idx:cache along with the keys (verified 2026-09-05), and the"; \

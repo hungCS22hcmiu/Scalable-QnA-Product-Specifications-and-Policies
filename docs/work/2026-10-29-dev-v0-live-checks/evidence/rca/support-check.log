@@ -1,0 +1,22 @@
+=== RUN   TestSupportLive
+=== RUN   TestSupportLive/fidelity
+    support_live_test.go:150: oracle: no text at corpus::policy-returns-electronics#chunk-0
+    support_live_test.go:150: oracle: no text at corpus::policy-warranty#chunk-0
+    support_live_test.go:150: oracle: no text at corpus::product-headphones-01#chunk-0
+    support_live_test.go:150: oracle: no text at corpus::product-headphones-02#chunk-0
+    support_live_test.go:150: oracle: no text at corpus::product-headphones-03#chunk-0
+    support_live_test.go:150: oracle: no text at corpus::product-headphones-04#chunk-0
+    support_live_test.go:150: oracle: no text at corpus::product-headphones-09#chunk-0
+=== RUN   TestSupportLive/paraphrase-query
+    support_live_test.go:195: live chunk IDs [policy-return-electronics#chunk-0]
+    support_live_test.go:196: S_lex = 0.4375 over 16 content tokens: the gate REFUSES (tau_s = 0.60) -- logged, not asserted
+=== RUN   TestSupportLive/warranty-query
+    support_live_test.go:195: live chunk IDs [policy-warranty-electronics#chunk-0]
+    support_live_test.go:196: S_lex = 0.1875 over 16 content tokens: the gate REFUSES (tau_s = 0.60) -- logged, not asserted
+--- FAIL: TestSupportLive (0.22s)
+    --- FAIL: TestSupportLive/fidelity (0.00s)
+    --- PASS: TestSupportLive/paraphrase-query (0.16s)
+    --- PASS: TestSupportLive/warranty-query (0.05s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/ragclient	0.609s
+FAIL

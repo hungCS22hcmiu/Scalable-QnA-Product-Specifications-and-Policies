@@ -1,0 +1,27 @@
+  memory pressure level: 1 (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)
+  info: 0 process(es) listening on :50051 (rag-server-reuseport; not used by this check)
+  rag.server pid 18998 on 127.0.0.1:50052, started from the working tree
+=== RUN   TestSupportLive
+=== RUN   TestSupportLive/fidelity
+    support_live_test.go:151: oracle: no text at corpus::policy-returns-electronics#chunk-0
+    support_live_test.go:151: oracle: no text at corpus::policy-warranty#chunk-0
+    support_live_test.go:151: oracle: no text at corpus::product-headphones-01#chunk-0
+    support_live_test.go:151: oracle: no text at corpus::product-headphones-02#chunk-0
+    support_live_test.go:151: oracle: no text at corpus::product-headphones-03#chunk-0
+    support_live_test.go:151: oracle: no text at corpus::product-headphones-04#chunk-0
+    support_live_test.go:151: oracle: no text at corpus::product-headphones-09#chunk-0
+=== RUN   TestSupportLive/paraphrase-query
+rag.server listening on 127.0.0.1:50052 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+20:27:49 redisvl.index.index INFO   Index already exists, not overwriting.
+    support_live_test.go:188: no product-headphones-03 chunk in the scoped retrieval [policy-return-electronics#chunk-0]: the product is absent from the corpus, or scoping is broken
+=== RUN   TestSupportLive/warranty-query
+20:27:49 redisvl.index.index INFO   Index already exists, not overwriting.
+    support_live_test.go:188: no product-headphones-03 chunk in the scoped retrieval [policy-warranty-electronics#chunk-0]: the product is absent from the corpus, or scoping is broken
+--- FAIL: TestSupportLive (0.20s)
+    --- FAIL: TestSupportLive/fidelity (0.00s)
+    --- FAIL: TestSupportLive/paraphrase-query (0.15s)
+    --- FAIL: TestSupportLive/warranty-query (0.04s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/ragclient	0.616s
+FAIL
+make: *** [support-check] Error 1

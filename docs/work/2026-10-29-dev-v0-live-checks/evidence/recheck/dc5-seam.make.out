@@ -1,0 +1,10 @@
+  memory pressure level: 1 (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)
+  info: 0 process(es) listening on :50051 (rag-server-reuseport; not used by this check)
+  rag.server pid 19479 on 127.0.0.1:50052, started from the working tree
+=== RUN   TestSeam
+    seam_live_test.go:126: pin absent: oracle: no text at corpus::product-absent-00#chunk-0 -- this check is pinned to the v1 corpus; was the corpus switched?
+--- FAIL: TestSeam (0.01s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/ragclient	0.664s
+FAIL
+make: *** [seam-check] Error 1

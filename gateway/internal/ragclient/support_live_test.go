@@ -2,32 +2,44 @@ package ragclient_test
 
 // The live half of item 2.1 (docs/work/2026-10-10-support-gate-lexical-arm/plan.md, step 8b):
 // the lexical support gate fed with text that really came out of the running retrieval service.
+// Moved from the retired dev-v0 corpus to v1 on 2026-10-29 (docs/work/2026-10-29-dev-v0-live-checks/).
 //
-// reuse's own tests prove the formula on fixture strings I transcribed from data/dev-v0. This test
-// proves two things they cannot:
+// reuse's own tests prove the formula on fixture strings transcribed from data/dev-v0, and they stay
+// on dev-v0. This test proves two things they cannot:
 //
-//  1. fidelity -- the text Redis holds for each fixture chunk hashes to the checksum recorded for the
-//     fixture literal (design.md, "The pinned fixture"). Redis is the oracle, read straight from
+//  1. fidelity -- the text Redis holds for each pinned chunk hashes to the checksum recorded in
+//     this file. The pinned chunks are the four v1 chunks the two scoped retrievals below return;
+//     reuse's dev-v0 fixtures are no longer pinned here. Redis is the oracle, read straight from
 //     the corpus index, and shares DATA with the server, not code, as TestSeam's oracle does.
 //  2. the seam, end to end -- two retrievals through the real ragclient, texts aligned with
 //     chunk_ids (checkAligned), then reuse.SupportLexical on the result.
 //
+// Two guards make a corpus switch fail loudly instead of passing empty. A preflight fails with "pin
+// absent" if a pinned chunk is missing from Redis. And each query subtest fails if its scoped
+// retrieval holds no chunk of supportProduct: an unknown product_id raises no error anywhere,
+// scoping drops every other product's chunk, and the policy chunks that remain would still be scored.
+//
 // WHAT A PASS MEANS, and what it does not. A pass means: the corpus text in Redis is the text the
-// fixture was built from; the real service returned aligned texts for both queries; and
-// SupportLexical scored both of them (Scored, 16 content tokens). It does NOT mean the gate refused
-// the warranty query or admitted the paraphrase: the verdicts are LOGGED, not asserted. Both
-// queries are product-scoped, and a scoped retrieval drops every other product's chunk
-// (retrieve.py _drop_other_products), so it cannot return lane_test.go's pinned 5-chunk sets, which
-// contain products 04, 09 and 01/02. A comparison against those sets could never fire, so there is
-// none. The verdicts observed on 2026-10-12 (not predicted, not pinned): the paraphrase query
-// retrieved [product-headphones-03, policy-returns-electronics] and scored 0.8750; the warranty query
-// retrieved [product-headphones-03, policy-warranty] and scored 0.3125.
+// pinned checksums were taken from; the real service returned aligned texts for both queries, each
+// holding a chunk of supportProduct; and SupportLexical scored both of them (Scored, 22 content
+// tokens). It does NOT mean the gate refused the warranty query or admitted the paraphrase: the
+// verdicts are LOGGED, not asserted (item 2.1's choice, kept). Both queries are product-scoped, and
+// a scoped retrieval drops every other product's chunk (retrieve.py _drop_other_products), so it
+// cannot return lane_test.go's pinned 5-chunk sets, which are dev-v0's and contain products 04, 09
+// and 01/02. A comparison against those sets could never fire, so there is none. The verdicts
+// observed on v1 on 2026-10-29 (not predicted, not pinned): the paraphrase query retrieved
+// [product-electronics-b07wnp64zn#chunk-0, policy-return-electronics#chunk-0,
+// policy-return-phones-opened#chunk-0] and scored 0.9545 (ADMITS); the warranty query retrieved
+// [product-electronics-b07wnp64zn#chunk-0, policy-warranty-electronics#chunk-0] and scored 0.4091
+// (REFUSES).
 //
 // It is NOT a measurement and NOT a request to /ask: the gate is not wired into the cascade
 // (spec.md, Out of scope), so /ask cannot exercise it. The 2026-09-06 queries behind lane_test.go's
-// chunk-ID sets were never recorded. The two queries below were fixed in plan.md BEFORE anything
-// ran and must not be edited to make retrieval land on any set or any verdict. An unscoped variant
-// would be a plan change.
+// chunk-ID sets were never recorded. The two queries below keep the dev-v0 wording and swap only
+// the product name. They were written before any v1 probe ran
+// (docs/work/2026-10-29-dev-v0-live-checks/evidence/rca/preregistered-candidates.txt) and must not
+// be edited to make retrieval land on any set or any verdict. An unscoped variant would be a plan
+// change.
 //
 // This test imports reuse, which reuse's isolation allows: reuse imports nothing, so it stays a
 // leaf; the new edge is test-time only and points from ragclient_test to reuse.
@@ -45,6 +57,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hung/thesis/gateway/internal/ragclient"
@@ -55,39 +68,38 @@ import (
 )
 
 // supportProduct scopes both retrievals, as the gateway does for a request that names a product.
-const supportProduct = "product-headphones-03"
+const supportProduct = "product-electronics-b07wnp64zn"
 
-// The two queries, fixed in plan.md step 8b before this test was ever run.
+// The two queries: the dev-v0 wording from plan.md step 8b with only the product name changed,
+// written before any v1 probe ran.
 const (
-	supportParaphraseQuery = "How long is the battery on the EarBuds Pop 3, and how many days do I have to return it?"
-	supportWarrantyQuery   = "How long is the battery on the EarBuds Pop 3, and what does the warranty cover?"
+	supportParaphraseQuery = "How long is the battery on the REETEC wireless headphones, and how many days do I have to return them?"
+	supportWarrantyQuery   = "How long is the battery on the REETEC wireless headphones, and what does the warranty cover?"
 )
 
-// supportCachedAnswer is reuse/support_test.go's cachedAnswer, byte for byte. It is authored, not
-// captured (see the note there). The checksum below catches an edit to THIS copy. It cannot catch
-// the other copy being edited together with its own checksum: the two files share no code (a test
-// file's names are not importable), so the same 12 hex digits are kept in both by hand. The seven
-// chunk checksums below are duplicated the same way.
-const supportCachedAnswer = "The EarBuds Pop 3 has 6 hours of battery life, 24 hours with the case. " +
-	"Return it within the 30-day return window for a full refund if unused and in original packaging."
+// supportCachedAnswer is authored, not captured: two facts from the product's chunk-0 (a 500 mAh
+// battery, up to 20 hours of playing time) and the wording of policy-return-electronics#chunk-0.
+// It is no longer reuse/support_test.go's cachedAnswer. That offline fixture stays on dev-v0, so the
+// two files share nothing and the checksum link between them is cut. The checksum below catches an
+// edit to THIS copy.
+const supportCachedAnswer = "The REETEC wireless headphones have a 500 mAh battery with up to 20 hours of playing time. " +
+	"Headphones can be sent back within 30 days of the day you received them for a full refund or an exchange."
 
-const supportCachedAnswerSHA = "b213e5a99fb4"
+const supportCachedAnswerSHA = "197de3fd39ab"
 
-// supportFixtureSHA are design.md's checksums for the seven fixture chunks, keyed by the chunk ID
-// whose Redis text must match.
+// supportFixtureSHA are the checksums of the four v1 chunks the two scoped retrievals return (the
+// product's chunk-0 and three policy chunks), keyed by the chunk ID whose Redis text must match.
+// They replace the seven dev-v0 fixture checksums.
 var supportFixtureSHA = map[string]string{
-	"product-headphones-01#chunk-0":      "82b972cc13fa",
-	"product-headphones-02#chunk-0":      "4bbdd773b369",
-	"product-headphones-03#chunk-0":      "c42b901cdd3b",
-	"product-headphones-04#chunk-0":      "d9f62f2671ec",
-	"product-headphones-09#chunk-0":      "60cc39d00c83",
-	"policy-returns-electronics#chunk-0": "4fc52aed4784",
-	"policy-warranty#chunk-0":            "c776d676652d",
+	"product-electronics-b07wnp64zn#chunk-0": "83620a1dfec3",
+	"policy-return-electronics#chunk-0":      "9a28b8462d8e",
+	"policy-return-phones-opened#chunk-0":    "7cda127b39db",
+	"policy-warranty-electronics#chunk-0":    "7d2a986e2099",
 }
 
 // supportContentTokens is |content-tokens(supportCachedAnswer)|: it depends on the answer alone, so
 // it guards the tokenizer and the copy of the answer, not the retrieval.
-const supportContentTokens = 16
+const supportContentTokens = 22
 
 func sha12(s string) string {
 	sum := sha256.Sum256([]byte(s))
@@ -100,7 +112,7 @@ func TestSupportLive(t *testing.T) {
 		t.Skip("set RAG_SEAM_ADDR to a running rag.server -- run `make support-check`")
 	}
 	if got := sha12(supportCachedAnswer); got != supportCachedAnswerSHA {
-		t.Fatalf("supportCachedAnswer sha256 prefix %s, want %s: drifted from reuse/support_test.go's cachedAnswer", got, supportCachedAnswerSHA)
+		t.Fatalf("supportCachedAnswer sha256 prefix %s, want %s: drifted from the answer recorded in this file", got, supportCachedAnswerSHA)
 	}
 
 	redisURL := os.Getenv("REDIS_URL")
@@ -138,6 +150,16 @@ func TestSupportLive(t *testing.T) {
 		t.Fatalf("ragclient.New(%s): %v", addr, err)
 	}
 	t.Cleanup(func() { _ = rag.Close() })
+
+	// Preflight: every pinned chunk must exist in this corpus. Otherwise a corpus switch shows up
+	// as a run of "oracle: no text" lines in fidelity. The product's own chunk is checked by name,
+	// so changing supportProduct alone still trips it. HGet only, through the oracle, so the
+	// read-only claim above stays true.
+	for _, id := range append(slices.Sorted(maps.Keys(supportFixtureSHA)), supportProduct+"#chunk-0") {
+		if _, err := oracle(id); err != nil {
+			t.Fatalf("pin absent: %v -- this check is pinned to the v1 corpus; was the corpus switched?", err)
+		}
+	}
 
 	t.Run("fidelity", func(t *testing.T) {
 		// Does the text in the corpus index equal the text the fixture was built from? It assumes
@@ -179,6 +201,12 @@ func TestSupportLive(t *testing.T) {
 			r := retrieve(t, c.query)
 			if err := checkAligned(r.ChunkIDs, r.Texts, oracle); err != nil {
 				t.Fatal(err)
+			}
+			// The scoped product must be in the retrieval. Without this, a corpus that lacks the
+			// product still passes: scoping drops every other product's chunk, the policy chunks
+			// stay, and SupportLexical scores them.
+			if !slices.ContainsFunc(r.ChunkIDs, func(id string) bool { return strings.HasPrefix(id, supportProduct+"#") }) {
+				t.Fatalf("no %s chunk in the scoped retrieval %v: the product is absent from the corpus, or scoping is broken", supportProduct, r.ChunkIDs)
 			}
 			v := reuse.SupportLexical(supportCachedAnswer, r.Texts, r.ChunkIDs)
 			if !v.Scored {

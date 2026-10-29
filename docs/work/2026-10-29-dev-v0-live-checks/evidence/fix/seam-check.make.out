@@ -1,0 +1,24 @@
+  memory pressure level: 1 (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)
+  info: 0 process(es) listening on :50051 (rag-server-reuseport; not used by this check)
+  rag.server pid 9708 on 127.0.0.1:50052, started from the working tree
+=== RUN   TestSeam
+=== RUN   TestSeam/L1
+rag.server listening on 127.0.0.1:50052 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+20:22:08 redisvl.index.index INFO   Index already exists, not overwriting.
+20:22:08 redisvl.index.index INFO   Index already exists, not overwriting.
+    seam_live_test.go:157: L1: 5 chunks [product-laptops-b07l5mpbs7#chunk-3 product-electronics-b00g3kytjo#chunk-6 product-phones-b07s471fs4#chunk-3 product-electronics-b01c9cyh1e#chunk-1 product-laptops-b06zzd3tvw#chunk-2]
+=== RUN   TestSeam/L2
+20:22:08 redisvl.index.index INFO   Index already exists, not overwriting.
+    seam_live_test.go:175: L2: splice fired, 1 chunks [product-laptops-b07k238ls2#chunk-0]
+=== RUN   TestSeam/L3
+20:22:08 redisvl.index.index INFO   Index already exists, not overwriting.
+    seam_live_test.go:183: L3: 5 chunks [policy-return-furniture-opened#chunk-0 policy-return-furniture-opened#chunk-1 policy-return-furniture-unopened#chunk-1 policy-return-phones-opened#chunk-0 policy-return-furniture-unopened#chunk-0]
+=== RUN   TestSeam/shift
+--- PASS: TestSeam (0.25s)
+    --- PASS: TestSeam/L1 (0.18s)
+    --- PASS: TestSeam/L2 (0.04s)
+    --- PASS: TestSeam/L3 (0.02s)
+    --- PASS: TestSeam/shift (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/ragclient	0.975s
+  PASS — texts aligned with chunk_ids on L1-L3, splice fired, shift rejected. Log: /Users/hung/Desktop/Sem1/thesis/docs/work/2026-10-29-dev-v0-live-checks/evidence/fix/seam-check.log

@@ -1,0 +1,16 @@
+=== RUN   TestSeam
+=== RUN   TestSeam/L1
+    seam_live_test.go:148: L1: 5 chunks [product-laptops-b07l5mpbs7#chunk-3 product-electronics-b00g3kytjo#chunk-6 product-phones-b07s471fs4#chunk-3 product-electronics-b01c9cyh1e#chunk-1 product-laptops-b06zzd3tvw#chunk-2]
+=== RUN   TestSeam/L2
+    seam_live_test.go:158: len(texts) = 0, len(chunk_ids) = 0: want equal and >= 1
+=== RUN   TestSeam/L3
+    seam_live_test.go:174: L3: 5 chunks [policy-return-furniture-opened#chunk-0 policy-return-furniture-opened#chunk-1 policy-return-furniture-unopened#chunk-1 policy-return-phones-opened#chunk-0 policy-return-furniture-unopened#chunk-0]
+=== RUN   TestSeam/shift
+--- FAIL: TestSeam (0.26s)
+    --- PASS: TestSeam/L1 (0.18s)
+    --- FAIL: TestSeam/L2 (0.05s)
+    --- PASS: TestSeam/L3 (0.03s)
+    --- PASS: TestSeam/shift (0.00s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/ragclient	0.646s
+FAIL

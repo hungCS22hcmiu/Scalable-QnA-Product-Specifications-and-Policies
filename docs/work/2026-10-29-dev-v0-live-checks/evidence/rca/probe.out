@@ -1,0 +1,42 @@
+pressure: 1
+=== RUN   TestRCAProbe
+rag.server listening on 127.0.0.1:50054 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+    rca_probe_test.go:58: SEAM L1 stable=true ids=[product-laptops-b07l5mpbs7#chunk-3 product-electronics-b00g3kytjo#chunk-6 product-phones-b07s471fs4#chunk-3 product-electronics-b01c9cyh1e#chunk-1 product-laptops-b06zzd3tvw#chunk-2]
+    rca_probe_test.go:63: SEAM L2 product-electronics-b00awkbz2a spliced_at_0=true ids=[product-electronics-b00awkbz2a#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-electronics-b00j5l0fmi spliced_at_0=true ids=[product-electronics-b00j5l0fmi#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-electronics-b07qnzvw41 spliced_at_0=true ids=[product-electronics-b07qnzvw41#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-electronics-b08857zhy4 spliced_at_0=true ids=[product-electronics-b08857zhy4#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b000as7sy8 spliced_at_0=true ids=[product-furniture-b000as7sy8#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b001e4w9zk spliced_at_0=true ids=[product-furniture-b001e4w9zk#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b0034jxwwc spliced_at_0=true ids=[product-furniture-b0034jxwwc#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b003rb9cy4 spliced_at_0=true ids=[product-furniture-b003rb9cy4#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b00595y8ay spliced_at_0=true ids=[product-furniture-b00595y8ay#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b0080hbhd4 spliced_at_0=true ids=[product-furniture-b0080hbhd4#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b009twirsc spliced_at_0=true ids=[product-furniture-b009twirsc#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b00a89kol8 spliced_at_0=true ids=[product-furniture-b00a89kol8#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b017v2il96 spliced_at_0=true ids=[product-furniture-b017v2il96#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b01aystw6k spliced_at_0=true ids=[product-furniture-b01aystw6k#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b01bg09rbu spliced_at_0=true ids=[product-furniture-b01bg09rbu#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b01n45tmg8 spliced_at_0=true ids=[product-furniture-b01n45tmg8#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-furniture-b0725jxs9v spliced_at_0=true ids=[product-furniture-b0725jxs9v#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-laptops-b01jgw5w1y spliced_at_0=true ids=[product-laptops-b01jgw5w1y#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-laptops-b07hzk7d2s spliced_at_0=true ids=[product-laptops-b07hzk7d2s#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-laptops-b07k238ls2 spliced_at_0=true ids=[product-laptops-b07k238ls2#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-laptops-b07wgqwnlf spliced_at_0=true ids=[product-laptops-b07wgqwnlf#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-phones-b00o3df9ow spliced_at_0=true ids=[product-phones-b00o3df9ow#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-phones-b01j6ms6bc spliced_at_0=true ids=[product-phones-b01j6ms6bc#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-phones-b01lz4y41m spliced_at_0=true ids=[product-phones-b01lz4y41m#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-phones-b06x928n4g spliced_at_0=true ids=[product-phones-b06x928n4g#chunk-0]
+    rca_probe_test.go:63: SEAM L2 product-phones-b075qmrlmy spliced_at_0=true ids=[product-phones-b075qmrlmy#chunk-0]
+    rca_probe_test.go:66: SEAM L3 ids=[policy-return-furniture-opened#chunk-0 policy-return-furniture-opened#chunk-1 policy-return-furniture-unopened#chunk-1 policy-return-phones-opened#chunk-0 policy-return-furniture-unopened#chunk-0]
+    rca_probe_test.go:72: SUPPORT answer sha12=197de3fd39ab
+    rca_probe_test.go:79: SUPPORT paraphrase ids=[product-electronics-b07wnp64zn#chunk-0 policy-return-electronics#chunk-0 policy-return-phones-opened#chunk-0] scored=true S_lex=0.9545 tokens=22 refuses=false
+    rca_probe_test.go:81: SUPPORT paraphrase sha12 product-electronics-b07wnp64zn#chunk-0 = 83620a1dfec3
+    rca_probe_test.go:81: SUPPORT paraphrase sha12 policy-return-electronics#chunk-0 = 9a28b8462d8e
+    rca_probe_test.go:81: SUPPORT paraphrase sha12 policy-return-phones-opened#chunk-0 = 7cda127b39db
+    rca_probe_test.go:79: SUPPORT warranty ids=[product-electronics-b07wnp64zn#chunk-0 policy-warranty-electronics#chunk-0] scored=true S_lex=0.4091 tokens=22 refuses=true
+    rca_probe_test.go:81: SUPPORT warranty sha12 product-electronics-b07wnp64zn#chunk-0 = 83620a1dfec3
+    rca_probe_test.go:81: SUPPORT warranty sha12 policy-warranty-electronics#chunk-0 = 7d2a986e2099
+--- PASS: TestRCAProbe (1.44s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/ragclient	1.928s

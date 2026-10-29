@@ -1,0 +1,6 @@
+=== RUN   TestSeam
+    seam_live_test.go:126: pin absent: oracle: no text at corpus::product-absent-00#chunk-0 -- this check is pinned to the v1 corpus; was the corpus switched?
+--- FAIL: TestSeam (0.01s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/ragclient	0.388s
+FAIL

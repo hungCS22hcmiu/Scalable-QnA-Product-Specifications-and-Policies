@@ -1,0 +1,84 @@
+package ragclient_test
+
+// RCA probe (2026-10-29, task 2026-10-29-dev-v0-live-checks). NOT part of the repo's tests: it is
+// compiled into ragclient_test only through `go test -overlay`, so no file in gateway/ is edited.
+// It uses the package's own helpers (checkAligned, sha12, corpusKeyPrefix) and reuse.SupportLexical,
+// so the numbers are the ones TestSeam / TestSupportLive would compute.
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/hung/thesis/gateway/internal/ragclient"
+	"github.com/hung/thesis/gateway/internal/reuse"
+	"github.com/redis/go-redis/v9"
+)
+
+func TestRCAProbe(t *testing.T) {
+	addr := os.Getenv("RAG_SEAM_ADDR")
+	if addr == "" {
+		t.Fatal("RAG_SEAM_ADDR unset")
+	}
+	opt, _ := redis.ParseURL("redis://localhost:6379/0")
+	rdb := redis.NewClient(opt)
+	defer rdb.Close()
+	oracle := func(id string) (string, error) {
+		txt, err := rdb.HGet(context.Background(), corpusKeyPrefix+id, "text").Result()
+		if errors.Is(err, redis.Nil) {
+			return "", fmt.Errorf("oracle: no text at %s%s", corpusKeyPrefix, id)
+		}
+		return txt, err
+	}
+	rag, err := ragclient.New(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rag.Close()
+	ret := func(q, pid string) *ragclient.RetrieveResult {
+		ctx, cancel := context.WithTimeout(context.Background(), seamDeadline)
+		defer cancel()
+		r, err := rag.Retrieve(ctx, q, 0, pid)
+		if err != nil {
+			t.Fatalf("Retrieve(%q,%q): %v", q, pid, err)
+		}
+		if err := checkAligned(r.ChunkIDs, r.Texts, oracle); err != nil {
+			t.Logf("ALIGN FAIL %q %q: %v", q, pid, err)
+		}
+		return r
+	}
+
+	// --- seam L1 / L2 on v1 ---
+	pq := "what is the power rating of this item exactly right now"
+	l1a, l1b := ret(pq, ""), ret(pq, "")
+	t.Logf("SEAM L1 stable=%v ids=%v", slices.Equal(l1a.ChunkIDs, l1b.ChunkIDs), l1a.ChunkIDs)
+	for _, d := range strings.Fields(os.Getenv("RCA_SINGLE")) {
+		c := d + "#chunk-0"
+		r := ret(pq, d)
+		ok := !slices.Contains(l1a.ChunkIDs, c) && len(r.ChunkIDs) > 0 && r.ChunkIDs[0] == c
+		t.Logf("SEAM L2 %s spliced_at_0=%v ids=%v", d, ok, r.ChunkIDs)
+	}
+	l3 := ret("can I return an opened item", "")
+	t.Logf("SEAM L3 ids=%v", l3.ChunkIDs)
+
+	// --- support on v1 (pre-registered; see preregistered-candidates.txt) ---
+	prod := "product-electronics-b07wnp64zn"
+	ans := "The REETEC wireless headphones have a 500 mAh battery with up to 20 hours of playing time. " +
+		"Headphones can be sent back within 30 days of the day you received them for a full refund or an exchange."
+	t.Logf("SUPPORT answer sha12=%s", sha12(ans))
+	for _, c := range []struct{ name, q string }{
+		{"paraphrase", "How long is the battery on the REETEC wireless headphones, and how many days do I have to return them?"},
+		{"warranty", "How long is the battery on the REETEC wireless headphones, and what does the warranty cover?"},
+	} {
+		r := ret(c.q, prod)
+		v := reuse.SupportLexical(ans, r.Texts, r.ChunkIDs)
+		t.Logf("SUPPORT %s ids=%v scored=%v S_lex=%.4f tokens=%d refuses=%v", c.name, r.ChunkIDs, v.Scored, v.Score, v.ContentTokenCount, v.Refuses())
+		for i, id := range r.ChunkIDs {
+			t.Logf("SUPPORT %s sha12 %s = %s", c.name, id, sha12(r.Texts[i]))
+		}
+	}
+}

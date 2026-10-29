@@ -1,0 +1,14 @@
+=== RUN   TestSupportLive
+=== RUN   TestSupportLive/fidelity
+=== RUN   TestSupportLive/paraphrase-query
+    support_live_test.go:223: live chunk IDs [product-electronics-b07wnp64zn#chunk-0 policy-return-electronics#chunk-0 policy-return-phones-opened#chunk-0]
+    support_live_test.go:224: S_lex = 0.9545 over 22 content tokens: the gate ADMITS (tau_s = 0.60) -- logged, not asserted
+=== RUN   TestSupportLive/warranty-query
+    support_live_test.go:223: live chunk IDs [product-electronics-b07wnp64zn#chunk-0 policy-warranty-electronics#chunk-0]
+    support_live_test.go:224: S_lex = 0.4091 over 22 content tokens: the gate REFUSES (tau_s = 0.60) -- logged, not asserted
+--- PASS: TestSupportLive (0.17s)
+    --- PASS: TestSupportLive/fidelity (0.00s)
+    --- PASS: TestSupportLive/paraphrase-query (0.14s)
+    --- PASS: TestSupportLive/warranty-query (0.03s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/ragclient	0.614s
