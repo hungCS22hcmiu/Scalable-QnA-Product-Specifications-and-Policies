@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.23 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-29
+**Status:** Draft v0.24 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-30
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -195,7 +195,7 @@ Success response (`200 application/json`) — the six fields the debug UI needs 
   "cache": "TIER2_HIT",                    // TIER1_HIT | TIER2_HIT | MISS | BYPASS
   "latency_ms": 48,
   "similarity": 0.93,                       // nearest Tier-2 entry in the query's namespace; null when none was judged (v0.10)
-  "source_overlap": 0.80,                   // containment of that entry (Contribution 1); null unless it cleared τ (v0.10)
+  "source_overlap": 0.80,                   // containment of that entry, a logged counterfactual (ADR-019); null unless it cleared τ (v0.10)
   "sources": ["policy-returns#chunk-2"],    // provenance tags (Contribution 2); [] on BYPASS
   "model_used": "qwen3.5-2b",                // constant for now (routing rejected)
   "request_id": "01J..."                    // extension: correlation id for tracing/eval
@@ -208,7 +208,7 @@ Success response (`200 application/json`) — the six fields the debug UI needs 
 | `cache` | enum | `TIER1_HIT` \| `TIER2_HIT` \| `MISS` \| `BYPASS`. Drives the debug-UI badge colors (debug UI §3). |
 | `latency_ms` | int | Gateway-internal wall time; the eval also records off-box end-to-end separately (an evaluation rule, not an error path). |
 | `similarity` | float\|null | Cosine similarity of the nearest Tier-2 entry **within the query's namespace** (v0.10, ADR-004). `null` on TIER1_HIT and BYPASS, when the embedding or retrieval failed, when the retrieval returned **no chunks** (v0.13: no search is run), and on a MISS whose namespace holds no entry — a lookalike in another namespace is never searched, so it reports no similarity. |
-| `source_overlap` | float\|null | Fraction of the candidate entry's `source_chunk_ids` also returned by retrieval on the incoming query — the rule's score, compared against θ. `null` unless retrieval succeeded and a same-namespace candidate cleared τ (v0.10). While θ is outside the served decision, a candidate that cleared τ is served **unless the support gate refuses it** (v0.13; with the gate on, v0.14: with the gate off it is served), so a MISS can carry an overlap: the cause is `SUPPORT` or `NOT_SCORED` in the evaluation log (§H). A candidate below τ never carries one. |
+| `source_overlap` | float\|null | Fraction of the candidate entry's `source_chunk_ids` also returned by retrieval on the incoming query — the containment **counterfactual**: θ is not served and not swept (**ADR-019**, v0.24), so no decision reads it. `null` unless retrieval succeeded and a same-namespace candidate cleared τ (v0.10). While θ is outside the served decision, a candidate that cleared τ is served **unless the support gate refuses it** (v0.13; with the gate on, v0.14: with the gate off it is served), so a MISS can carry an overlap: the cause is `SUPPORT` or `NOT_SCORED` in the evaluation log (§H). A candidate below τ never carries one. |
 | `sources` | string[] | Chunk IDs (§C) that grounded the answer. On a MISS that followed a support refusal these are the **new** entry's, never the refused candidate's (v0.13). |
 | `model_used` | string\|null | Constant (`qwen3.5-2b`) — retained for forward compatibility with routing (future work). |
 | `request_id` | string | Optional; ULID for joining logs to eval records. |
@@ -783,10 +783,11 @@ Field notes:
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.23** (2026-10-29).
+**Current version: v0.24** (2026-10-30).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.24** | 2026-10-30 | **θ is a logged counterfactual, not part of the served rule** (**ADR-019**, settles F-K). §A's `source_overlap` is described as the containment counterfactual; the served Tier-2 rule is similarity ∧ namespace ∧ support. No wire shape, `.proto`, §B–§H or Redis schema change, and no code change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning. Configuration 3 is defined as similarity alone; its code path is item 6.0 |
 | **v0.23** | 2026-10-29 | **The Tier-1 key includes `product_id`** (**ADR-018**). §D: Tier 1 is keyed by `sha256(normalized_query "\x00" product_id)`; an empty `product_id` is its own partition. §A: `product_id` is part of the Tier-1 key for every request that carries it, in either lane, and still not otherwise part of the reuse decision. The v0.6 note that the rejection of `product_id` as a cache key "stands untouched" is annotated, not deleted. This records a change built on 2026-09-09 without a decision; no code changes here. No wire shape, `.proto`, §B, §C, §E or §H change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning. On the frozen `v1` workload no normalized question is shared across products (0 of 622 / 0 of 652), so no hit changes |
 | **v0.22** | 2026-10-29 | **The model runner's prompt cache and context checkpoints are frozen off** (**ADR-017**, bugfix `2026-10-29-ollama-prompt-cache`). The frozen study-wide list gains `LLAMA_ARG_CACHE_RAM=0` and `LLAMA_ARG_CTX_CHECKPOINTS=0`, which `make ollama-env` sets in Ollama.app's environment and `make env-check` reads from the live runner. No wire shape, `.proto`, §A–§H or Redis schema change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. Before this, Ollama 0.33.2 ran the model with llama-server's prompt cache on at 8192 MiB, which kept a copy of every prompt in RAM (the runner's `footprint` grew from 3,066 to 7,088 MB over 50 prompts); any latency or memory reading in item 4.4's live runs is void, and `no-cache` generations now pay full prefill |
 | **v0.21** | 2026-10-29 | **An edit reaches the gateway** (item 4.4). §E gains `POST /invalidate` (loopback only; the reply comes after the whole purge, with `purged`, `failed` and `errors`; 200, 400, 403, 405, 500, 503), the edit order as `rag.edit` runs it (embed, write `text` and `vector`, advance the epoch, post), and `InvalidateWait`. Purge step 4 changes from `DEL dep:{chunk_id}` to `SREM` of the purged entries, so an entry whose purge failed stays findable. Run rule 11 names `make cache-reset` for all five prefixes, replacing "until Phase 4". No `.proto`, §A, §B, §C, §D or §H change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. Before this, `Invalidate` returned before the Redis purge ran, nothing outside the tests called it, and a purge error on one entry still deleted `dep:{chunk_id}` |

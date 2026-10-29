@@ -58,6 +58,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-016 | The MIXED lane is one pinned band, [0.20, 0.60), run as an on/off arm and not swept | in force (binds forward — item 4.5 adds the arm field to the record; no run has taken either arm) | none — no runs yet; a log from before the arm field reads as MIXED off |
 | ADR-017 | The model runner keeps no prompt cache and no context checkpoints; envelope memory is read with `footprint` | in force (amends ADR-003's envelope; `make ollama-env` runs after every reboot; the batch size is open, §F3) | no `run_id`; item 4.4's live runs (`docs/work/2026-10-29-update-set/evidence/live1`–`live3`) ran with the cache on: their completeness and precision stand, any latency or memory reading in them is void |
 | ADR-018 | The Tier-1 key includes `product_id` | in force (records a change built on 2026-09-09 without a decision; the code comments in `key.go` and `types.go` now cite it) | none — no runs yet; every log since 2026-09-09 already used this key, and on the frozen `v1` workload it changes no hit |
+| ADR-019 | The served Tier-2 rule is similarity ∧ namespace ∧ support; θ is a logged counterfactual; configuration 3 is similarity alone | in force (settles F-K; the restated C1 needs the advisor's view; configuration selection is built by item 6.0) | none — no runs yet; every log since this repository's base commit (2026-09-21) already served the namespace rule, and no `config_id` in any log selected a path |
 
 ---
 
@@ -90,7 +91,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | # | Question | Blocks |
 | :--- | :--- | :--- |
 | **F1** — ✅ **resolved by ADR-003, 2026-10-04** | Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for this model. If the permit pool bounds to a concurrency the model server never offers, every shed rate measured so far describes the harness rather than the gateway | ~~No admission-control number is citable until this resolves.~~ Resolved: one slot frozen, one permit, `make env-check` verifies the live runner. Phase 1, item 1.1 |
-| **P1** | The run-manifest schema, the frozen judge prompt, the operational metric definitions and the pre-registration record were deleted with the old protocol document and exist nowhere — not in the proposal, not in code. `experiments/k6/ask.js` still prints values "for manifest.yaml". **ADR-010:** the manifest must record `SUPPORT_GATE`, taking the arm from the records or checking that the environment and the records agree, never from the environment alone | Phases 5, 6 and 7 all produce artefacts with no defined shape |
+| **P1** | The run-manifest schema, the frozen judge prompt, the operational metric definitions and the pre-registration record were deleted with the old protocol document and exist nowhere — not in the proposal, not in code. `experiments/k6/ask.js` still prints values "for manifest.yaml". **ADR-010:** the manifest must record `SUPPORT_GATE`, taking the arm from the records or checking that the environment and the records agree, never from the environment alone | Phases 5, 6 and 7 all produce artefacts with no defined shape. **Owned by `super-plan.md` item 5.1 since 2026-10-29**, before its first artefact |
 
 ---
 
@@ -1673,3 +1674,79 @@ said so itself ("a superseding ADR is still owed before this is citable or merge
     `gateway/internal/cache/key.go` and `gateway/internal/httpapi/types.go`, which had said an ADR was owed.
 - **Invalidates:** none — no `run_id` exists. The key has included `product_id` since 2026-09-09, before any run, and on
   the frozen `v1` workload it changes no Tier-1 hit.
+
+### ADR-019 — The served Tier-2 rule is similarity ∧ namespace ∧ support; θ is a logged counterfactual; configuration 3 is similarity alone
+**Decided (scope)** · 2026-10-30 · *`gateway/internal/reuse/lane.go` (`DecideNamespace`), `httpapi/cascade.go` (the counterfactual), `reuse/cause.go`; `super-plan.md` F-K, items 6.0, 6.1 and 6.2; `Final_Proposal.md` and `CLAUDE.md` (listed, not edited); evidence `docs/work/2026-10-30-adr-019-theta-overlap/`*
+
+The served Tier-2 reuse rule is `sim(q,e) ≥ τ ∧ namespace(q) = namespace(e) ∧ support(answer(e), text(retrieve(q)))`,
+with the support gate switchable per run (ADR-010) and the MIXED lane's composite key (ADR-016). The containment
+conjunct `overlap(retrieve(q), sources(e)) ≥ θ` is **not served**. It is computed for every candidate that clears τ
+and logged as a counterfactual (`overlap_decision`, `source_overlap`), never as a serve decision, and **θ is not
+swept**. **Configuration 3**, the fixed-threshold baseline and GPTCache's decision rule, is **similarity alone**: the
+nearest Tier-2 entry overall (k = 1, `cache.Store.NearestTier2`) and τ, with no namespace, no containment and no
+support gate. Configuration 4 is the served rule in its three arms (ADR-016). This settles F-K, which had been open
+since 2026-10-04 (`super-plan.md`, "Found while closing 1.2").
+
+- **Rationale.**
+  - **The structural reason (the author, 2026-10-26).** Retrieval is scoped by `product_id` (`interfaces.md` §B
+    v0.8): it keeps one product's chunks and all policy chunks. A product has about 3.2 chunks (491 product chunks
+    over 152 products), and `top_k = 5`. So two questions about one product retrieve nearly the same chunks, and
+    their overlap is about 1 whatever is asked. Containment then cannot tell a paraphrase from a same-product trap.
+    It is the same fact as G1's failure (ADR-014), seen from the rule's side.
+  - **Measured on 2026-10-30, on the `v1` validation split** (416 pairs, pressure 2, citable: no; evidence above).
+    The overlap was computed as `rule.go` computes it, on product-scoped retrievals:
+
+    | Pairs | n | mean overlap | overlap = 1.0 | overlap ≥ 0.6 |
+    | :--- | ---: | ---: | ---: | ---: |
+    | paraphrase with its seed (should reuse) | 281 | 0.876 | 75 % | 86 % |
+    | B-within probe with its pair (should refuse) | 124 | 0.784 | 47 % | 85 % |
+    | B-cross probe with its pair (should refuse) | 11 | 0.000 | 0 % | 0 % |
+
+    No θ separates the first two rows. At θ = 0.6, containment admits 86 % of paraphrases and 85 % of B-within
+    traps. At θ = 1.0, it admits 75 % and 47 %. The B-cross traps are already separated by the namespace, because
+    the two questions are about different products.
+  - **Consistent with the earlier record.** The code comment in `reuse/lane.go` cites 2026-09-06, on `dev-v0`
+    (not citable): namespace beat containment in 4 of 4 disagreements.
+  - **Why configuration 3 is similarity alone.** Similarity within the namespace is exactly configuration 4's
+    gate-off arm, so a configuration 3 "with namespace" would duplicate an arm. Similarity alone is also the state
+    of practice that the baseline exists to represent. The ladder 3 → 4 (gate off) → 4 (gate on) then reads each
+    part directly: namespace's share on B-cross, and the support gate's share on B-within.
+- **Alternatives.**
+  - **Serve θ, making the rule four conjuncts as the proposal and `CLAUDE.md` state.** Rejected on the
+    measurement above: at every θ it either admits most same-product traps or refuses many paraphrases, so it
+    adds a sweep dimension with no power to separate.
+  - **Unscoped retrieval, so that containment could see differences.** Rejected: product scoping fixed a measured
+    cross-product grounding failure (`interfaces.md` §B v0.8). Reverting it trades a real failure for a parameter
+    that can be swept.
+  - **Configuration 3 with the namespace.** Rejected: that is configuration 4 with the gate off, and it would
+    fold the namespace's B-cross gain into the baseline.
+- **Consequences.**
+  - **C1 is restated around the served rule.** The claim becomes: similarity within a namespace partition,
+    plus a deterministic answer–evidence support gate, sustains more reuse than the best fixed similarity
+    threshold at the stated false-hit budget. Containment is not part of the served claim.
+    - On B-cross, the gain comes from the namespace partition, by construction: different products never share
+      a namespace.
+    - On B-within, only the support gate can refuse a trap, and the gate is adopted from prior work, not claimed.
+    - So what is new is the combination and its evaluation: the frontier at a stated budget, measured on a
+      governed platform. **This needs the advisor's view before Phase 6.**
+  - **Stale text, listed and not edited** (the author's files):
+    - `Final_Proposal.md`: the claim's "source-containment rule" wording in §1 and §2, and configuration 4's
+      definition in the §9.2 table (`sim ≥ τ ∧ namespace ∧ overlap ≥ θ`);
+    - `CLAUDE.md`: "the reuse decision is four conjuncts", and "θ and τ are swept".
+  - **θ is not swept.** Item 6.1's pre-registration covers τ's granularity and the selection objective. The lane
+    band is pinned by ADR-016, and θ's range is no longer needed.
+  - **The overlap stays logged at decision time** (`interfaces.md` §H). The write-up reports its distribution by
+    stratum as the evidence for this decision, using the same method on the test split. `CauseContainment` stays
+    unreturned. The metric definitions (P1, item 5.1) must say that `cache` and `cause` are the served decision
+    and that the overlap fields are counterfactual.
+  - **Configuration selection does not exist in code.**
+    - `CONFIG_ID` only labels records.
+    - Configuration 3 has had no code path since ADR-004.
+    - Configurations 1 and 2 need their paths too.
+    - The static-cache arm and the 3 ⋈ 4 (gate off) join have no item.
+
+    **New `super-plan.md` item 6.0 owns all of these**, before 6.1 and 6.2. Item 7.1's ladder needs
+    configurations 1, 2 and 5.
+- **Invalidates:** none — no `run_id` exists. Every log since this repository's base commit (2026-09-21, the earliest
+  history that can be checked) already served the namespace rule, and no `config_id` in any log selected a path: it
+  was a label only.

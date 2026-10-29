@@ -1,0 +1,416 @@
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b081d7c6cd-283863-para-close", "e": "q-product-laptops-b081d7c6cd-283863-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-international:term-product-phones-b01m0vogs8", "e": "q-policy-warranty-phones-domestic:term-product-phones-b01m0vogs8", "same_product": true, "overlap": 0.6666666666666666}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00wb09j86-319721-para-far", "e": "q-product-phones-b00wb09j86-319721-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07b4wnpmf-123770-para-close", "e": "q-product-electronics-b07b4wnpmf-123770-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b01aystw6k-28884-look", "e": "q-product-furniture-b01aystw6k-28884-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b00fhxi5lq-7037-para-close", "e": "q-product-furniture-b00fhxi5lq-7037-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07ck7kb95-394147-para-close", "e": "q-product-phones-b07ck7kb95-394147-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0761m2m17-6621-para-far", "e": "q-product-furniture-b0761m2m17-6621-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-unopened:except-product-furniture-b01n5nzrxo", "e": "q-policy-return-furniture-unopened:except-product-furniture-b000as7sy8", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b01gu9efvy-63957-para-far", "e": "q-product-electronics-b01gu9efvy-63957-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b01bukh344", "e": "q-policy-return-phones-opened:term:fee-product-phones-b01bukh344", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b009twirsc-76213-para-far", "e": "q-product-furniture-b009twirsc-76213-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07krmvqy2-321458-para-close", "e": "q-product-phones-b07krmvqy2-321458-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b017v2il96-88168-look", "e": "q-product-furniture-b017v2il96-88168-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00ek5fah4-2211-para-close", "e": "q-product-phones-b00ek5fah4-2211-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07jgrd2qr-55020-para-close", "e": "q-product-electronics-b07jgrd2qr-55020-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-furniture-b06x956grh-x-product-furniture-b0725jxs9v-37276", "e": "q-product-furniture-b0725jxs9v-37276-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07wgqwnlf-46499-u-para-close", "e": "q-product-laptops-b07wgqwnlf-46499-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b08857zhy4-113522-look", "e": "q-product-electronics-b08857zhy4-113522-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-opened:start-product-furniture-b00m339l98", "e": "q-policy-return-furniture-opened:start-product-furniture-b003rb9cy4", "same_product": false, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b017v2il96-88168-para-far", "e": "q-product-furniture-b017v2il96-88168-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b075qmrlmy", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b075qmrlmy", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07bknwvrt-2413-para-far", "e": "q-product-laptops-b07bknwvrt-2413-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b075qmrlmy", "e": "q-policy-return-phones-opened:term:fee-product-phones-b075qmrlmy", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:what-product-phones-b00ek5fah4", "e": "q-policy-return-phones-opened:what-product-phones-b004b9qnjs", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b07b4wnpmf-123783-look", "e": "q-product-electronics-b07b4wnpmf-123783-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00i16k4kg-152558-para-close", "e": "q-product-laptops-b00i16k4kg-152558-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-phones-domestic:other-product-phones-b004b9qnjs", "e": "q-policy-warranty-phones-domestic:other-product-phones-b077qk7nmx", "same_product": false, "overlap": 0.2}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b009dhb2h6-468251-para-close", "e": "q-product-phones-b009dhb2h6-468251-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b078yxhdxz-54119-para-far", "e": "q-product-phones-b078yxhdxz-54119-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b019wsco90-193973-natural", "e": "q-product-laptops-b019wsco90-193958-natural", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b004gmsh80-185939-para-far", "e": "q-product-laptops-b004gmsh80-185939-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07bknwvrt-2413-para-close", "e": "q-product-laptops-b07bknwvrt-2413-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-electronics:term-product-electronics-b07b63r768", "e": "q-policy-return-electronics:term-product-electronics-b07b63r768", "same_product": true, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b009dhb2h6-468242-para-close", "e": "q-product-phones-b009dhb2h6-468242-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b06zzd3tvw-95384-para-far", "e": "q-product-laptops-b06zzd3tvw-95384-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b07jgrd2qr-55020-look", "e": "q-product-electronics-b07jgrd2qr-55020-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07ck7kb95-394178-u-para-close", "e": "q-product-phones-b07ck7kb95-394178-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b000as7sy8-9732-para-far", "e": "q-product-furniture-b000as7sy8-9732-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00rdti6j8-443274-para-close", "e": "q-product-phones-b00rdti6j8-443274-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b00h54qkda", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b00h54qkda", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07s5b2dhg-268782-para-far", "e": "q-product-laptops-b07s5b2dhg-268782-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b00o3df9ow", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b00o3df9ow", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b06zzd3tvw-95364-para-far", "e": "q-product-laptops-b06zzd3tvw-95364-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-domestic:term-product-phones-b00f3j3ao6", "e": "q-policy-return-phones-unopened:term-product-phones-b00f3j3ao6", "same_product": true, "overlap": 0.2}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b078yxhdxz-54111-para-far", "e": "q-product-phones-b078yxhdxz-54111-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00ek5fah4-2179-u-para-close", "e": "q-product-phones-b00ek5fah4-2179-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b01m6ebe0i", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b01m6ebe0i", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01lz4y41m-23977-para-far", "e": "q-product-phones-b01lz4y41m-23977-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-phones-b077qk7nmx-x-product-phones-b072v2bnm6-218799", "e": "q-product-phones-b072v2bnm6-218799-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-electronics:other-product-electronics-b00lgzvlmo", "e": "q-policy-warranty-electronics:other-product-electronics-b072pcxs5t", "same_product": false, "overlap": 0.6}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w3", "e": "q-policy-return-laptops-renewed:term:dept-w3", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b078yxhdxz-54111-para-close", "e": "q-product-phones-b078yxhdxz-54111-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:term-product-laptops-b00ep09b4m", "e": "q-policy-warranty-laptops:term-product-laptops-b019wsco90", "same_product": false, "overlap": 0.2}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b078yxhdxz-54105-natural", "e": "q-product-phones-b078yxhdxz-54127-natural", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b072pcxs5t-65008-para-close", "e": "q-product-electronics-b072pcxs5t-65008-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07vsr8tx5-116216-para-far", "e": "q-product-electronics-b07vsr8tx5-116216-seed", "same_product": true, "overlap": 0.75}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:except-product-laptops-b07jx12scl", "e": "q-policy-warranty-laptops:except-product-laptops-b07c9lc13c", "same_product": false, "overlap": 0.25}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w7", "e": "q-policy-return-laptops-renewed:term:dept-w7", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01bukh344-255511-para-far", "e": "q-product-phones-b01bukh344-255511-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b08857zhy4-113522-para-close", "e": "q-product-electronics-b08857zhy4-113522-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b009dhb2h6", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b009dhb2h6", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b072lbj9w6-10345-para-far", "e": "q-product-furniture-b072lbj9w6-10345-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:start-product-laptops-b00ep09b4m", "e": "q-policy-warranty-laptops:start-product-laptops-b01is33olc", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00rdti6j8-443274-para-far", "e": "q-product-phones-b00rdti6j8-443274-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w4", "e": "q-policy-return-laptops-renewed:term:dept-w4", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01n8tera1-264276-para-far", "e": "q-product-phones-b01n8tera1-264276-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b016bws5a2", "e": "q-policy-return-phones-opened:term:fee-product-phones-b016bws5a2", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b00awkbz2a-117099-para-close", "e": "q-product-electronics-b00awkbz2a-117099-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b06zzd3tvw-95374-u-para-close", "e": "q-product-laptops-b06zzd3tvw-95374-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b0725jxs9v-37276-look", "e": "q-product-furniture-b0725jxs9v-37276-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:except-product-phones-b087fx79pj", "e": "q-policy-return-phones-unopened:except-product-phones-b01j6ms6bc", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b08857zhy4-113527-para-far", "e": "q-product-electronics-b08857zhy4-113527-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w1", "e": "q-policy-return-laptops-new:term:dept-w1", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07krmvqy2-321458-para-far", "e": "q-product-phones-b07krmvqy2-321458-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01duxkc9c-91034-para-close", "e": "q-product-laptops-b01duxkc9c-91034-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b00pjzudh6-206490-look", "e": "q-product-laptops-b00pjzudh6-206490-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b019wsco90-193942-para-close", "e": "q-product-laptops-b019wsco90-193942-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b01lz4y41m", "e": "q-policy-return-phones-opened:term:fee-product-phones-b01lz4y41m", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b06x956grh-57818-para-far", "e": "q-product-furniture-b06x956grh-57818-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:except-product-phones-b07v321mqn", "e": "q-policy-return-phones-opened:except-product-phones-b07dpvx3q1", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07b4wnpmf-123783-para-far", "e": "q-product-electronics-b07b4wnpmf-123783-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b07dxvcy33-130544-look", "e": "q-product-electronics-b07dxvcy33-130544-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07wgqwnlf-46508-u-para-close", "e": "q-product-laptops-b07wgqwnlf-46508-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00mdn3770-232688-para-close", "e": "q-product-laptops-b00mdn3770-232688-seed", "same_product": true, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:except-product-electronics-b0836kqc7x", "e": "q-policy-return-electronics:except-product-electronics-b07ssbccbr", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01n45tmg8-42829-para-close", "e": "q-product-furniture-b01n45tmg8-42829-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w5", "e": "q-policy-return-laptops-renewed:term:dept-w5", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b003rb9cy4-19215-para-close", "e": "q-product-furniture-b003rb9cy4-19215-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-phones-b07p1bknhp-x-product-phones-b078yxhdxz-54111", "e": "q-product-phones-b078yxhdxz-54111-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01bukh344-255542-para-far", "e": "q-product-phones-b01bukh344-255542-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b01m6ebe0i", "e": "q-policy-return-phones-opened:term:fee-product-phones-b01m6ebe0i", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b072v2bnm6-218783-u-para-close", "e": "q-product-phones-b072v2bnm6-218783-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:term-product-electronics-b00dwgb6cu", "e": "q-policy-return-electronics:term-product-electronics-b07b63r768", "same_product": false, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01jgw5w1y-131215-para-far", "e": "q-product-laptops-b01jgw5w1y-131215-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01jgw5w1y-131218-para-close", "e": "q-product-laptops-b01jgw5w1y-131218-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b00f3j3ao6", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b00f3j3ao6", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01aystw6k-28884-para-far", "e": "q-product-furniture-b01aystw6k-28884-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-opened:remedy-product-furniture-b06wgp41c1", "e": "q-policy-return-furniture-opened:remedy-product-furniture-b071vtgtp9", "same_product": false, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:other-product-phones-b00h54qkda", "e": "q-policy-return-phones-unopened:other-product-phones-b00o3df9ow", "same_product": false, "overlap": 0.4}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b00b5081mi", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b00b5081mi", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b081d7c6cd-283878-para-far", "e": "q-product-laptops-b081d7c6cd-283878-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b07hzk7d2s-180566-look", "e": "q-product-laptops-b07hzk7d2s-180566-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07b4wnpmf-123783-para-close", "e": "q-product-electronics-b07b4wnpmf-123783-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-laptops-new:start-product-laptops-b07hzk7d2s", "e": "q-policy-return-laptops-new:start-product-laptops-b07bknwvrt", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b0743p5dj2", "e": "q-policy-return-phones-opened:term:fee-product-phones-b0743p5dj2", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07s5b2dhg-268776-para-close", "e": "q-product-laptops-b07s5b2dhg-268776-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01doa6gak-285974-para-far", "e": "q-product-laptops-b01doa6gak-285974-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0761m2m17-6621-para-close", "e": "q-product-furniture-b0761m2m17-6621-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-domestic:term-product-phones-b00wb09j86", "e": "q-policy-return-phones-unopened:term-product-phones-b00wb09j86", "same_product": true, "overlap": 0.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b06wgp41c1-51200-look", "e": "q-product-furniture-b06wgp41c1-51200-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01aystw6k-28884-para-close", "e": "q-product-furniture-b01aystw6k-28884-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07mrcb6mg-169026-para-far", "e": "q-product-laptops-b07mrcb6mg-169026-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01jgw5w1y-131215-para-close", "e": "q-product-laptops-b01jgw5w1y-131215-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b072v2bnm6", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b072v2bnm6", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07mrcb6mg-169035-para-close", "e": "q-product-laptops-b07mrcb6mg-169035-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b003rb9cy4-19226-para-far", "e": "q-product-furniture-b003rb9cy4-19226-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:term-product-phones-b00f3j3ao6", "e": "q-policy-return-phones-unopened:term-product-phones-b00wb09j86", "same_product": false, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07bknwvrt-2409-para-far", "e": "q-product-laptops-b07bknwvrt-2409-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w2", "e": "q-policy-return-laptops-renewed:term:dept-w2", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b009dhb2h6-468251-para-far", "e": "q-product-phones-b009dhb2h6-468251-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b07s5b2dhg-268776-look", "e": "q-product-laptops-b07s5b2dhg-268776-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b08857zhy4-113522-para-far", "e": "q-product-electronics-b08857zhy4-113522-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07p1bknhp-305775-para-far", "e": "q-product-phones-b07p1bknhp-305775-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b01jgw5w1y-131218-look", "e": "q-product-laptops-b01jgw5w1y-131218-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-phones-b01n8tera1-x-product-phones-b01bukh344-255511", "e": "q-product-phones-b01bukh344-255511-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0034jxwwc-53197-u-para-close", "e": "q-product-furniture-b0034jxwwc-53197-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:other-product-phones-b00f3j3ao6", "e": "q-policy-return-phones-unopened:other-product-phones-b00o3df9ow", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b004gmsh80-56492-para-close", "e": "q-product-laptops-b004gmsh80-56492-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b00wb09j86-319721-look", "e": "q-product-phones-b00wb09j86-319721-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07bknwvrt-2409-para-close", "e": "q-product-laptops-b07bknwvrt-2409-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07mrcb6mg-169026-para-close", "e": "q-product-laptops-b07mrcb6mg-169026-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b072pcxs5t-65007-look", "e": "q-product-electronics-b072pcxs5t-65007-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01n8tera1-264121-para-far", "e": "q-product-phones-b01n8tera1-264121-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07hczv3zg-44703-para-far", "e": "q-product-electronics-b07hczv3zg-44703-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00pjzudh6-206490-para-far", "e": "q-product-laptops-b00pjzudh6-206490-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b07dpvx3q1", "e": "q-policy-return-phones-opened:term:fee-product-phones-b07dpvx3q1", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:term-product-phones-b008om1nu2", "e": "q-policy-return-phones-opened:term-product-phones-b00b5081mi", "same_product": false, "overlap": 0.2}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07xqd98hz-135376-u-para-close", "e": "q-product-electronics-b07xqd98hz-135376-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b07p1bknhp-305775-look", "e": "q-product-phones-b07p1bknhp-305775-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b082w6rv6w", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b082w6rv6w", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-opened:start-product-furniture-b072bn36b3", "e": "q-policy-return-furniture-opened:start-product-furniture-b003rb9cy4", "same_product": false, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:what-product-phones-b016bws5a2", "e": "q-policy-return-phones-unopened:what-product-phones-b087fx79pj", "same_product": false, "overlap": 0.6}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b07jfbvvkg-160462-look", "e": "q-product-laptops-b07jfbvvkg-160462-seed", "same_product": true, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07t6gzpqj-16992-para-close", "e": "q-product-furniture-b07t6gzpqj-16992-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01duxkc9c-91034-para-far", "e": "q-product-laptops-b01duxkc9c-91034-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:start-product-electronics-b01id5q746", "e": "q-policy-return-electronics:start-product-electronics-b07w68vfgl", "same_product": false, "overlap": 0.4}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b00ek5fah4", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b00ek5fah4", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:except-product-laptops-b01doa6gak", "e": "q-policy-warranty-laptops:except-product-laptops-b07c9lc13c", "same_product": false, "overlap": 0.5}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b00mdn3770-232707-look", "e": "q-product-laptops-b00mdn3770-232707-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-furniture:what-product-furniture-b081vfggrk", "e": "q-policy-warranty-furniture:what-product-furniture-b001e4w9zk", "same_product": false, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01n45tmg8-42820-para-far", "e": "q-product-furniture-b01n45tmg8-42820-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-international:term-product-phones-b00f3j3ao6", "e": "q-policy-warranty-phones-domestic:term-product-phones-b00f3j3ao6", "same_product": true, "overlap": 0.3333333333333333}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07dxvcy33-130542-u-para-close", "e": "q-product-electronics-b07dxvcy33-130542-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0725jxs9v-37262-para-far", "e": "q-product-furniture-b0725jxs9v-37262-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:other-product-phones-b075qmrlmy", "e": "q-policy-return-phones-opened:other-product-phones-b00rdti6j8", "same_product": false, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07zq2zxjd-13699-para-far", "e": "q-product-furniture-b07zq2zxjd-13699-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b009twirsc-76195-look", "e": "q-product-furniture-b009twirsc-76195-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b00fhxi5lq-7037-para-far", "e": "q-product-furniture-b00fhxi5lq-7037-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w2", "e": "q-policy-return-laptops-new:term:dept-w2", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07mrcb6mg-169035-para-far", "e": "q-product-laptops-b07mrcb6mg-169035-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b06wgp41c1-51200-para-close", "e": "q-product-furniture-b06wgp41c1-51200-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00mdn3770-232707-para-close", "e": "q-product-laptops-b00mdn3770-232707-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-phones-b072v2bnm6-x-product-phones-b077qk7nmx-62770", "e": "q-product-phones-b077qk7nmx-62770-seed", "same_product": false, "overlap": 0.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b08d67pqqb-11919-look", "e": "q-product-furniture-b08d67pqqb-11919-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-international:other-product-phones-b004b9qnjs", "e": "q-policy-warranty-phones-domestic:other-product-phones-b004b9qnjs", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01n8tera1-264276-para-close", "e": "q-product-phones-b01n8tera1-264276-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b081d7c6cd-283878-look", "e": "q-product-laptops-b081d7c6cd-283878-seed", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01lz4y41m-23970-u-para-close", "e": "q-product-phones-b01lz4y41m-23970-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:start-product-laptops-b07txh2ysh", "e": "q-policy-warranty-laptops:start-product-laptops-b01is33olc", "same_product": false, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0725jxs9v-37276-para-close", "e": "q-product-furniture-b0725jxs9v-37276-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b00o3df9ow", "e": "q-policy-return-phones-opened:term:fee-product-phones-b00o3df9ow", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0761m2m17-6610-para-close", "e": "q-product-furniture-b0761m2m17-6610-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b072v2bnm6-218799-look", "e": "q-product-phones-b072v2bnm6-218799-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00wb09j86-319711-para-far", "e": "q-product-phones-b00wb09j86-319711-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07hzk7d2s-180566-para-close", "e": "q-product-laptops-b07hzk7d2s-180566-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w4", "e": "q-policy-return-laptops-new:term:dept-w4", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-laptops-renewed:start-product-laptops-b07bknwvrt", "e": "q-policy-return-laptops-renewed:start-product-laptops-b00mdn3770", "same_product": false, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-opened:remedy-product-furniture-b07mgplqf1", "e": "q-policy-return-furniture-opened:remedy-product-furniture-b071vtgtp9", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b07gbsvygk-17484-look", "e": "q-product-furniture-b07gbsvygk-17484-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07p1bknhp-305761-para-far", "e": "q-product-phones-b07p1bknhp-305761-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-unopened:start-product-furniture-b071ryk3wx", "e": "q-policy-return-furniture-unopened:start-product-furniture-b07gdkcnsc", "same_product": false, "overlap": 0.6}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b07v321mqn", "e": "q-policy-return-phones-opened:term:fee-product-phones-b07v321mqn", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01doa6gak-144070-para-far", "e": "q-product-laptops-b01doa6gak-144070-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b008om1nu2-337690-para-close", "e": "q-product-phones-b008om1nu2-337690-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:except-product-phones-b075qmrlmy", "e": "q-policy-return-phones-opened:except-product-phones-b07dpvx3q1", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b00awkbz2a-117099-para-far", "e": "q-product-electronics-b00awkbz2a-117099-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b00wb09j86", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b00wb09j86", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07ck7kb95-394142-para-close", "e": "q-product-phones-b07ck7kb95-394142-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01duxkc9c-197093-para-close", "e": "q-product-laptops-b01duxkc9c-197093-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b07bknwvrt-2409-look", "e": "q-product-laptops-b07bknwvrt-2409-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07hzk7d2s-180566-para-far", "e": "q-product-laptops-b07hzk7d2s-180566-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b01lz4y41m-23977-look", "e": "q-product-phones-b01lz4y41m-23977-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b08d67pqqb-14096-para-close", "e": "q-product-furniture-b08d67pqqb-14096-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b077qk7nmx-62748-para-far", "e": "q-product-phones-b077qk7nmx-62748-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-phones-b078yxhdxz-x-product-phones-b07p1bknhp-305775", "e": "q-product-phones-b07p1bknhp-305775-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07hczv3zg-44724-para-far", "e": "q-product-electronics-b07hczv3zg-44724-seed", "same_product": true, "overlap": 0.3333333333333333}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b082w6rv6w", "e": "q-policy-return-phones-opened:term:fee-product-phones-b082w6rv6w", "same_product": true, "overlap": 0.75}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:what-product-phones-b00o3df9ow", "e": "q-policy-return-phones-opened:what-product-phones-b004b9qnjs", "same_product": false, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07x3vtl53-69745-para-close", "e": "q-product-furniture-b07x3vtl53-69745-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07s5b2dhg-268782-para-close", "e": "q-product-laptops-b07s5b2dhg-268782-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-electronics:term-product-electronics-b00dwgb6cu", "e": "q-policy-return-electronics:term-product-electronics-b00dwgb6cu", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01bukh344-255542-para-close", "e": "q-product-phones-b01bukh344-255542-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:remedy-product-electronics-b00dwgb6cu", "e": "q-policy-return-electronics:remedy-product-electronics-b07w68vfgl", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b017v2il96-88168-para-close", "e": "q-product-furniture-b017v2il96-88168-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b07mrcb6mg-169035-look", "e": "q-product-laptops-b07mrcb6mg-169035-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07krmvqy2-321462-para-close", "e": "q-product-phones-b07krmvqy2-321462-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b072v2bnm6-218799-para-close", "e": "q-product-phones-b072v2bnm6-218799-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-electronics:term-product-electronics-b07vsr8tx5", "e": "q-policy-return-electronics:term-product-electronics-b07vsr8tx5", "same_product": true, "overlap": 0.6666666666666666}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07zq2zxjd-13699-para-close", "e": "q-product-furniture-b07zq2zxjd-13699-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00pjzudh6-206490-para-close", "e": "q-product-laptops-b00pjzudh6-206490-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b0743p5dj2", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b0743p5dj2", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:other-product-laptops-b07ynhxx8d", "e": "q-policy-warranty-laptops:other-product-laptops-b06zzd3tvw", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07x3vtl53-69772-para-close", "e": "q-product-furniture-b07x3vtl53-69772-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b06wgp41c1-51196-para-close", "e": "q-product-furniture-b06wgp41c1-51196-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b00f3j3ao6", "e": "q-policy-return-phones-opened:term:fee-product-phones-b00f3j3ao6", "same_product": true, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b01duxkc9c-197093-look", "e": "q-product-laptops-b01duxkc9c-197093-seed", "same_product": true, "overlap": 0.6666666666666666}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:except-product-electronics-b00j5l0fmi", "e": "q-policy-return-electronics:except-product-electronics-b07ssbccbr", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b009dhb2h6-468242-para-far", "e": "q-product-phones-b009dhb2h6-468242-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01aystw6k-28878-para-close", "e": "q-product-furniture-b01aystw6k-28878-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b01n45tmg8-42829-look", "e": "q-product-furniture-b01n45tmg8-42829-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01lz4y41m-23977-para-close", "e": "q-product-phones-b01lz4y41m-23977-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-furniture:remedy-product-furniture-b00m339l98", "e": "q-policy-warranty-furniture:remedy-product-furniture-b072lbj9w6", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07zq2zxjd-13680-para-close", "e": "q-product-furniture-b07zq2zxjd-13680-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b00rdti6j8", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b00rdti6j8", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b072pcxs5t-65007-para-far", "e": "q-product-electronics-b072pcxs5t-65007-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b01lz4y41m", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b01lz4y41m", "same_product": true, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b01m0vogs8", "e": "q-policy-return-phones-opened:term:fee-product-phones-b01m0vogs8", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-electronics:start-product-electronics-b07ssbccbr", "e": "q-policy-warranty-electronics:start-product-electronics-b01c9cyh1e", "same_product": false, "overlap": 0.2}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07p1bknhp-305761-para-close", "e": "q-product-phones-b07p1bknhp-305761-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b0761m2m17-6610-look", "e": "q-product-furniture-b0761m2m17-6610-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-laptops-b00i16k4kg-x-product-laptops-b07hzk7d2s-180566", "e": "q-product-laptops-b07hzk7d2s-180566-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-opened:except-product-furniture-b009twirsc", "e": "q-policy-return-furniture-opened:except-product-furniture-b003rb9cy4", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b07t6gzpqj-16992-look", "e": "q-product-furniture-b07t6gzpqj-16992-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07s471fs4-251401-para-close", "e": "q-product-phones-b07s471fs4-251401-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b072pcxs5t-65008-para-far", "e": "q-product-electronics-b072pcxs5t-65008-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b019wsco90-193942-look", "e": "q-product-laptops-b019wsco90-193942-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00i16k4kg-152558-para-far", "e": "q-product-laptops-b00i16k4kg-152558-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-unopened:remedy-product-furniture-b07gdkcnsc", "e": "q-policy-return-furniture-unopened:remedy-product-furniture-b0038apxjc", "same_product": false, "overlap": 0.4}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b06zzd3tvw-95364-look", "e": "q-product-laptops-b06zzd3tvw-95364-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b009twirsc-76195-para-far", "e": "q-product-furniture-b009twirsc-76195-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07p1bknhp-305775-para-close", "e": "q-product-phones-b07p1bknhp-305775-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-laptops-new:start-product-laptops-b01kbzjmr0", "e": "q-policy-return-laptops-new:start-product-laptops-b07bknwvrt", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b01m0vogs8", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b01m0vogs8", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07dxvcy33-130540-u-para-close", "e": "q-product-electronics-b07dxvcy33-130540-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b003rb9cy4-19226-para-close", "e": "q-product-furniture-b003rb9cy4-19226-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07s5b2dhg-268776-para-far", "e": "q-product-laptops-b07s5b2dhg-268776-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w8", "e": "q-policy-return-laptops-renewed:term:dept-w8", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b072lbj9w6-10343-para-close", "e": "q-product-furniture-b072lbj9w6-10343-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01doa6gak-144070-para-close", "e": "q-product-laptops-b01doa6gak-144070-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b01doa6gak-285974-look", "e": "q-product-laptops-b01doa6gak-285974-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01kbzjmr0-221984-para-close", "e": "q-product-laptops-b01kbzjmr0-221984-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:remedy-product-laptops-b00mdn3770", "e": "q-policy-warranty-laptops:remedy-product-laptops-b07l5mpbs7", "same_product": false, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01lz4y41m-23960-para-close", "e": "q-product-phones-b01lz4y41m-23960-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b077qk7nmx-62770-look", "e": "q-product-phones-b077qk7nmx-62770-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07ck7kb95-394147-para-far", "e": "q-product-phones-b07ck7kb95-394147-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b00fhxi5lq-7037-look", "e": "q-product-furniture-b00fhxi5lq-7037-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0034jxwwc-53228-u-para-close", "e": "q-product-furniture-b0034jxwwc-53228-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b00wb09j86", "e": "q-policy-return-phones-opened:term:fee-product-phones-b00wb09j86", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07hczv3zg-44703-para-close", "e": "q-product-electronics-b07hczv3zg-44703-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-unopened:except-product-furniture-b0761m2m17", "e": "q-policy-return-furniture-unopened:except-product-furniture-b000as7sy8", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b072v2bnm6-218799-para-far", "e": "q-product-phones-b072v2bnm6-218799-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b07v321mqn", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b07v321mqn", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b078yxhdxz-54119-para-close", "e": "q-product-phones-b078yxhdxz-54119-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b077qk7nmx-62770-para-far", "e": "q-product-phones-b077qk7nmx-62770-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01kbzjmr0-221990-para-close", "e": "q-product-laptops-b01kbzjmr0-221990-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b07vsr8tx5-116216-look", "e": "q-product-electronics-b07vsr8tx5-116216-seed", "same_product": true, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07b4wnpmf-123768-u-para-close", "e": "q-product-electronics-b07b4wnpmf-123768-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:term-product-phones-b07dpvx3q1", "e": "q-policy-return-phones-opened:term-product-phones-b00b5081mi", "same_product": false, "overlap": 0.4}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-furniture-b07gbsvygk-x-product-furniture-b003rb9cy4-19226", "e": "q-product-furniture-b003rb9cy4-19226-seed", "same_product": false, "overlap": 0.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b07x3vtl53-69745-look", "e": "q-product-furniture-b07x3vtl53-69745-seed", "same_product": true, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b00g3kytjo-11729-u-para-close", "e": "q-product-electronics-b00g3kytjo-11729-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00wb09j86-319711-para-close", "e": "q-product-phones-b00wb09j86-319711-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b003rb9cy4-19226-look", "e": "q-product-furniture-b003rb9cy4-19226-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b009twirsc-76213-para-close", "e": "q-product-furniture-b009twirsc-76213-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b01gu9efvy-63957-para-close", "e": "q-product-electronics-b01gu9efvy-63957-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01lz4y41m-24002-u-para-close", "e": "q-product-phones-b01lz4y41m-24002-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b078yxhdxz-54127-natural", "e": "q-product-phones-b078yxhdxz-54105-natural", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07zq2zxjd-13680-para-far", "e": "q-product-furniture-b07zq2zxjd-13680-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:term-product-electronics-b07vsr8tx5", "e": "q-policy-return-electronics:term-product-electronics-b07b63r768", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07x3vtl53-69745-para-far", "e": "q-product-furniture-b07x3vtl53-69745-seed", "same_product": true, "overlap": 0.5}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b07ck7kb95-394147-look", "e": "q-product-phones-b07ck7kb95-394147-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:start-product-electronics-b08857zhy4", "e": "q-policy-return-electronics:start-product-electronics-b07w68vfgl", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b079jfb616-107670-para-close", "e": "q-product-electronics-b079jfb616-107670-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b07zq2zxjd-13680-look", "e": "q-product-furniture-b07zq2zxjd-13680-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00i16k4kg-133917-u-para-close", "e": "q-product-laptops-b00i16k4kg-133917-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b009dhb2h6-468251-look", "e": "q-product-phones-b009dhb2h6-468251-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01bukh344-255511-para-close", "e": "q-product-phones-b01bukh344-255511-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b004gmsh80-56492-para-far", "e": "q-product-laptops-b004gmsh80-56492-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w6", "e": "q-policy-return-laptops-renewed:term:dept-w6", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07gbsvygk-17484-para-far", "e": "q-product-furniture-b07gbsvygk-17484-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0725jxs9v-37276-para-far", "e": "q-product-furniture-b0725jxs9v-37276-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:remedy-product-laptops-b07bp9b1nt", "e": "q-policy-warranty-laptops:remedy-product-laptops-b07l5mpbs7", "same_product": false, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b079jfb616-107670-para-far", "e": "q-product-electronics-b079jfb616-107670-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b07hczv3zg-44703-look", "e": "q-product-electronics-b07hczv3zg-44703-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b06x956grh-57818-para-close", "e": "q-product-furniture-b06x956grh-57818-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07wgqwnlf-46510-u-para-close", "e": "q-product-laptops-b07wgqwnlf-46510-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-furniture-b078tp53l9-81623-look", "e": "q-product-furniture-b078tp53l9-81623-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07xqd98hz-135374-para-close", "e": "q-product-electronics-b07xqd98hz-135374-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-opened:except-product-furniture-b0080hbhd4", "e": "q-policy-return-furniture-opened:except-product-furniture-b003rb9cy4", "same_product": false, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00i16k4kg-133928-para-far", "e": "q-product-laptops-b00i16k4kg-133928-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b07dpvx3q1", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b07dpvx3q1", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b06zzd3tvw-95384-para-close", "e": "q-product-laptops-b06zzd3tvw-95384-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:other-product-laptops-b07mrcb6mg", "e": "q-policy-warranty-laptops:other-product-laptops-b06zzd3tvw", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01doa6gak-285974-para-close", "e": "q-product-laptops-b01doa6gak-285974-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b078yxhdxz-54111-look", "e": "q-product-phones-b078yxhdxz-54111-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b019wsco90-193942-para-far", "e": "q-product-laptops-b019wsco90-193942-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-laptops-b07l5mpbs7-x-product-laptops-b019wsco90-193942", "e": "q-product-laptops-b019wsco90-193942-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07s471fs4-251401-para-far", "e": "q-product-phones-b07s471fs4-251401-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-international:term-product-phones-b00wb09j86", "e": "q-policy-warranty-phones-domestic:term-product-phones-b00wb09j86", "same_product": true, "overlap": 0.6666666666666666}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00wb09j86-319721-para-close", "e": "q-product-phones-b00wb09j86-319721-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-laptops:term-product-laptops-b07jfbvvkg", "e": "q-policy-warranty-laptops:term-product-laptops-b019wsco90", "same_product": false, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b081d7c6cd-283878-para-close", "e": "q-product-laptops-b081d7c6cd-283878-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-unopened:remedy-product-furniture-b07wd8l36q", "e": "q-policy-return-furniture-unopened:remedy-product-furniture-b0038apxjc", "same_product": false, "overlap": 0.6}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w3", "e": "q-policy-return-laptops-new:term:dept-w3", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b000as7sy8-9724-para-far", "e": "q-product-furniture-b000as7sy8-9724-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01jgw5w1y-131218-para-far", "e": "q-product-laptops-b01jgw5w1y-131218-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b08d67pqqb-11919-para-far", "e": "q-product-furniture-b08d67pqqb-11919-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-laptops-renewed:start-product-laptops-b07k238ls2", "e": "q-policy-return-laptops-renewed:start-product-laptops-b00mdn3770", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-domestic:term-product-phones-b01m0vogs8", "e": "q-policy-return-phones-unopened:term-product-phones-b01m0vogs8", "same_product": true, "overlap": 0.2}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07xqd98hz-135374-para-far", "e": "q-product-electronics-b07xqd98hz-135374-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b072v2bnm6-218904-para-far", "e": "q-product-phones-b072v2bnm6-218904-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b01bukh344-255511-look", "e": "q-product-phones-b01bukh344-255511-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01kbzjmr0-221990-para-far", "e": "q-product-laptops-b01kbzjmr0-221990-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-phones-domestic:other-product-phones-b008om1nu2", "e": "q-policy-warranty-phones-domestic:other-product-phones-b077qk7nmx", "same_product": false, "overlap": 0.2}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07ck7kb95-394142-para-far", "e": "q-product-phones-b07ck7kb95-394142-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b00rdti6j8", "e": "q-policy-return-phones-opened:term:fee-product-phones-b00rdti6j8", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b000as7sy8-9724-para-close", "e": "q-product-furniture-b000as7sy8-9724-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b004gmsh80-185939-para-close", "e": "q-product-laptops-b004gmsh80-185939-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b000as7sy8-9718-u-para-close", "e": "q-product-furniture-b000as7sy8-9718-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b077qk7nmx", "e": "q-policy-return-phones-opened:term:fee-product-phones-b077qk7nmx", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b081d7c6cd-283863-para-far", "e": "q-product-laptops-b081d7c6cd-283863-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07vsr8tx5-116216-para-close", "e": "q-product-electronics-b07vsr8tx5-116216-seed", "same_product": true, "overlap": 0.75}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00mdn3770-232707-para-far", "e": "q-product-laptops-b00mdn3770-232707-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b00rdti6j8-443278-look", "e": "q-product-phones-b00rdti6j8-443278-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b06zzd3tvw-95364-para-close", "e": "q-product-laptops-b06zzd3tvw-95364-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-furniture:remedy-product-furniture-b000as7sy8", "e": "q-policy-warranty-furniture:remedy-product-furniture-b072lbj9w6", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01n8tera1-264121-para-close", "e": "q-product-phones-b01n8tera1-264121-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-new:term:dept-w1", "e": "q-policy-return-laptops-renewed:term:dept-w1", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b01lz4y41m-23960-para-far", "e": "q-product-phones-b01lz4y41m-23960-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b008om1nu2-337690-para-far", "e": "q-product-phones-b008om1nu2-337690-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-furniture-unopened:start-product-furniture-b07x3vtl53", "e": "q-policy-return-furniture-unopened:start-product-furniture-b07gdkcnsc", "same_product": false, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07x3vtl53-69772-para-far", "e": "q-product-furniture-b07x3vtl53-69772-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b07krmvqy2-321462-look", "e": "q-product-phones-b07krmvqy2-321462-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01n45tmg8-42829-para-far", "e": "q-product-furniture-b01n45tmg8-42829-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-international:other-product-phones-b008om1nu2", "e": "q-policy-warranty-phones-domestic:other-product-phones-b008om1nu2", "same_product": true, "overlap": 0.6666666666666666}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-electronics:start-product-electronics-b085lrk69v", "e": "q-policy-warranty-electronics:start-product-electronics-b01c9cyh1e", "same_product": false, "overlap": 0.2}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:except-product-phones-b072v2bnm6", "e": "q-policy-return-phones-unopened:except-product-phones-b01j6ms6bc", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w6", "e": "q-policy-return-laptops-new:term:dept-w6", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b003rb9cy4-19215-para-far", "e": "q-product-furniture-b003rb9cy4-19215-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b01gu9efvy-63957-look", "e": "q-product-electronics-b01gu9efvy-63957-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01n45tmg8-42820-para-close", "e": "q-product-furniture-b01n45tmg8-42820-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-furniture-b0761m2m17-x-product-furniture-b072lbj9w6-10343", "e": "q-product-furniture-b072lbj9w6-10343-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00mdn3770-232688-para-far", "e": "q-product-laptops-b00mdn3770-232688-seed", "same_product": true, "overlap": 0.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b009dhb2h6", "e": "q-policy-return-phones-opened:term:fee-product-phones-b009dhb2h6", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b077qk7nmx-62748-para-close", "e": "q-product-phones-b077qk7nmx-62748-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-electronics:other-product-electronics-b07jgrd2qr", "e": "q-policy-warranty-electronics:other-product-electronics-b072pcxs5t", "same_product": false, "overlap": 0.8}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b00awkbz2a-117099-look", "e": "q-product-electronics-b00awkbz2a-117099-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00rdti6j8-443278-para-close", "e": "q-product-phones-b00rdti6j8-443278-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b072lbj9w6-10345-para-close", "e": "q-product-furniture-b072lbj9w6-10345-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b016bws5a2", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b016bws5a2", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00ek5fah4-2211-para-far", "e": "q-product-phones-b00ek5fah4-2211-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07t6gzpqj-16992-para-far", "e": "q-product-furniture-b07t6gzpqj-16992-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b06wgp41c1-51196-para-far", "e": "q-product-furniture-b06wgp41c1-51196-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w5", "e": "q-policy-return-laptops-new:term:dept-w5", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07dxvcy33-130544-para-far", "e": "q-product-electronics-b07dxvcy33-130544-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-electronics:remedy-product-electronics-b07hczv3zg", "e": "q-policy-return-electronics:remedy-product-electronics-b07w68vfgl", "same_product": false, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07jgrd2qr-55020-para-far", "e": "q-product-electronics-b07jgrd2qr-55020-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b00i16k4kg-152558-look", "e": "q-product-laptops-b00i16k4kg-152558-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b00i16k4kg-133928-para-close", "e": "q-product-laptops-b00i16k4kg-133928-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01kbzjmr0-221984-para-far", "e": "q-product-laptops-b01kbzjmr0-221984-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b00h54qkda", "e": "q-policy-return-phones-opened:term:fee-product-phones-b00h54qkda", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b07krmvqy2-321462-para-far", "e": "q-product-phones-b07krmvqy2-321462-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07hczv3zg-44724-para-close", "e": "q-product-electronics-b07hczv3zg-44724-seed", "same_product": true, "overlap": 0.6666666666666666}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b01bukh344", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b01bukh344", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b01duxkc9c-197093-para-far", "e": "q-product-laptops-b01duxkc9c-197093-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07dxvcy33-130544-para-close", "e": "q-product-electronics-b07dxvcy33-130544-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:term-product-phones-b01m0vogs8", "e": "q-policy-return-phones-unopened:term-product-phones-b00wb09j86", "same_product": false, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07jfbvvkg-160462-para-close", "e": "q-product-laptops-b07jfbvvkg-160462-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b019wsco90-193958-natural", "e": "q-product-laptops-b019wsco90-193973-natural", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b000as7sy8-9732-para-close", "e": "q-product-furniture-b000as7sy8-9732-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b072lbj9w6-10343-para-far", "e": "q-product-furniture-b072lbj9w6-10343-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-opened:other-product-phones-b07v321mqn", "e": "q-policy-return-phones-opened:other-product-phones-b00rdti6j8", "same_product": false, "overlap": 0.25}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0761m2m17-6610-para-far", "e": "q-product-furniture-b0761m2m17-6610-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-electronics-b079jfb616-107670-look", "e": "q-product-electronics-b079jfb616-107670-seed", "same_product": true, "overlap": 0.3333333333333333}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b06wgp41c1-51200-para-far", "e": "q-product-furniture-b06wgp41c1-51200-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b078tp53l9-81623-para-close", "e": "q-product-furniture-b078tp53l9-81623-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b00b5081mi", "e": "q-policy-return-phones-opened:term:fee-product-phones-b00b5081mi", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-laptops-b07jfbvvkg-160462-para-far", "e": "q-product-laptops-b07jfbvvkg-160462-seed", "same_product": true, "overlap": 0.5}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b077qk7nmx-62770-para-close", "e": "q-product-phones-b077qk7nmx-62770-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00rdti6j8-443278-para-far", "e": "q-product-phones-b00rdti6j8-443278-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b01aystw6k-28878-para-far", "e": "q-product-furniture-b01aystw6k-28878-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w7", "e": "q-policy-return-laptops-new:term:dept-w7", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b072v2bnm6-218904-para-close", "e": "q-product-phones-b072v2bnm6-218904-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07vsr8tx5-116218-para-far", "e": "q-product-electronics-b07vsr8tx5-116218-seed", "same_product": true, "overlap": 0.75}
+{"kind": "B-cross probe (should refuse)", "q": "q-product-furniture-b072lbj9w6-x-product-furniture-b0761m2m17-6610", "e": "q-product-furniture-b0761m2m17-6610-seed", "same_product": false, "overlap": 0.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-warranty-furniture:what-product-furniture-b00595y8ay", "e": "q-policy-warranty-furniture:what-product-furniture-b001e4w9zk", "same_product": false, "overlap": 0.75}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-opened:term:fee-product-phones-b077qk7nmx", "e": "q-policy-return-phones-unopened:term:fee-product-phones-b077qk7nmx", "same_product": true, "overlap": 0.6}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-laptops-renewed:term:dept-w8", "e": "q-policy-return-laptops-new:term:dept-w8", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-policy-return-phones-unopened:what-product-phones-b0743p5dj2", "e": "q-policy-return-phones-unopened:what-product-phones-b087fx79pj", "same_product": false, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b08857zhy4-113527-para-close", "e": "q-product-electronics-b08857zhy4-113527-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-laptops-b004gmsh80-56492-look", "e": "q-product-laptops-b004gmsh80-56492-seed", "same_product": true, "overlap": 0.6666666666666666}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07b4wnpmf-123770-para-far", "e": "q-product-electronics-b07b4wnpmf-123770-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b08d67pqqb-14096-para-far", "e": "q-product-furniture-b08d67pqqb-14096-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-phones-b00b5081mi-230263-u-para-close", "e": "q-product-phones-b00b5081mi-230263-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-warranty-phones-international:other-product-phones-b077qk7nmx", "e": "q-policy-warranty-phones-domestic:other-product-phones-b077qk7nmx", "same_product": true, "overlap": 0.8}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b07vsr8tx5-116218-para-close", "e": "q-product-electronics-b07vsr8tx5-116218-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b00ek5fah4", "e": "q-policy-return-phones-opened:term:fee-product-phones-b00ek5fah4", "same_product": true, "overlap": 0.4}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b07gbsvygk-17484-para-close", "e": "q-product-furniture-b07gbsvygk-17484-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b079jfb616-107651-u-para-close", "e": "q-product-electronics-b079jfb616-107651-u-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-policy-return-phones-unopened:term:fee-product-phones-b072v2bnm6", "e": "q-policy-return-phones-opened:term:fee-product-phones-b072v2bnm6", "same_product": true, "overlap": 0.6}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b08d67pqqb-11919-para-close", "e": "q-product-furniture-b08d67pqqb-11919-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-electronics-b072pcxs5t-65007-para-close", "e": "q-product-electronics-b072pcxs5t-65007-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b009twirsc-76195-para-close", "e": "q-product-furniture-b009twirsc-76195-seed", "same_product": true, "overlap": 1.0}
+{"kind": "B-within probe (should refuse)", "q": "q-product-phones-b01n8tera1-264276-look", "e": "q-product-phones-b01n8tera1-264276-seed", "same_product": true, "overlap": 1.0}
+{"kind": "A-paraphrase (should reuse)", "q": "q-product-furniture-b0725jxs9v-37262-para-close", "e": "q-product-furniture-b0725jxs9v-37262-seed", "same_product": true, "overlap": 1.0}
