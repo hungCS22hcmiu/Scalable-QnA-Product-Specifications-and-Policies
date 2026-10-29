@@ -15,11 +15,10 @@ type askRequest struct {
 	// namespace derived from the rank-1 product document drifts across paraphrases, which cost
 	// one false hit and one false miss in a single measured run.
 	//
-	// ⚠️ BYPASS 2026-09-09: it is ALSO now part of the Tier-1 key (cache.Key), which reverses
-	// the explicit "product_id as a key -- Rejected". That decision recorded a real cost --
-	// it moves work into the key and restates C1's claim as "provenance beats similarity given
-	// product scoping" -- and was reversed here without the owed superseding ADR, for an urgent
-	// MVP demo.
+	// It is ALSO part of the Tier-1 key (cache.Key, ADR-018), for every request that carries it.
+	// The rejected alternative's cost -- moving work into the key, restating C1's claim as
+	// "provenance beats similarity given product scoping" -- is zero on the frozen v1 workload,
+	// where no normalized question is shared across products; a new workload must be re-checked.
 	ProductID string `json:"product_id,omitempty"`
 }
 

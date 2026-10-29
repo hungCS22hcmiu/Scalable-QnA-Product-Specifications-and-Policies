@@ -57,6 +57,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-015 | `v1` is frozen: 164 corpus files and 3 workload files, 539 chunks, `K` 622 / 652, with G1 recorded as failed | in force (item 3.6 done 2026-10-23; Redis holds `dev-v0` afterwards; the author and the supervisor decide whether a `v2` follows, before Phase 4) | none — no runs yet |
 | ADR-016 | The MIXED lane is one pinned band, [0.20, 0.60), run as an on/off arm and not swept | in force (binds forward — item 4.5 adds the arm field to the record; no run has taken either arm) | none — no runs yet; a log from before the arm field reads as MIXED off |
 | ADR-017 | The model runner keeps no prompt cache and no context checkpoints; envelope memory is read with `footprint` | in force (amends ADR-003's envelope; `make ollama-env` runs after every reboot; the batch size is open, §F3) | no `run_id`; item 4.4's live runs (`docs/work/2026-10-29-update-set/evidence/live1`–`live3`) ran with the cache on: their completeness and precision stand, any latency or memory reading in them is void |
+| ADR-018 | The Tier-1 key includes `product_id` | in force (records a change built on 2026-09-09 without a decision; the code comments in `key.go` and `types.go` now cite it) | none — no runs yet; every log since 2026-09-09 already used this key, and on the frozen `v1` workload it changes no hit |
 
 ---
 
@@ -1637,3 +1638,38 @@ pid>`, never with RSS and never with `/api/ps`.
 - **Invalidates:** no `run_id` (`experiments/results/` is empty). Item 4.4's live runs (`docs/work/2026-10-29-update-set/evidence/live1`–`live3`)
   ran with the prompt cache on. Their completeness (1) and precision (0.695) count purged entries, which prompt reuse cannot change, so they
   stand. Any latency or memory reading in their evidence is void.
+
+### ADR-018 — The Tier-1 key includes `product_id`
+**Decided (frozen)** · 2026-10-29 · *`gateway/internal/cache/key.go` (built 2026-09-09), `interfaces.md` §A and §D (v0.23), `Final_Proposal.md` (design table row 7, the stack table, §9's isolation controls, the workload bullet)*
+
+Tier 1 is keyed by `sha256(normalized_query "\x00" product_id)`. An empty `product_id` is its own partition, never a
+wildcard. This supersedes the alternative the proposal rejected ("adding `product_id` to the Tier-1 key — it moves C1's
+work into the cache key"). It records a change that was built on 2026-09-09 for an MVP demo without a decision; the code
+said so itself ("a superseding ADR is still owed before this is citable or mergeable", `key.go`).
+
+- **Rationale.**
+  - **Tier 1 runs no reuse rule.** A generic question asked on two product pages, such as "is it waterproof?", has the
+    same normalized text and different answers. Without `product_id` in the key, Tier 1 would serve product A's answer
+    to product B: a false hit that no rule ever sees. The author chose to keep the key for this reason (2026-10-29).
+  - **It moves none of C1's work on the frozen workload.** On `v1`, every normalized question belongs to exactly one
+    product: 622 forms in 622 validation queries and 652 in 652 test queries, with 0 shared across products. That was
+    checked on 2026-10-29 with a Python copy of `cache.Normalize`. The proposal's worry holds only for a workload with
+    the same normalized text on different products, and `v1` has none, because its queries are self-contained and name
+    their product.
+- **Alternatives.**
+  - **Remove `product_id` from the key, as the proposal said.** Rejected by the author: unsafe in real traffic, and no
+    difference on the frozen workload.
+  - **Keep the code and leave the record as it was.** Rejected: the contract said "keyed by `sha256(normalized_query)`"
+    and "not a cache key", so contract and code disagreed, and the code itself called the result not citable.
+- **Consequences.**
+  - **Configuration 2 (exact-only) measures exact repeats within a product.** The write-up says so.
+  - **G3 still matters within a product.** No two queries with different answers may share a normalized form. Across
+    products, the key now separates them.
+  - **Policy questions are scoped too.** A policy question that carries a `product_id` gets one Tier-1 entry per
+    product: the capacity cost `interfaces.md` §A warns of for the policy lane. That cost is 0 on `v1` (no shared forms).
+    Any future workload must be checked again, and if it has cross-product identical questions, this cost and the
+    B-cross reading must be reported.
+  - **Stale text, corrected 2026-10-29:** `interfaces.md` §A and §D, the proposal, and the comments in
+    `gateway/internal/cache/key.go` and `gateway/internal/httpapi/types.go`, which had said an ADR was owed.
+- **Invalidates:** none — no `run_id` exists. The key has included `product_id` since 2026-09-09, before any run, and on
+  the frozen `v1` workload it changes no Tier-1 hit.

@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.22 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-29
+**Status:** Draft v0.23 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-29
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -17,7 +17,8 @@
 > 1. **`product_id` on `/ask` (§A).** Optional. A spec-lane namespace derived from the *rank-1 product
 >    document* is unstable: measured 2026-09-06, one run produced **one false hit and one false miss**
 >    from that instability alone, both corrected by sending `product_id`. It is a **stabiliser, not a
->    cache key** — the rejection of `product_id` as a cache key stands untouched.
+>    cache key** — the rejection of `product_id` as a cache key stands untouched. *(Reversed for
+>    Tier 1 since 2026-09-09 and recorded by **ADR-018**, v0.23: the Tier-1 key includes `product_id`.)*
 > 2. **Doc-id kind prefix is now required (§C).** `reuse.Classify` reads the document kind from the
 >    `policy-` / `product-` prefix. It was enforced only in the ingester, so a corpus built without it
 >    would classify every question `SPEC` **silently**, with the lane machinery reporting plausible
@@ -179,7 +180,7 @@ Request:
 | Field | Type | Notes |
 | :--- | :--- | :--- |
 | `question` | string | Required. |
-| `product_id` | string\|null | **Optional (v0.6).** The product the question was asked about — the page a production assistant is embedded in already knows it. Read **only** by the spec lane, to pin which product that lane's namespace names; the policy lane ignores it, because scoping a policy answer by product spends capacity on one answer per product. Absent, the namespace falls back to the rank-1 product document, which is correct but less stable. It is **not** part of the reuse decision and **not** a cache key. |
+| `product_id` | string\|null | **Optional (v0.6).** The product the question was asked about — the page a production assistant is embedded in already knows it. Read **only** by the spec lane, to pin which product that lane's namespace names; the policy lane ignores it, because scoping a policy answer by product spends capacity on one answer per product. Absent, the namespace falls back to the rank-1 product document, which is correct but less stable. It is **not** otherwise part of the reuse decision. It also scopes retrieval (§B, v0.8). **It is part of the Tier-1 key** (§D, **ADR-018**, v0.23), for every request that carries it, in either lane. |
 
 > ⚠️ **`stratum` is deliberately not a request field.** The evaluation log (§H) carries it, but it is a
 > property of the *workload*, not of a client request. The measurement harness may send it as an
@@ -448,7 +449,7 @@ KEY    t2:{entry_id}                      # HASH
 
 `source_chunk_ids` is the load-bearing field for **both** contributions: C1 intersects it with the incoming query's retrieval, C2 indexes it in reverse to build the dependency map (§E). (`question_type` / `answer_type`, auxiliary features for the learned predictor, were removed in v0.2.)
 
-> ⚠️ **`t1_key` exists so that Tier-1 is purgeable.** Tier 1 is keyed by `sha256(normalized_query)`; the dependency map stores only `entry_id`. Without a stored back-pointer the invalidator **cannot compute the Tier-1 key** from a dependency record, so Tier-1 copies of an invalidated answer would survive the purge and continue serving stale content — a completeness hole that no test of the Tier-2 path would reveal. Both tiers are written together on a miss, so `t1_key` is written at the same moment and never diverges.
+> ⚠️ **`t1_key` exists so that Tier-1 is purgeable.** Tier 1 is keyed by `sha256(normalized_query "\x00" product_id)` (v0.23, **ADR-018**; an empty `product_id` is its own partition, never a wildcard); the dependency map stores only `entry_id`. Without a stored back-pointer the invalidator **cannot compute the Tier-1 key** from a dependency record, so Tier-1 copies of an invalidated answer would survive the purge and continue serving stale content — a completeness hole that no test of the Tier-2 path would reveal. Both tiers are written together on a miss, so `t1_key` is written at the same moment and never diverges.
 
 Vector field: distance metric **COSINE**, `DIM` equals the embedding dimension in §F (they must not drift). Write-back on a full miss populates **both** tiers, tagged with `source_chunk_ids` (proposal §6.3).
 
@@ -782,10 +783,11 @@ Field notes:
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.22** (2026-10-29).
+**Current version: v0.23** (2026-10-29).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.23** | 2026-10-29 | **The Tier-1 key includes `product_id`** (**ADR-018**). §D: Tier 1 is keyed by `sha256(normalized_query "\x00" product_id)`; an empty `product_id` is its own partition. §A: `product_id` is part of the Tier-1 key for every request that carries it, in either lane, and still not otherwise part of the reuse decision. The v0.6 note that the rejection of `product_id` as a cache key "stands untouched" is annotated, not deleted. This records a change built on 2026-09-09 without a decision; no code changes here. No wire shape, `.proto`, §B, §C, §E or §H change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning. On the frozen `v1` workload no normalized question is shared across products (0 of 622 / 0 of 652), so no hit changes |
 | **v0.22** | 2026-10-29 | **The model runner's prompt cache and context checkpoints are frozen off** (**ADR-017**, bugfix `2026-10-29-ollama-prompt-cache`). The frozen study-wide list gains `LLAMA_ARG_CACHE_RAM=0` and `LLAMA_ARG_CTX_CHECKPOINTS=0`, which `make ollama-env` sets in Ollama.app's environment and `make env-check` reads from the live runner. No wire shape, `.proto`, §A–§H or Redis schema change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. Before this, Ollama 0.33.2 ran the model with llama-server's prompt cache on at 8192 MiB, which kept a copy of every prompt in RAM (the runner's `footprint` grew from 3,066 to 7,088 MB over 50 prompts); any latency or memory reading in item 4.4's live runs is void, and `no-cache` generations now pay full prefill |
 | **v0.21** | 2026-10-29 | **An edit reaches the gateway** (item 4.4). §E gains `POST /invalidate` (loopback only; the reply comes after the whole purge, with `purged`, `failed` and `errors`; 200, 400, 403, 405, 500, 503), the edit order as `rag.edit` runs it (embed, write `text` and `vector`, advance the epoch, post), and `InvalidateWait`. Purge step 4 changes from `DEL dep:{chunk_id}` to `SREM` of the purged entries, so an entry whose purge failed stays findable. Run rule 11 names `make cache-reset` for all five prefixes, replacing "until Phase 4". No `.proto`, §A, §B, §C, §D or §H change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. Before this, `Invalidate` returned before the Redis purge ran, nothing outside the tests called it, and a purge error on one entry still deleted `dep:{chunk_id}` |
 | **v0.20** | 2026-10-29 | **A Tier-2 search error voids the run, and the gateway waits for a complete index** (bugfix `2026-10-29-redis-index-lifecycle`). §H gains the extension key `tier2_search_failed` and run rule 12: a run with any such record is not admissible, and the gateway counts them and reports the run INCOMPLETE. §D says the gateway serves only after `idx:cache` is fully built. No wire shape, §A, §B, §E or `.proto` change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. Before this, an `idx:cache` lost during a run (another process's `FLUSHDB`) looked like a colder cache and a lower `h`. A rule-11 run starts on an empty cache, so the start-up wait changes no number there |
