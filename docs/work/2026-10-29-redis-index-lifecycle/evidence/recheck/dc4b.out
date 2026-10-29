@@ -1,0 +1,5 @@
+=== RUN   TestRegisterWritesDepAndEntry
+    deps_test.go:139: GATEWAY_TEST_REDIS is not set: run the Redis tests through `make test`
+--- SKIP: TestRegisterWritesDepAndEntry (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/deps	0.352s

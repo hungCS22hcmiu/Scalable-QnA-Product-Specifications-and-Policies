@@ -156,6 +156,10 @@ type runCounts struct {
 	GuardRefusals  int64 // records whose answer text did not hash to their answer_sha256
 	AnswersMissing int   // hashes a record names that have no file in raw/answers/
 	CloseErr       error // the evaluation log did not close cleanly
+
+	// Tier2SearchFailures counts records marked tier2_search_failed: a Tier-2 search returned an error
+	// and the request degraded to a MISS that looks like a colder cache (interfaces.md §H rule 12).
+	Tier2SearchFailures int64
 }
 
 // finishRun closes the evaluation log and then decides whether the run is admissible. Both in one
@@ -170,6 +174,8 @@ func finishRun(l *telemetry.Logger) (closeErr, verdict error) {
 		GuardRefusals:  l.GuardRefusals(),
 		AnswersMissing: l.AnswersMissing(),
 		CloseErr:       closeErr,
+
+		Tier2SearchFailures: l.Tier2SearchFailures(),
 	})
 	return closeErr, verdict
 }
@@ -192,6 +198,9 @@ func incomplete(c runCounts) error {
 	}
 	if c.GuardRefusals > 0 {
 		why = append(why, fmt.Sprintf("%d record(s) carried an answer_sha256 that its text does not hash to (a call site skipped SetAnswer)", c.GuardRefusals))
+	}
+	if c.Tier2SearchFailures > 0 {
+		why = append(why, fmt.Sprintf("%d request(s) hit a Tier-2 search error (interfaces.md §H rule 12)", c.Tier2SearchFailures))
 	}
 	if c.CloseErr != nil {
 		why = append(why, fmt.Sprintf("the evaluation log did not close cleanly: %v", c.CloseErr))
@@ -271,7 +280,11 @@ func main() {
 	store := cache.NewStore(rdb, embed.Dim)
 
 	// Idempotent: creates idx:cache on first run, no-ops afterwards. Done at startup rather than
-	// lazily so a schema problem surfaces here, not on the first user request.
+	// lazily so a schema problem surfaces here, not on the first user request. It returns only when
+	// the index is COMPLETE (FT.INFO: indexing 0, percent_indexed 1), because FT.CREATE indexes the
+	// existing t2:* hashes in the background and a search during that scan misses silently; a scan
+	// that does not finish in 10 s is an error here, and the gateway does not serve
+	// (docs/work/2026-10-29-redis-index-lifecycle/design.md section 1, problem 3).
 	if err := store.EnsureCacheIndex(context.Background()); err != nil {
 		log.Fatalf("gateway: creating %s: %v", cache.CacheIndexName, err)
 	}

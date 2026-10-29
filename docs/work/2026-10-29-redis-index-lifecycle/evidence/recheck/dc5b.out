@@ -1,0 +1,10 @@
+=== RUN   TestWaitIndexedReturnsWhenComplete
+--- PASS: TestWaitIndexedReturnsWhenComplete (0.00s)
+=== RUN   TestWaitIndexedTimesOut
+--- PASS: TestWaitIndexedTimesOut (0.06s)
+=== RUN   TestWaitIndexedIsNotFooledByZeroValues
+--- PASS: TestWaitIndexedIsNotFooledByZeroValues (0.04s)
+=== RUN   TestWaitIndexedReturnsReadErrors
+--- PASS: TestWaitIndexedReturnsReadErrors (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/cache	0.425s

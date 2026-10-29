@@ -5,23 +5,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/hung/thesis/gateway/internal/testredis"
 )
 
-// testStore isolates itself in logical DB 15. Never DB 0: this machine is shared with other
-// projects and the thesis corpus, and `make demo-reset` refuses to FLUSHALL precisely because a
-// stray key can belong to someone else. FLUSHDB on 15 touches nothing else.
+// testStore runs on the throwaway test Redis that `make test` starts (testredis.EnvAddr), in
+// logical DB 15, and never on the live server. A logical DB isolates keys, not indexes: on this
+// server FLUSHDB drops every search index in every DB, and an index covers every DB. So a flush
+// "of DB 15" on :6379 would delete the live idx:corpus and idx:cache (RCA 2026-10-29).
+// testredis.Client refuses a server that looks live before it flushes, and skips when the variable
+// is unset (or fails, under `make test`, which sets the required flag).
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 15})
-	ctx := context.Background()
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		t.Skipf("redis not reachable, skipping: %v", err)
-	}
-	if err := rdb.FlushDB(ctx).Err(); err != nil {
-		t.Fatalf("flushing test db: %v", err)
-	}
-	t.Cleanup(func() { _ = rdb.FlushDB(ctx); _ = rdb.Close() })
+	rdb := testredis.Client(t, 15)
 	return NewStore(rdb, 768)
 }
 

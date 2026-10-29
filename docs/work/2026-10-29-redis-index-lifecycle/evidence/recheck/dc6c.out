@@ -1,0 +1,16 @@
+=== RUN   TestCauseIsNullOnEveryExitWithNoCandidate
+=== RUN   TestCauseIsNullOnEveryExitWithNoCandidate/embed_failure
+2026/10/29 11:42:03 gateway: request_id=06GRBXRG8TSATJKYDCRGRBR4HG embed failed, degrading to MISS: embed: ollama returned 500 Internal Server Error
+2026/10/29 11:42:03 gateway: request_id=06GRBXRG8TSATJKYDCRGRBR4HG cache=MISS t_tier1=2.375µs t_embed=2.107791ms t_search=0s t_overlap=3.694ms
+=== RUN   TestCauseIsNullOnEveryExitWithNoCandidate/retrieve_failure
+2026/10/29 11:42:03 gateway: request_id=06GRBXRG9Y987AEJZTHVV4JSQM retrieve failed, degrading to MISS: rpc error: code = Unavailable desc = the corpus index is offline
+2026/10/29 11:42:03 gateway: request_id=06GRBXRG9Y987AEJZTHVV4JSQM cache=MISS t_tier1=2.167µs t_embed=639.834µs t_search=0s t_overlap=620.708µs
+=== RUN   TestCauseIsNullOnEveryExitWithNoCandidate/search_error
+2026/10/29 11:42:03 gateway: tier-2 namespace search failed, degrading to MISS: redis: idx:cache unavailable
+2026/10/29 11:42:03 gateway: request_id=06GRBXRGAGSQ6HHXJJAGM5FME0 cache=MISS t_tier1=1.958µs t_embed=936.083µs t_search=667ns t_overlap=968.417µs
+--- PASS: TestCauseIsNullOnEveryExitWithNoCandidate (0.02s)
+    --- PASS: TestCauseIsNullOnEveryExitWithNoCandidate/embed_failure (0.01s)
+    --- PASS: TestCauseIsNullOnEveryExitWithNoCandidate/retrieve_failure (0.01s)
+    --- PASS: TestCauseIsNullOnEveryExitWithNoCandidate/search_error (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/httpapi	0.404s

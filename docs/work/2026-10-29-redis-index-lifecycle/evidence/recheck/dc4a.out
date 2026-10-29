@@ -1,0 +1,10 @@
+=== RUN   TestRegisterWritesDepAndEntry
+redis: 2026/10/29 11:41:17 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+redis: 2026/10/29 11:41:17 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+redis: 2026/10/29 11:41:18 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+redis: 2026/10/29 11:41:18 pool.go:762: redis: connection pool: failed to dial after 5 attempts: dial tcp 127.0.0.1:1: connect: connection refused
+    deps_test.go:139: test redis GATEWAY_TEST_REDIS=127.0.0.1:1 is not reachable: dial tcp 127.0.0.1:1: connect: connection refused
+--- FAIL: TestRegisterWritesDepAndEntry (1.73s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/deps	2.056s
+FAIL

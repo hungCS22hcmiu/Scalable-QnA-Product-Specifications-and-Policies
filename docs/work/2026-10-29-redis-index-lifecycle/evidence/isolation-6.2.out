@@ -1,0 +1,13 @@
+ok  	github.com/hung/thesis/gateway/cmd/gateway	0.546s
+ok  	github.com/hung/thesis/gateway/internal/admission	0.256s
+ok  	github.com/hung/thesis/gateway/internal/cache	0.925s
+?   	github.com/hung/thesis/gateway/internal/catalog	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/coalesce	0.270s
+ok  	github.com/hung/thesis/gateway/internal/deps	1.153s
+?   	github.com/hung/thesis/gateway/internal/embed	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/httpapi	0.964s
+ok  	github.com/hung/thesis/gateway/internal/ragclient	0.421s
+?   	github.com/hung/thesis/gateway/internal/ragpb	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/reuse	0.298s
+ok  	github.com/hung/thesis/gateway/internal/telemetry	0.396s
+ok  	github.com/hung/thesis/gateway/internal/testredis	0.311s

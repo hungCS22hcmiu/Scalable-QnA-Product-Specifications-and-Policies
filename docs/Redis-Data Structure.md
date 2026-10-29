@@ -394,6 +394,29 @@ FT.SEARCH idx:cache
 - `namespace` and `lane` are **TAG**, not TEXT. TEXT would split `policy-returns-electronics` into
   words, and two different namespaces could match each other.
 
+**Three things about this server that the tests and the gateway rely on** (search 2.10.20; bugfix
+`2026-10-29-redis-index-lifecycle`):
+
+- **`FLUSHDB` and `FLUSHALL` drop every search index, in every DB, even on an empty DB.** `SWAPDB`,
+  `DEL`, `UNLINK`, `RENAME` and `MOVE` do not.
+- **An index covers every DB.** Index names and indexed keys are global. An index can only be created
+  from DB 0, but a `t2:*` hash written in DB 15 still enters DB 0's `idx:cache` (a search then returns
+  it as a ghost entry with empty fields). So a logical DB isolates keys, not indexes.
+- **The test server.** Because of the two facts above, the Go Redis tests never run on :6379. `make test`
+  starts a throwaway `redis-server` on port 6390 (the search module, no disk persistence), runs the Go
+  tests there one package at a time (`go test -p 1`), and stops it. The tests read its address from
+  `GATEWAY_TEST_REDIS`; with the variable unset (plain `go test`) they skip, with a message naming it.
+  `make test-isolation-check` creates a sentinel index on :6379 and fails if it is gone afterwards. The
+  RAG Python tests still use :6379, because they need the ingested corpus.
+
+**The gateway waits for the index at start (`interfaces.md` v0.20).** `FT.CREATE` returns in well under a
+millisecond and indexes the existing `t2:*` hashes in the background (44 entries took about 42 ms, 1274
+about 210 ms). A search before that scan ends returns nothing, or another entry from the same
+namespace, with no error. So `EnsureCacheIndex` waits until `FT.INFO` shows `indexing` 0 and
+`percent_indexed` 1 (10 s at most) before the gateway serves. If `idx:cache` vanishes during a run, the
+Tier-2 search fails and the request degrades to a MISS; that request's record carries
+`tier2_search_failed`, and run rule 12 makes the run inadmissible.
+
 ### 5.5 The two tiers together
 
 Both tiers are written by **one** miss, with the **same** `entry_id` and the **same** answer:

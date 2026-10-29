@@ -361,6 +361,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 
 	rec.Similarity, rec.SourceOverlap = similarity, sourceOverlap
 	rec.EnteredBand = t2.EnteredBand
+	rec.Tier2SearchFailed = t2.SearchFailed
 	rec.ReuseRule = t2.NSDecision.Rule
 	h.recordCause(&rec, t2, requestID)
 	if retrieved != nil {

@@ -1,0 +1,8 @@
+(a) index missing: err=No such index idx:cache
+(a) PutTier2-like HSET with index missing: err=<nil>
+(a2) EnsureCacheIndex from DB 15: err=Cannot create index on db != 0
+(a2) EnsureCacheIndex from DB 15 when idx:cache EXISTS: err=Cannot create index on db != 0
+(b) after a vector-less t2: HSET in DB 15, FT.INFO num_docs: 2
+(b) live KNN k=1: [t2:LIVE sim=1.0000 answer="live"] err=<nil>
+(c) live KNN k=1, query = the LIVE entry's own vector: [t2:LIVE sim=1.0000 answer="live"] err=<nil>
+(c) live KNN k=1, query near the ghost: [] err=cache: entry GHOST returned no dist: strconv.ParseFloat: parsing "": invalid syntax

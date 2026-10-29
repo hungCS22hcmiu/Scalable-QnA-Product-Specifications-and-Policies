@@ -11,25 +11,20 @@ import (
 	"time"
 
 	"github.com/hung/thesis/gateway/internal/cache"
+	"github.com/hung/thesis/gateway/internal/testredis"
 	"github.com/redis/go-redis/v9"
 )
 
-// testRedis isolates these tests in logical DB 14. The cache tests use DB 15 and Go runs packages in
-// parallel, so sharing a DB would let one package flush the other's keys. Never DB 0: that is the
-// dev cache and the thesis corpus. A test that cannot reach Redis SKIPS, and the plan treats a SKIP
-// as a failed step.
+// testRedis runs these tests on the throwaway test Redis that `make test` starts
+// (testredis.EnvAddr), in logical DB 14, and never on the live server. A logical DB isolates keys,
+// not indexes: on this server FLUSHDB drops every search index in every DB, and an index covers
+// every DB, so a flush "of DB 14" on :6379 would delete the live idx:corpus and idx:cache
+// (RCA 2026-10-29). testredis.Client refuses a server that looks live before it flushes. With the
+// variable unset the test SKIPS; under `make test`, which sets the required flag, it fails
+// instead, and the plan treats a SKIP as a failed step.
 func testRedis(t *testing.T) *redis.Client {
 	t.Helper()
-	rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 14})
-	ctx := context.Background()
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		t.Skipf("redis not reachable, skipping: %v", err)
-	}
-	if err := rdb.FlushDB(ctx).Err(); err != nil {
-		t.Fatalf("flushing test db: %v", err)
-	}
-	t.Cleanup(func() { _ = rdb.FlushDB(ctx); _ = rdb.Close() })
-	return rdb
+	return testredis.Client(t, 14)
 }
 
 // newMap builds a Map and closes it when the test ends. Cleanups run last-in first-out, so a test

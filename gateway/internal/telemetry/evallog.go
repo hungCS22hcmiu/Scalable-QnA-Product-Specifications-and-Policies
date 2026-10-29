@@ -116,6 +116,12 @@ type Record struct {
 	// Tier 2 the candidate was dropped before it was judged. It names the FIRST such entry the request
 	// met. Never present under mutation: off, because no event fires and so no hit is refused.
 	InvalidatedEntryID string `json:"invalidated_entry_id,omitempty"`
+	// Tier2SearchFailed is an interfaces.md H v0.20 extension (run rule 12): present iff this request's
+	// Tier-2 search returned an error. The request still degrades to a MISS, so every other field reads
+	// as a cold-cache miss and this key is the only trace. The usual cause is idx:cache vanishing
+	// during the run (another process's FLUSHDB drops every search index). A run with any such record
+	// is not admissible, and the Logger counts them (Tier2SearchFailures).
+	Tier2SearchFailed bool `json:"tier2_search_failed,omitempty"`
 	// ProductID records the request's product scope now that it is part of the Tier-1 key
 	// (⚠️ BYPASS 2026-09-09, reverses the rejection -- cache.Key). Required, not optional,
 	// because handler.go's offline stratum join on query_normalized was exact only under
@@ -145,6 +151,10 @@ type Logger struct {
 	guardRefusals atomic.Int64
 	writeErrs     atomic.Int64
 	answerErrs    atomic.Int64 // only to rate-limit the log
+
+	// tier2SearchFailures counts records with Tier2SearchFailed set (run rule 12). Counted in Log,
+	// before the enqueue, so a marked record that a full buffer then drops is still counted.
+	tier2SearchFailures atomic.Int64
 
 	// Seams for the tests, set after Open and before the first Log. They default to the os calls.
 	createTemp func(dir, pattern string) (*os.File, error)
@@ -218,6 +228,9 @@ func (l *Logger) run() {
 func (l *Logger) Log(r Record) {
 	if l == nil || l.closed.Load() {
 		return
+	}
+	if r.Tier2SearchFailed {
+		l.tier2SearchFailures.Add(1)
 	}
 	select {
 	case l.ch <- r:
@@ -372,4 +385,13 @@ func (l *Logger) WriteErrors() int64 {
 		return 0
 	}
 	return l.writeErrs.Load()
+}
+
+// Tier2SearchFailures reports records marked Tier2SearchFailed (interfaces.md H rule 12). A nonzero
+// count makes the run inadmissible: the failed searches degraded to MISS and look like a colder cache.
+func (l *Logger) Tier2SearchFailures() int64 {
+	if l == nil {
+		return 0
+	}
+	return l.tier2SearchFailures.Load()
 }

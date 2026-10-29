@@ -42,7 +42,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -296,8 +296,62 @@ proto: ## Regenerate gRPC stubs from contracts/ (never hand-edit stubs)
 	cd $(RAG) && $(PY) -m grpc_tools.protoc -I ../contracts \
 	  --python_out=src/rag/pb --grpc_python_out=src/rag/pb ../contracts/rag/v1/rag.proto
 
-test: ## Run all tests
-	cd $(GATEWAY) && go test ./...
+# Bugfix 2026-10-29 (docs/work/2026-10-29-redis-index-lifecycle/). On this server FLUSHDB and FLUSHALL
+# drop EVERY search index in EVERY DB, and an index covers every DB. So a Go test that flushes "its own"
+# DB on :6379 deletes the live idx:corpus and idx:cache. The Go Redis tests therefore run only on a
+# throwaway redis-server that this target starts and stops (the search module, no persistence, its own
+# port), and the target fails if a sentinel index on :6379 does not survive. Nothing else starts one.
+#  - It refuses to start when the port is taken, so a stray server is loud, never reused.
+#  - The sentinel's prefix matches no key. It is dropped without DD.
+#  - GATEWAY_TEST_REDIS_REQUIRED=1 turns a dead or missing test server into a FAIL, not a SKIP.
+#  - -p 1: the packages share one test server, and one package's FLUSHDB would drop another's index.
+#  - GO_TEST_PKGS / GO_TEST_FLAGS let one step run a subset: make test-go GO_TEST_PKGS=./internal/cache/
+TEST_REDIS_PORT ?= 6390
+REDISEARCH_SO ?= $(shell $(PY) -c 'import os,shutil;print(os.path.dirname(os.path.dirname(os.path.realpath(shutil.which("redis-server")))))')/lib/redisearch.so
+GO_TEST_PKGS ?= ./...
+GO_TEST_FLAGS ?=
+
+test-go: ## Go tests on a throwaway Redis (:6390); fails if the live server loses an index
+	@set -u; port=$(TEST_REDIS_PORT); so="$(REDISEARCH_SO)"; pid=; tdir=; sentinel=idx:gotest-sentinel; \
+	 cleanup() { \
+	   if [ -n "$$pid" ]; then kill "$$pid" 2>/dev/null; wait "$$pid" 2>/dev/null; fi; \
+	   redis-cli FT.DROPINDEX $$sentinel >/dev/null 2>&1; \
+	   if [ -n "$$tdir" ]; then rm -rf "$$tdir"; fi; \
+	   return 0; \
+	 }; \
+	 trap cleanup EXIT; trap 'exit 130' INT TERM; \
+	 if [ ! -f "$$so" ]; then echo "FAIL: search module not found at $$so"; exit 1; fi; \
+	 if lsof -nP -iTCP:$$port -sTCP:LISTEN >/dev/null 2>&1; then \
+	   echo "FAIL: port $$port is taken (a stray test server?). Refusing to start; free the port and run again."; exit 1; \
+	 fi; \
+	 if ! redis-cli PING 2>/dev/null | grep -qx PONG; then echo "FAIL: the live redis on :6379 is not answering"; exit 1; fi; \
+	 redis-cli FT.DROPINDEX $$sentinel >/dev/null 2>&1; \
+	 if ! redis-cli FT.CREATE $$sentinel ON HASH PREFIX 1 gotest-sentinel-nomatch: SCHEMA f TEXT | grep -qx OK; then \
+	   echo "FAIL: could not create $$sentinel on :6379"; exit 1; \
+	 fi; \
+	 tdir=$$(mktemp -d -t gotest-redis); \
+	 redis-server --port $$port --bind 127.0.0.1 --save "" --appendonly no --dir "$$tdir" --loadmodule "$$so" >"$$tdir/server.log" 2>&1 & \
+	 pid=$$!; \
+	 up=0; \
+	 for i in $$(seq 1 100); do \
+	   if redis-cli -p $$port PING 2>/dev/null | grep -qx PONG; then up=1; break; fi; \
+	   if ! kill -0 "$$pid" 2>/dev/null; then break; fi; \
+	   sleep 0.1; \
+	 done; \
+	 if [ $$up -ne 1 ]; then echo "FAIL: the test redis did not start on :$$port"; cat "$$tdir/server.log"; exit 1; fi; \
+	 ( cd $(GATEWAY) && GATEWAY_TEST_REDIS=127.0.0.1:$$port GATEWAY_TEST_REDIS_REQUIRED=1 go test -p 1 $(GO_TEST_FLAGS) $(GO_TEST_PKGS) ); rc=$$?; \
+	 if redis-cli FT._LIST | grep -qx $$sentinel; then \
+	   redis-cli FT.DROPINDEX $$sentinel >/dev/null; gone=0; \
+	 else \
+	   echo "FAIL: $$sentinel is gone: a Go test reached the live server on :6379 and its FLUSHDB dropped the indexes"; gone=1; \
+	 fi; \
+	 if [ $$rc -ne 0 ] || [ $$gone -ne 0 ]; then exit 1; fi
+
+# DC 1 of the same bugfix: the same run, named for what it proves. `make verify` runs it through `test`.
+test-isolation-check: test-go ## Bugfix 2026-10-29: the Go tests must not drop the live server's indexes
+
+test: ## Run all tests (the Go Redis tests on their own throwaway server)
+	@$(MAKE) --no-print-directory test-go
 	@if command -v pytest >/dev/null; then (cd $(RAG) && pytest); \
 	else echo "pytest SKIPPED — not installed"; fi
 	@# experiments/ has its own suite and is NOT covered by rag/pyproject.toml's testpaths.

@@ -1,0 +1,11 @@
+=== RUN   TestTier2SearchErrorMarksTheRecord
+2026/10/29 11:42:02 gateway: tier-2 namespace search failed, degrading to MISS: redis: No such index
+2026/10/29 11:42:02 gateway: request_id=06GRBXRA016Y361CAG6PH7P8C8 cache=MISS t_tier1=2.583µs t_embed=3.010208ms t_search=875ns t_overlap=4.085667ms
+2026/10/29 11:42:02 gateway: request_id=06GRBXRA0Y6EFBAAZE0A49R0K4 cache=MISS t_tier1=1.625µs t_embed=651.125µs t_search=1.167µs t_overlap=722.208µs
+--- PASS: TestTier2SearchErrorMarksTheRecord (0.01s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/httpapi	0.610s
+=== RUN   TestTier2SearchErrorIsCounted
+--- PASS: TestTier2SearchErrorIsCounted (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/telemetry	0.283s

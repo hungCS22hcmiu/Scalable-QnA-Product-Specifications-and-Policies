@@ -1,0 +1,8 @@
+=== RUN   TestTier2SearchErrorMarksTheRecord
+2026/10/29 11:42:16 gateway: tier-2 namespace search failed, degrading to MISS: redis: No such index
+2026/10/29 11:42:16 gateway: request_id=06GRBXT3PDQWT152BNBBMY7C58 cache=MISS t_tier1=2.542µs t_embed=2.681708ms t_search=708ns t_overlap=2.753875ms
+    tier2_search_error_test.go:26: record of Ask("Which material is the Aurora kettle body?"): no "tier2_search_failed" key
+--- FAIL: TestTier2SearchErrorMarksTheRecord (0.01s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/httpapi	0.707s
+FAIL

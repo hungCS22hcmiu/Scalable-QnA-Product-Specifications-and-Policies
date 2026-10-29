@@ -1,0 +1,5 @@
+# ./internal/does-not-exist
+stat /Users/hung/Desktop/Sem1/thesis/gateway/internal/does-not-exist: directory not found
+FAIL	./internal/does-not-exist [setup failed]
+FAIL
+make: *** [test-go] Error 1

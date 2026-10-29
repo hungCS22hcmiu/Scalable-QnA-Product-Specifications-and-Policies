@@ -1,0 +1,2 @@
+FAIL: port 6390 is taken (a stray test server?). Refusing to start; free the port and run again.
+make: *** [test-go] Error 1

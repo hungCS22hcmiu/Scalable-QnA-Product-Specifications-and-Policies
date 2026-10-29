@@ -1,0 +1,4 @@
+ok  	github.com/hung/thesis/gateway/internal/cache	0.904s
+ok  	github.com/hung/thesis/gateway/internal/deps	2.372s
+FAIL: idx:gotest-sentinel is gone: the Go tests reached the live server and FLUSHDB dropped its indexes
+make: *** [test-isolation-check] Error 1

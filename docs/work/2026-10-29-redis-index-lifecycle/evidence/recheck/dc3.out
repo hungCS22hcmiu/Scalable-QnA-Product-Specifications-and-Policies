@@ -1,0 +1,10 @@
+=== RUN   TestCheckNotLiveAcceptsACleanServer
+--- PASS: TestCheckNotLiveAcceptsACleanServer (0.00s)
+=== RUN   TestCheckNotLiveRefusesAnIndex
+--- PASS: TestCheckNotLiveRefusesAnIndex (0.00s)
+=== RUN   TestCheckNotLiveRefusesDB0Keys
+--- PASS: TestCheckNotLiveRefusesDB0Keys (0.00s)
+=== RUN   TestClientChecksBeforeFlushing
+--- PASS: TestClientChecksBeforeFlushing (0.00s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/testredis	0.351s

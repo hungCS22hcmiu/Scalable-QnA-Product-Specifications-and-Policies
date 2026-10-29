@@ -1,0 +1,23 @@
+port=6391 index=idx:rca2-cache prefix=rca2:t2: dim=768 namespaces=100 filler_keys=539 trials=30
+N=   44 delay= 0ms  correct= 0/30 empty=30 other= 0  num_docs@first-read min/med/max=0/0/1 of 44  indexing=1 at first read: 30/30  FT.CREATE call 0.36ms  create->indexing==0 med/max=41.7/84.2ms
+N=   44 delay= 5ms  correct=11/30 empty=19 other= 0  num_docs@first-read min/med/max=3/11/13 of 44  indexing=1 at first read: 30/30  FT.CREATE call 0.32ms  create->indexing==0 med/max=38.5/71.9ms
+N=   44 delay=20ms  correct=29/30 empty= 1 other= 0  num_docs@first-read min/med/max=22/44/44 of 44  indexing=1 at first read: 14/30  FT.CREATE call 0.34ms  create->indexing==0 med/max=28.5/39.0ms
+N=   44 delay=50ms  correct=30/30 empty= 0 other= 0  num_docs@first-read min/med/max=44/44/44 of 44  indexing=1 at first read: 0/30  FT.CREATE call 0.45ms  create->indexing==0 med/max=61.1/61.5ms
+N=  163 delay= 0ms  correct= 1/30 empty=28 other= 1  num_docs@first-read min/med/max=0/0/1 of 163  indexing=1 at first read: 30/30  FT.CREATE call 0.33ms  create->indexing==0 med/max=57.4/84.4ms
+N=  163 delay= 5ms  correct= 6/30 empty=21 other= 3  num_docs@first-read min/med/max=28/33/41 of 163  indexing=1 at first read: 30/30  FT.CREATE call 0.33ms  create->indexing==0 med/max=54.5/67.2ms
+N=  163 delay=20ms  correct=20/30 empty= 4 other= 6  num_docs@first-read min/med/max=76/108/157 of 163  indexing=1 at first read: 30/30  FT.CREATE call 0.34ms  create->indexing==0 med/max=44.6/61.3ms
+N=  163 delay=50ms  correct=29/30 empty= 1 other= 0  num_docs@first-read min/med/max=76/163/163 of 163  indexing=1 at first read: 1/30  FT.CREATE call 0.46ms  create->indexing==0 med/max=61.1/79.7ms
+N=  318 delay= 0ms  correct= 0/30 empty=30 other= 0  num_docs@first-read min/med/max=0/0/0 of 318  indexing=1 at first read: 30/30  FT.CREATE call 0.36ms  create->indexing==0 med/max=80.1/92.6ms
+N=  318 delay= 5ms  correct= 3/30 empty=19 other= 8  num_docs@first-read min/med/max=8/40/52 of 318  indexing=1 at first read: 30/30  FT.CREATE call 0.34ms  create->indexing==0 med/max=83.0/118.6ms
+N=  318 delay=20ms  correct=13/30 empty= 6 other=11  num_docs@first-read min/med/max=101/153/214 of 318  indexing=1 at first read: 30/30  FT.CREATE call 0.35ms  create->indexing==0 med/max=68.6/87.9ms
+N=  318 delay=50ms  correct=29/30 empty= 0 other= 1  num_docs@first-read min/med/max=216/318/318 of 318  indexing=1 at first read: 3/30  FT.CREATE call 0.43ms  create->indexing==0 med/max=59.6/102.0ms
+N= 1274 delay= 0ms  correct= 0/30 empty=28 other= 2  num_docs@first-read min/med/max=2/2/18 of 1274  indexing=1 at first read: 30/30  FT.CREATE call 0.42ms  create->indexing==0 med/max=225.4/261.8ms
+N= 1274 delay= 5ms  correct= 0/30 empty=14 other=16  num_docs@first-read min/med/max=13/68/79 of 1274  indexing=1 at first read: 30/30  FT.CREATE call 0.37ms  create->indexing==0 med/max=223.6/279.5ms
+N= 1274 delay=20ms  correct= 8/30 empty= 4 other=18  num_docs@first-read min/med/max=126/246/328 of 1274  indexing=1 at first read: 30/30  FT.CREATE call 0.36ms  create->indexing==0 med/max=208.4/239.8ms
+N= 1274 delay=50ms  correct= 9/30 empty= 0 other=21  num_docs@first-read min/med/max=322/559/671 of 1274  indexing=1 at first read: 30/30  FT.CREATE call 0.41ms  create->indexing==0 med/max=190.2/266.0ms
+N= 5000 delay= 0ms  correct= 0/30 empty=30 other= 0  num_docs@first-read min/med/max=0/0/4 of 5000  indexing=1 at first read: 30/30  FT.CREATE call 0.36ms  create->indexing==0 med/max=798.5/865.6ms
+N= 5000 delay= 5ms  correct= 0/30 empty=21 other= 9  num_docs@first-read min/med/max=49/71/91 of 5000  indexing=1 at first read: 30/30  FT.CREATE call 0.33ms  create->indexing==0 med/max=721.0/771.0ms
+N= 5000 delay=20ms  correct= 3/30 empty= 3 other=24  num_docs@first-read min/med/max=116/276/351 of 5000  indexing=1 at first read: 30/30  FT.CREATE call 0.32ms  create->indexing==0 med/max=698.2/1501.8ms
+N= 5000 delay=50ms  correct= 4/30 empty= 0 other=26  num_docs@first-read min/med/max=505/592/666 of 5000  indexing=1 at first read: 30/30  FT.CREATE call 0.34ms  create->indexing==0 med/max=735.2/1246.4ms
+HSET then KNN in one pipeline, complete index: [1, b'rca2:t2:NEW', [b'dist', b'7.7486038208e-07']]
+second FT.CREATE during the scan: Index already exists | info right after: (1, 1, 0.0017006802721088435)

@@ -67,7 +67,16 @@ type Candidate struct {
 	Similarity float64
 }
 
-// EnsureCacheIndex creates idx:cache if it is absent. Safe to call on every startup.
+// EnsureCacheIndex creates idx:cache if it is absent, and returns only when the index is COMPLETE.
+// Safe to call on every startup.
+//
+// FT.CREATE returns in well under a millisecond and indexes the t2:* hashes that already exist in the
+// background (measured: 44 entries about 42 ms, 1274 entries about 210 ms). A KNN sent during that
+// scan returns nothing, or another entry from the same namespace, with no error, and a second
+// FT.CREATE during the scan answers "already exists". So neither a successful create nor "already
+// exists" means the index is ready: both go on to wait on FT.INFO. Without the wait, a gateway that
+// starts on a warm cache after an index drop serves its first requests from a partial index
+// (docs/work/2026-10-29-redis-index-lifecycle/design.md section 1, problem 3).
 func (s *Store) EnsureCacheIndex(ctx context.Context) error {
 	err := s.rdb.FTCreate(ctx, CacheIndexName,
 		&redis.FTCreateOptions{OnHash: true, Prefix: []any{tier2KeyPrefix}},
@@ -95,10 +104,45 @@ func (s *Store) EnsureCacheIndex(ctx context.Context) error {
 		&redis.FieldSchema{FieldName: "lane", FieldType: redis.SearchFieldTypeTag},
 	).Err()
 
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "already exists") {
-		return nil
+	// "Already exists" is not "ready": the other creator's scan may still be running.
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "already exists") {
+		return err
 	}
-	return err
+	return waitIndexed(ctx, func(ctx context.Context) (redis.FTInfoResult, error) {
+		return s.rdb.FTInfo(ctx, CacheIndexName).Result()
+	}, indexReadyTimeout, 5*time.Millisecond)
+}
+
+// indexReadyTimeout bounds the start-up wait. The RCA measured at most 1.5 s for 5000 documents, so
+// ten seconds is far above any honest scan. A scan that outlasts it is a fault: fail loudly rather
+// than serve from a partial index.
+const indexReadyTimeout = 10 * time.Second
+
+// waitIndexed polls info until the index is complete: Indexing == 0 AND PercentIndexed >= 1. Both,
+// because a zero Indexing next to a zero PercentIndexed is what a misread FT.INFO looks like, and
+// that must time out loudly instead of passing. A read error, a done ctx or the timeout returns an
+// error that names the last values seen.
+func waitIndexed(ctx context.Context, info func(context.Context) (redis.FTInfoResult, error), timeout, poll time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var last redis.FTInfoResult
+	for {
+		res, err := info(ctx)
+		if err != nil {
+			return fmt.Errorf("cache: reading FT.INFO for %s while waiting for the index (last seen indexing=%d percent_indexed=%v num_docs=%d): %w",
+				CacheIndexName, last.Indexing, last.PercentIndexed, last.NumDocs, err)
+		}
+		last = res
+		if res.Indexing == 0 && res.PercentIndexed >= 1 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("cache: %s is not fully indexed when the wait ended (timeout %s, %v): indexing=%d percent_indexed=%v num_docs=%d",
+				CacheIndexName, timeout, ctx.Err(), last.Indexing, last.PercentIndexed, last.NumDocs)
+		case <-time.After(poll):
+		}
+	}
 }
 
 // PutTier2 writes the t2 record. The caller supplies entry_id and t1_key so both tiers are

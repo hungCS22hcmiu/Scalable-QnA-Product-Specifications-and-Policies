@@ -51,6 +51,12 @@ type tier2Outcome struct {
 	Candidate   cache.Candidate
 	Decision    reuse.Decision
 
+	// SearchFailed is set when the namespace-scoped Tier-2 search returned an error. The request still
+	// degrades to a MISS with no cause, exactly like a cold-cache miss, so this flag is the only trace:
+	// handler.go copies it into the record's tier2_search_failed (interfaces.md §H rule 12), and a run
+	// with any such record is not admissible.
+	SearchFailed bool
+
 	// InvalidatedEntryID is set, with Found false, when the nearest candidate's entry had been
 	// invalidated by the dependency map (C2). The candidate is dropped BEFORE it is judged, so no
 	// cause is set and the request is a plain MISS (interfaces.md §H v0.17).
@@ -143,6 +149,7 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 	t.Search = time.Since(searchStart)
 	if err != nil {
 		log.Printf("gateway: tier-2 namespace search failed, degrading to MISS: %v", err)
+		out.SearchFailed = true
 		return out
 	}
 	if len(scoped) == 0 {

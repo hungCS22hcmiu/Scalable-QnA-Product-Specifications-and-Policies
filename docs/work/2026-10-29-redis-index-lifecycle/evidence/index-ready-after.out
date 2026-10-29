@@ -1,0 +1,6 @@
+=== RUN   TestEnsureCacheIndexReturnsOnlyWhenIndexed
+--- PASS: TestEnsureCacheIndexReturnsOnlyWhenIndexed (0.14s)
+=== RUN   TestEnsureCacheIndexWaitsWhenItAlreadyExists
+--- PASS: TestEnsureCacheIndexWaitsWhenItAlreadyExists (0.11s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/cache	0.815s

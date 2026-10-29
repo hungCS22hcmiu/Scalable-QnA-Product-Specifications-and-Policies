@@ -1,7 +1,7 @@
 # System Architecture & Repository Structure
 
 **Status:** authority for folder structure and module boundaries · **Created:** 2026-08-09 ·
-**Revised:** 2026-10-16
+**Revised:** 2026-10-29
 **Companion to:** `Final_Proposal.md` §6 (architecture), `contracts/interfaces.md` (frozen
 contracts), `decisions.md` (the decision log), `super-plan.md` (build order)
 
@@ -61,6 +61,7 @@ thesis/
 │       ├── ragpb/                  generated stubs — `make proto`, gitignored, never hand-edited
 │       ├── embed/                  embedding endpoint       → contracts/interfaces.md §F
 │       ├── catalog/                read-only corpus view, demo UI ONLY
+│       ├── testredis/              the Go tests' Redis connection (test-only) → §2, §4
 │       └── telemetry/              counters, latency split, eval log + answer store
 │
 ├── rag/                          Python — INFRASTRUCTURE (not a contribution)
@@ -183,6 +184,7 @@ edge should be checked against it.
 | `coalesce/` | Collapsing concurrent duplicate misses onto one execution; it wraps the `admission/` call, so followers share the leader's result | Hold a permit of its own — `admission/` stays the sole chokepoint |
 | `cache/` | Key normalization, both tiers, and the entry-count bound (`lru:entries`; Redis evicts nothing) | Make a reuse decision — that is `reuse/` |
 | `ragclient/` | Pooled gRPC channel; stamps `dataset_epoch` at retrieval | Be constructed per request |
+| `testredis/` | The Go tests' Redis connection: reads the address from `GATEWAY_TEST_REDIS` (the throwaway server `make test` starts on port 6390), and refuses a server that holds any search index or any DB 0 key | Be imported by non-test code, or default to `localhost:6379` |
 | `telemetry/` | Counters, latency decomposition, the evaluation log and the run's answer store (`raw/answers/`, ADR-005) | Import anything from this repo |
 | `catalog/` | A read-only product list for the demo UI | Be reached from `/ask`, hold state, or make any decision |
 
@@ -229,12 +231,14 @@ Use `make`; do not invent ad-hoc invocations. `make help` is the authority; the 
 | Group | Targets |
 | :--- | :--- |
 | **Run** | `dev` · `ask` · `ingest` · `ui` · `demo` · `demo-reset` |
-| **Check the code** | `verify` (= `lint` + build + `test`) · `lint` · `test` · `seam-check` (item 1.4) and `support-check` (item 2.1) — the two live checks; `verify` never runs either |
+| **Check the code** | `verify` (= `lint` + build + `test`) · `lint` · `test` · `test-go` · `test-isolation-check` · `seam-check` (item 1.4) and `support-check` (item 2.1) — the two live checks; `verify` never runs either |
 | **Check the envelope** | `env-check` (ADR-003, loads both models) · `redis-check` · `measure` (gates a *measured* run on green pressure) |
 | **Exploratory, not citable** | `load-smoke` · `mu-hit` · `footprint` (**deletes** `t1:` / `t2:` / `lru:` cache keys; needs `make dev`) |
 | **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash (with `ACCEPT_FAILED=G1`, ADR-014: prints it as a recorded failure and exits 3) · `corpus-assemble` · `corpus-index-check` · `corpus-freeze` · `corpus-verify` — item 3.6, ADR-015 · `pqa-fetch` (curl, resume) · `pqa-build` (Stops 0–3, then the interim files and `data/pqa-manifest.json`) · `pqa-verify` (offline hash check) — item 3.1 · `pqa-select`, `pqa-select-verify`, `pqa-audit-sheet`, `pqa-audit-score`, `epqa-fetch`, `pqa-answerability` — item 3.2 · `policy-check` (schema, terms, ≥ 3 chunks, G5 on `data/policies-v1/`; offline) — item 3.3 |
 | **Housekeeping** | `setup` · `proto` · `spike` (spent: the envelope is frozen) · `check` (documentation consistency sweep) |
 | **Not yet runnable** | `figures` — it invokes `experiments/scripts/make_figures.py`, which does not exist (super-plan item 5.4) |
+
+**The Go Redis tests run only against `make test`'s throwaway Redis on port 6390, never against :6379.** On this server `FLUSHDB` and `FLUSHALL` drop every search index in every DB, and an index covers every DB, so a test that flushes "its own" DB on the live server deletes `idx:corpus` and `idx:cache` (bugfix `2026-10-29-redis-index-lifecycle`; `make test-isolation-check` proves a sentinel index on :6379 survives the Go tests, and `make verify` runs it).
 
 ## 5. Build order
 

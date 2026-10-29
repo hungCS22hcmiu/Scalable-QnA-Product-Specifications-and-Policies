@@ -1,0 +1,16 @@
+create in db0: b'OK'
+1. after create (scan): {'num_docs': 1, 'indexing': 0, 'percent_indexed': b'1'}
+2. after HSET t2:post15 in db15: {'num_docs': 2, 'indexing': 0, 'percent_indexed': b'1'}
+3a. KNN from db0, q=vec(3): [2, b't2:post15', None, b't2:live0', [b'dist', b'1.03515207767', b'answer', b'from-db0']]
+3b. KNN from db15, q=vec(3): [2, b't2:post15', None, b't2:live0', None]
+3c. KNN from db0 with namespace filter: [2, b't2:post15', None, b't2:live0', None]
+4. FT.CREATE idx:x from db15 -> error: Cannot create index on db != 0
+4. FT.CREATE idx:new from db15 -> error: Cannot create index on db != 0
+5. after DEL t2:post15 in db15: {'num_docs': 1, 'indexing': 0, 'percent_indexed': b'1'}
+5b. KNN from db0 after DEL: [1, b't2:live0', None]
+6a. after db15 HSET of a key name that db0 also holds: {'num_docs': 1, 'indexing': 0, 'percent_indexed': b'1'}
+6b. KNN from db0 q=vec(2) (db0's own vector): [1, b't2:live0', [b'dist', b'0.988447129726', b'answer', b'from-db0']]
+6c. KNN from db0 q=vec(9) (db15's vector): [1, b't2:live0', [b'dist', b'-8.34465026855e-07', b'answer', b'from-db0']]
+6d. after DEL t2:live0 in db15 (db0 copy still exists): {'num_docs': 0, 'indexing': 0, 'percent_indexed': b'1'} db0 EXISTS t2:live0 = 1
+6e. KNN from db0 q=vec(2): [0]
+7. FT.SEARCH missing index -> error: ResponseError('No such index idx:rca2-missing')

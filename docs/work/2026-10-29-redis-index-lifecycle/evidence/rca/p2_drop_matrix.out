@@ -1,0 +1,12 @@
+FLUSHDB on EMPTY db 5                         before=['idx:a', 'idx:b'] after=[]
+FLUSHDB ASYNC on EMPTY db 5                   before=['idx:a', 'idx:b'] after=[]
+FLUSHDB SYNC on EMPTY db 5                    before=['idx:a', 'idx:b'] after=[]
+FLUSHDB on db 7 holding 1 key, no index       before=['idx:a', 'idx:b'] after=[]
+FLUSHALL                                      before=['idx:a', 'idx:b'] after=[]
+SWAPDB 5 6 (both empty)                       before=['idx:a', 'idx:b'] after=['idx:a', 'idx:b']  idx:a num_docs=1
+SWAPDB 0 5 (db0 has idx:a docs)               before=['idx:a', 'idx:b'] after=['idx:a', 'idx:b']  idx:a num_docs=1
+DEL every a: key in db 0                      before=['idx:a', 'idx:b'] after=['idx:a', 'idx:b']  idx:a num_docs=0
+UNLINK every a: key in db 0                   before=['idx:a', 'idx:b'] after=['idx:a', 'idx:b']  idx:a num_docs=0
+MOVE a:1 from db 0 to db 5                    before=['idx:a', 'idx:b'] after=['idx:a', 'idx:b']  idx:a num_docs=1
+RENAME a:1 -> z:1 in db 0                     before=['idx:a', 'idx:b'] after=['idx:a', 'idx:b']  idx:a num_docs=0
+FT.DROPINDEX idx:b (no DD)                    before=['idx:a', 'idx:b'] after=['idx:a']  idx:a num_docs=1

@@ -1,0 +1,7 @@
+FT._LIST before: ['idx:corpus']
+FT.CREATE from db13 -> Cannot create index on db != 0
+num_docs after create (db0 has no rca2:xdb: keys): 0
+num_docs after HSET rca2:xdb:1 in db13: 1
+FT.SEARCH from db0 @f:{t}: [1, 'rca2:xdb:1', None]
+num_docs after DEL in db13: 0
+FT._LIST after: ['idx:corpus'] | unchanged: True | db13 size: 0 | db0 size: 44

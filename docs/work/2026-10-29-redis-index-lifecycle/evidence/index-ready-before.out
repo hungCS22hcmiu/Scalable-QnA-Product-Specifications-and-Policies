@@ -1,0 +1,18 @@
+=== RUN   TestEnsureCacheIndexReturnsOnlyWhenIndexed
+    tier2_index_ready_test.go:122: Indexing = 1 right after EnsureCacheIndex returned (PercentIndexed 0.000): the index is still being built
+    tier2_index_ready_test.go:122: NumDocs = 0 right after EnsureCacheIndex returned, want 1000
+    tier2_index_ready_test.go:122: searching entry ready0000 in ns-ready-0 returned [], want that entry at similarity ~1
+    tier2_index_ready_test.go:122: searching entry ready0500 in ns-ready-0 returned [], want that entry at similarity ~1
+    tier2_index_ready_test.go:122: searching entry ready0999 in ns-ready-9 returned [], want that entry at similarity ~1
+--- FAIL: TestEnsureCacheIndexReturnsOnlyWhenIndexed (0.07s)
+=== RUN   TestEnsureCacheIndexWaitsWhenItAlreadyExists
+    tier2_index_ready_test.go:148: Indexing = 1 right after EnsureCacheIndex returned (PercentIndexed 0.001): the index is still being built
+    tier2_index_ready_test.go:148: NumDocs = 2 right after EnsureCacheIndex returned, want 1000
+    tier2_index_ready_test.go:148: searching entry ready0000 in ns-ready-0 returned [], want that entry at similarity ~1
+    tier2_index_ready_test.go:148: searching entry ready0500 in ns-ready-0 returned [], want that entry at similarity ~1
+    tier2_index_ready_test.go:148: searching entry ready0999 in ns-ready-9 returned [], want that entry at similarity ~1
+--- FAIL: TestEnsureCacheIndexWaitsWhenItAlreadyExists (0.04s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/cache	0.825s
+FAIL
+make: *** [test-go] Error 1
