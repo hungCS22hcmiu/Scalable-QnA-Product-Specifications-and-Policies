@@ -1,0 +1,23 @@
+# state as found 2026-10-29 16:56:43
+launchctl getenv LLAMA_ARG_CACHE_RAM = ''
+launchctl getenv LLAMA_ARG_MMPROJ_AUTO = ''
+launchctl getenv LLAMA_ARG_CTX_CHECKPOINTS = ''
+ollama serve env:
+OLLAMA_MODELS=/Users/hung/.ollama/models
+OLLAMA_NO_CLOUD=0
+OLLAMA_CONTEXT_LENGTH=262144
+SET: launchctl setenv LLAMA_ARG_CACHE_RAM 0 at 16:56:43
+QUIT: kill -TERM 39469 (osascript quit refused with -128) at 16:57:33
+SET: launchctl setenv LLAMA_ARG_CACHE_PROMPT 0; launchctl setenv LLAMA_ARG_MMPROJ_AUTO 0 at 17:02:14
+QUIT: kill -TERM 27706 at 17:02:14
+UNSET: LLAMA_ARG_CACHE_PROMPT, LLAMA_ARG_MMPROJ_AUTO (no effect); SET: launchctl setenv LLAMA_ARG_CTX_CHECKPOINTS 0 at 17:03:50
+QUIT: kill -TERM 30275 at 17:03:50
+RESTORED 17:10:04: launchctl unsetenv LLAMA_ARG_CACHE_RAM LLAMA_ARG_CTX_CHECKPOINTS; kill -TERM 31637; open -g -a Ollama
+launchctl getenv LLAMA_ARG_CACHE_RAM = ''
+launchctl getenv LLAMA_ARG_CTX_CHECKPOINTS = ''
+launchctl getenv LLAMA_ARG_CACHE_PROMPT = ''
+launchctl getenv LLAMA_ARG_MMPROJ_AUTO = ''
+new ollama serve pid 35781 env:
+OLLAMA_MODELS=/Users/hung/.ollama/models
+OLLAMA_NO_CLOUD=0
+OLLAMA_CONTEXT_LENGTH=262144

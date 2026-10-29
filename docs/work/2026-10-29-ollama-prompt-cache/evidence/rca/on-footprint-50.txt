@@ -1,0 +1,41 @@
+======================================================================
+llama-server [25060]: 64-bit    Footprint: 7088 MB (16384 bytes per page)
+======================================================================
+
+  Dirty      Clean  Reclaimable    Regions    Category
+    ---        ---          ---        ---    ---
+4588 MB        0 B          0 B        216    MALLOC_LARGE
+2435 MB        0 B          0 B         47    untagged (VM_ALLOCATE)
+  50 MB        0 B        48 KB         24    MALLOC_SMALL
+4128 KB        0 B          0 B          1    page table
+4032 KB        0 B        16 KB         15    MALLOC metadata
+3728 KB        0 B          0 B        106    IOAccelerator (graphics)
+ 778 KB        0 B          0 B        457    __DATA
+ 640 KB        0 B          0 B         36    stack
+ 578 KB        0 B          0 B        431    __DATA_DIRTY
+ 272 KB        0 B          0 B          1    MALLOC_TINY
+ 206 KB        0 B          0 B       1328    unused dyld shared cache area
+ 112 KB        0 B          0 B        503    __AUTH_CONST
+  86 KB     176 KB          0 B        505    __DATA_CONST
+  64 KB        0 B          0 B          2    IOAccelerator
+  64 KB        0 B          0 B          4    IOKit
+  64 KB        0 B          0 B          2    MALLOC_NANO
+  64 KB        0 B          0 B          2    __TPRO_CONST
+  32 KB        0 B          0 B          1    tag 22
+  32 KB        0 B          0 B          1    Activity Tracing
+  16 KB        0 B          0 B        260    __AUTH
+  16 KB        0 B          0 B          1    os_alloc_once
+  16 KB        0 B          0 B          1    Owned physical footprint (unmapped) (graphics)
+    0 B    6592 KB          0 B        520    __TEXT
+    0 B    1104 KB          0 B         10    mapped file
+    0 B     272 KB          0 B          4    __LINKEDIT
+    0 B        0 B          0 B          1    __CTF
+    0 B        0 B          0 B          1    __FONT_DATA
+    0 B        0 B          0 B          1    IOSurface
+    ---        ---          ---        ---    ---
+7088 MB    8144 KB        64 KB       4483    TOTAL
+
+Auxiliary data:
+    phys_footprint: 7088 MB
+    phys_footprint_peak: 7088 MB
+

@@ -1,0 +1,11 @@
+[nomm] pressure before load: 1
+[nomm]  1 wall= 1.78s ptok=658 rss=2343MB fp=3076MB pres=1
+[nomm]  2 wall= 5.56s ptok=619 rss=2337MB fp=3076MB pres=1
+[nomm]  3 wall= 6.61s ptok=513 rss=2340MB fp=3076MB pres=1
+[nomm]  4 wall= 7.00s ptok=1131 rss=2352MB fp=3085MB pres=1
+[nomm]  5 wall= 1.49s ptok=209 rss=2353MB fp=3085MB pres=1
+[nomm]  6 wall= 2.35s ptok=174 rss=2354MB fp=3085MB pres=1
+[nomm]  7 wall= 1.69s ptok=200 rss=2355MB fp=3085MB pres=1
+[nomm]  8 wall= 1.38s ptok=328 rss=2356MB fp=3085MB pres=1
+[nomm]  9 wall= 3.96s ptok=1026 rss=2360MB fp=3085MB pres=1
+[nomm] 10 wall= 2.64s ptok=267 rss=2380MB fp=3105MB pres=1

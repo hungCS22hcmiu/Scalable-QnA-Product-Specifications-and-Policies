@@ -1,0 +1,28 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_make_env_check_fails_on_the_captured_cache_on_runner ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108af8510>
+capsys = <_pytest.capture.CaptureFixture object at 0x10896d010>
+
+    def test_make_env_check_fails_on_the_captured_cache_on_runner(monkeypatch, capsys):
+        # The runner Ollama 0.33.2 started with no --cache-ram: its prompt cache is on at 8192 MiB.
+        # `make env-check` passed it (E/env-check-cache-on.txt). It must exit 1 and name the cache.
+        _fake_runner(monkeypatch, CAPTURED_ON_ARGV, ON_ENV)
+        rc = _main(monkeypatch, _make_argv())
+        out = capsys.readouterr().out
+>       assert rc == 1, (
+            f"env-check exited {rc} on a runner with the prompt cache on:\n{out}"
+        )
+E       AssertionError: env-check exited 0 on a runner with the prompt cache on:
+E           frozen    np=1 num_ctx=8192 ollama=0.33.2 blob=sha256-7a3a8d553821…
+E           observed  np=1 (argv) / 1 (runner) · -c 8192 · n_ctx/slot 8192 · ollama 0.33.2
+E           OK
+E         ENVELOPE server_pid=19379 runner_pid=34349 version=0.33.2 np=1 ctx=8192 total_slots=1 n_ctx_slot=8192 blob=sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
+E         
+E       assert 0 == 1
+
+experiments/tests/test_env_check_runner_cache.py:156: AssertionError
+=========================== short test summary info ============================
+FAILED experiments/tests/test_env_check_runner_cache.py::test_make_env_check_fails_on_the_captured_cache_on_runner
+1 failed in 0.07s

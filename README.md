@@ -39,7 +39,8 @@ Sustainable load is then:
 
 μ_gen is fixed by the hardware envelope. Ollama serves the frozen model at **one generation slot**
 (ADR-003), and the feasibility spike's **≈ 28.2 tokens/sec** at `num_ctx = 8192`, holding macOS green
-pressure at 1.7 GB resident, is a planning figure until it is re-measured under sustained load. That leaves **h as the only free variable that raises capacity** — and `h ≤ ρ`, the true
+pressure at a runner footprint of about 3.0–3.1 GB at load (read with `footprint`; 1.7 GB was Ollama's own
+estimate, ADR-017), is a planning figure until it is re-measured under sustained load. That leaves **h as the only free variable that raises capacity** — and `h ≤ ρ`, the true
 redundancy of the workload, for any cache that serves no false hit, because exceeding it is only
 achievable by being wrong.
 
@@ -120,7 +121,7 @@ epoch guard discards a write-back whose sources changed mid-generation. Built in
 | Gateway | **Go** | Goroutines, a channel-based counting semaphore with a bounded wait queue (`admission`), a hand-rolled `singleflight`-style coalescer (`coalesce`) — no `x/sync` dependency; a dependency map (`deps`) with one writer goroutine and an `atomic.Pointer` copy-on-write snapshot of invalidated entries; ~20 MB idle in a 16 GB budget where a Python equivalent with an ML runtime would cost ~2 GB — roughly one concurrent generation slot |
 | Cache + vector search | **Redis** (RedisVL) | Sub-ms lookups, exact FLAT vector index, one store for both tiers. It holds only derived state: the corpus of record is the versioned files, so there is no database server (ADR-007) |
 | RAG service | **Python** (LlamaIndex) | Ingestion, chunking, retrieval — invoked only on a miss |
-| LLM | **Qwen 3.5 2B** via Ollama, `q4_K_M`, `think: false` | **Chosen by measurement, not reputation** — 1.7 GB resident, the smallest of five candidates that passed the RAG-QA screen; runs natively, since Docker on macOS has no Metal passthrough |
+| LLM | **Qwen 3.5 2B** via Ollama, `q4_K_M`, `think: false` | **Chosen by measurement, not reputation** — the smallest of five candidates that passed the RAG-QA screen, by Ollama's own estimate of 1.7 GB resident; the measured footprint at load is about 3.0–3.1 GB (read with `footprint`, ADR-017); runs natively, since Docker on macOS has no Metal passthrough |
 | Seam | **gRPC** | Pooled HTTP/2 channel; a retrieval-only RPC lets the provenance check run without paying for generation |
 | Load testing | **k6**, co-hosted | No second machine exists (ADR-001). k6's own cost at the sweep's rates is measured — 1.0 → 4.8 % of one core, 21–28 MB, indicative — but that is not an interference measurement, so a co-hosted figure is reported as a bound, an indicative reading or nothing, never as a ceiling |
 
@@ -182,9 +183,10 @@ with them:
   the gate off). θ is computed and logged as a counterfactual but gates nothing (open finding F-K in
   `docs/super-plan.md`). The support gate is served since item 2.3 and has an on/off switch since item
   2.4 (`SUPPORT_GATE`); every judged candidate logs one `refusal_cause`, and every record logs the arm.
-- **The model server's memory is not yet fixed.** Ollama 0.33.2 runs Qwen 3.5 with llama-server's
-  default prompt cache, which grew to about 5.9 GB in one run and reused almost nothing. Until it is turned
-  off (a bugfix before Phase 7), "admitting requests adds no memory" does not hold.
+- **The model server keeps no prompt cache (ADR-017), but only while the variables are set.** `make
+  ollama-env` turns off llama-server's prompt cache and context checkpoints for Ollama.app, and `make
+  env-check` fails when the live runner has either on. The setting is lost on reboot, so run `make
+  ollama-env` after every reboot.
 - **The MIXED lane is an on/off arm (ADR-016).** A question about a product *and* a policy (stratum
   D, 69 of 1,274 queries) is the case it serves. On is the band [0.20, 0.60) (`LANE_SIGMA_HI=0.60`);
   off is the closed default (`LANE_SIGMA` = `LANE_SIGMA_HI` = 0.20). Any other band stops the gateway

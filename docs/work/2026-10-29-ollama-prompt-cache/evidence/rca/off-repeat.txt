@@ -1,0 +1,5 @@
+prompt#0 prompt_eval_count=658 prompt_s=1.287 eval=27 total_s=2.02
+prompt#0 prompt_eval_count=658 prompt_s=0.050 eval=27 total_s=0.77
+prompt#0 prompt_eval_count=658 prompt_s=0.049 eval=27 total_s=0.78
+prompt#1 prompt_eval_count=619 prompt_s=1.250 eval=79 total_s=3.41
+prompt#0 prompt_eval_count=658 prompt_s=1.323 eval=27 total_s=2.05

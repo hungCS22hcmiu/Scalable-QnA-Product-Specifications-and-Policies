@@ -448,7 +448,11 @@ markers are still open in `data-card.md`). Items 3.2 – 3.6 were open (3.2 clos
 Also from 4.4: `dev-v0` is retired (the author, 2026-10-29), so Redis holds `v1` and `rag.config` defaults to it.
 
 **Found while closing 4.4, not yet items:**
-- **Ollama 0.33.2's llama-server prompt cache grows to 8 GB.** No `--cache-ram` is passed; 89 prompts took about 5.9 GB in a live run, and 116 of 130 prompts reused nothing. This breaks "memory is fixed when the runner loads", and `make env-check` does not see it. It needs a /bugfix (likely `LLAMA_ARG_CACHE_RAM=0`) and a decision record **before any Phase 7 measurement**. Qwen's vision encoder (`--mmproj`) is also loaded and never used.
+- **Ollama 0.33.2's llama-server prompt cache grows to 8 GB.** No `--cache-ram` is passed; 89 prompts took about 5.9 GB in a live run, and 116 of 130 prompts reused nothing. This breaks "memory is fixed when the runner loads", and `make env-check` does not see it. It needs a /bugfix (likely `LLAMA_ARG_CACHE_RAM=0`) and a decision record **before any Phase 7 measurement**. Qwen's vision encoder (`--mmproj`) is also loaded and never used. ✅ **Resolved 2026-10-29** — ADR-017, `interfaces.md` v0.22, trail `docs/work/2026-10-29-ollama-prompt-cache/`.
+  - **The fix:** the prompt cache and the context checkpoints are off. `make ollama-env` sets them, and must run after every reboot. `make env-check` fails while either is on.
+  - **The measurement:** over 300 distinct prompts the runner's footprint rose 1 MB (`v1`, not citable).
+  - **The vision encoder** stays: 855 MB, fixed at load.
+- **Found while closing that bugfix: the runner's batch size is not fixed** (trail design §4 F3). Ollama gives the runner `-b 512` or `-b 1024`, the cause is not known, and `env-check` neither pins nor records it. It changes prefill speed and compute memory. Decide before any Phase 7 measurement.
 - **`make demo-reset` runs `FLUSHALL` and re-ingests `dev-v0`**, so one run wipes `v1` from Redis. `make demo` and `make seam-check` still assume `dev-v0`.
 - **No item owns RQ3's swept TTL baseline** (`Final_Proposal.md` RQ3).
 

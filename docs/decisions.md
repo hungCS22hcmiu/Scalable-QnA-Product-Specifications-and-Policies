@@ -56,6 +56,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-014 | `v1` freezes with G1 recorded as failed (21 pairs, floor 50): a corpus finding that bounds C1, not a change to the gate | in force for the form (chosen by the author 2026-10-23; the exit wording was applied at the author's instruction to close Phase 3 — the "How C1 is read" paragraph and the supervisor line are still the author's to accept) | none — no runs yet; changes how 3.6's first gate result is read; 3.6's freeze ADR becomes ADR-015 |
 | ADR-015 | `v1` is frozen: 164 corpus files and 3 workload files, 539 chunks, `K` 622 / 652, with G1 recorded as failed | in force (item 3.6 done 2026-10-23; Redis holds `dev-v0` afterwards; the author and the supervisor decide whether a `v2` follows, before Phase 4) | none — no runs yet |
 | ADR-016 | The MIXED lane is one pinned band, [0.20, 0.60), run as an on/off arm and not swept | in force (binds forward — item 4.5 adds the arm field to the record; no run has taken either arm) | none — no runs yet; a log from before the arm field reads as MIXED off |
+| ADR-017 | The model runner keeps no prompt cache and no context checkpoints; envelope memory is read with `footprint` | in force (amends ADR-003's envelope; `make ollama-env` runs after every reboot; the batch size is open, §F3) | no `run_id`; item 4.4's live runs (`docs/work/2026-10-29-update-set/evidence/live1`–`live3`) ran with the cache on: their completeness and precision stand, any latency or memory reading in them is void |
 
 ---
 
@@ -70,7 +71,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | :--- | :--- | :--- |
 | Generation model | **Qwen 3.5 2B** via Ollama, `q4_K_M`, `think: false` | Chosen by measurement over five candidates. It replaced Gemma 4 E4B, which entered yellow memory pressure at even the lightest config on this machine's real available RAM |
 | Embedding model | **`nomic-embed-text`**, 768-dim, served by Ollama | Never an in-process PyTorch stack — ~2 GB resident for a ~400 MB model, which is a whole generation slot |
-| Memory envelope | `num_ctx = 8192`, ~~`OLLAMA_NUM_PARALLEL = 4`~~ **one served slot** (**amended by ADR-003**) | The largest cell of the feasibility grid that held macOS green pressure, at 1.7 GB resident. ~~μ_gen ≈ 28.2 tok/s aggregate was measured **at this pair**~~ **ADR-003:** the 4 was never served; the grid's parallel axis is void, and μ_gen ≈ 28.2 tok/s is a one-slot planning figure until Phase 7 |
+| Memory envelope | `num_ctx = 8192`, ~~`OLLAMA_NUM_PARALLEL = 4`~~ **one served slot** (**amended by ADR-003**) | The largest cell of the feasibility grid that held macOS green pressure, at 1.7 GB resident (**amended by ADR-017**: 1.7 GB was Ollama's own estimate, `/api/ps` 1.588 GiB; the measured footprint at load is 3.03–3.07 GB, read with `footprint`, and the runner's prompt cache and context checkpoints are now off). ~~μ_gen ≈ 28.2 tok/s aggregate was measured **at this pair**~~ **ADR-003:** the 4 was never served; the grid's parallel axis is void, and μ_gen ≈ 28.2 tok/s is a one-slot planning figure until Phase 7 |
 | Vector index | **FLAT (exact)**, COSINE | Approximate retrieval would make `retrieve(q)` nondeterministic and inject overlap noise indistinguishable from the provenance signal. No mid-study HNSW, ever |
 | Retrieval depth | `top_k` fixed | It is the denominator of the containment measure; changing it rescales θ silently |
 | Cache capacity | `C / K = 0.25` | A ratio of the frozen workload's distinct-query count, so capacity scales with the corpus instead of being a magic number. The **gateway** enforces it; Redis evicts nothing |
@@ -413,7 +414,9 @@ unchanged. The Ollama server version (**0.33.2**) and the LLM weights blob
       0.74 req/s at the co-hosted μ_hit.
   - **The spike grid's `NUM_PARALLEL` axis is void,** and with it the "nearly flat footprint"
     memory-proxy rationale. "Largest cell that held green" rests on `num_ctx` alone. The 1.7 GB
-    resident is a one-slot figure, consistent with this entry.
+    resident is a one-slot figure, consistent with this entry. (**Amended by ADR-017,** read with `footprint`:
+    1.7 GB was Ollama's own estimate, `/api/ps` 1.588 GiB; the measured footprint at load is
+    3.03–3.07 GB.)
   - **The proposal's promised `OLLAMA_NUM_PARALLEL` sweep (§6.2) cannot be run** on this model and
     stack. It is withdrawn, pending the advisor's view.
   - **Version and identity are checked, and the pin is held.**
@@ -1562,3 +1565,75 @@ and the MIXED lane's share are read apart. Configuration 5 runs with the gate on
     belongs to the sweep", fixed by item 4.5. `super-plan.md` items 6.1 and 6.2 were updated the same day.
 - **Invalidates:** none — no runs yet (`experiments/results/` holds only `.gitkeep`). A log written before the arm field exists names no
   arm; every such log ran with the band closed and reads as MIXED off. All of them are `dev-v0` and not citable.
+
+### ADR-017 — The model runner keeps no prompt cache and no context checkpoints; envelope memory is read with `footprint`
+**Decided (frozen)** · 2026-10-29 · *`Makefile` (envelope block, `env-check`, new `ollama-env`), `experiments/scripts/env_check.py`, `experiments/tests/test_env_check_runner_cache.py`, `docs/contracts/interfaces.md` (Versioning, v0.22), `README.md`; amends ADR-003; trail `docs/work/2026-10-29-ollama-prompt-cache/`*
+
+Ollama 0.33.2 starts the bundled `llama-server` with no `--cache-ram`, so the runner's prompt cache is on at its default limit of 8192 MiB. After
+every request the runner saves the slot's state to host RAM as a new entry, and distinct RAG prompts never reuse each other's entries. The study
+turns off both the prompt cache and the context checkpoints: **`LLAMA_ARG_CACHE_RAM=0` and `LLAMA_ARG_CTX_CHECKPOINTS=0`**, set in Ollama.app's
+launchd environment by `make ollama-env`. `make env-check` reads both settings from the live runner (its argv first, then its environment, then
+llama-server's default) and fails if either is not exactly 0, or cannot be read. Memory in the envelope is read with macOS `footprint -p <runner
+pid>`, never with RSS and never with `/api/ps`.
+
+- **Rationale.** The root cause and every number below are in `docs/work/2026-10-29-ollama-prompt-cache/evidence/rca/` (cited here as `E/`).
+  - **The leak.** 50 distinct `v1` RAG prompts grew the runner's `footprint` from 3,066 to 7,088 MB, about 82 MB per prompt, at pressure 2
+    (`E/on-samples.jsonl`). The server log said "49 prompts, 4044.763 MiB". Each entry is the KV for its tokens (12 KiB per token), one
+    recurrent state (19.27 MiB) and two context checkpoints (19.27 MiB each): 65.8 MiB for a 684-token prompt. All 47 restores reused
+    `n_past = 1`, so the entries were never useful.
+  - **Why nobody saw it.** macOS compresses these pages, so RSS stayed near 2.3 GB while the footprint reached 7 GB. `make env-check` checked
+    only the values the Makefile freezes, never the runner's own defaults, and it passed this runner (`E/env-check-cache-on.txt`).
+  - **A smaller reuse from the same root.** With the cache off, the slot still keeps context checkpoints of its last prompt. A repeat of the same
+    prompt then took 0.05 s of prefill instead of 1.29 s, while Ollama still reported `prompt_eval_count = 658` (`E/off-repeat.txt`).
+    `LLAMA_ARG_CTX_CHECKPOINTS=0` stops it (`E/nockpt-repeat.txt`). Left on, it would give the `no-cache` configuration free prefill on
+    back-to-back duplicates under Zipf, so it is off too (the author, 2026-10-29).
+  - **The fix works.** With both variables set, both reach the runner (`E/off2-env.txt`), the log says "prompt cache is disabled" and "context
+    checkpoints disabled", and over the same 50 prompts the footprint went 3,071 → 2,685 MB at pressure 1 (`E/off2-samples.jsonl`). Median
+    prefill and decode did not drop: 479 → 508 tok/s and 35.5 → 36.9 tok/s (`E/compare-on-off2.txt`; the cache-on arm ran in yellow).
+  - **The 300-request check.** `docs/work/2026-10-29-ollama-prompt-cache/evidence/probe/verdict.txt` is the record: 300 distinct prompts, one
+    runner pid, footprint of samples 251–300 within 100 MB of samples 1–50, the "disabled" log lines present and no "cache state:" line, no
+    hidden reuse on a repeat, and median speed at least 0.9 × the cache-on medians. Its numbers are in the trail's `deliverables.md`.
+  - **Why the check is switched on by arguments.** The immutable `test_env_check.py` runs `main()` with the old argv. So `env_check.py` runs the
+    cache check only when it gets `--cache-ram` and `--ctx-checkpoints`, and the Makefile always passes them. A test takes its argv from
+    `make -n env-check`, so a Makefile that stops passing them fails a test.
+- **Alternatives.**
+  - **A small `LLAMA_ARG_CACHE_RAM` (for example 512).** Memory would be bounded, but the `no-cache` configuration would still sit on a hidden
+    second cache.
+  - **Turning off only the cache.** Rejected: the checkpoints still give free prefill on a repeated prompt.
+  - **Reading the server log for "prompt cache is disabled" in `env-check`.** Rejected: where the log is depends on how Ollama was launched,
+    which is why ADR-003 did not use the log either.
+  - **A login LaunchAgent to set the variables.** Not built (the author, 2026-10-29): `make ollama-env` runs after every reboot instead, and
+    `env-check` fails until it has.
+  - **A newer Ollama, or `llama-server` run directly.** It could also drop the vision encoder, but ADR-003 ruled out changing the serving stack
+    mid-study.
+- **Consequences.**
+  - **S2 holds again, as a measured number.** ADR-003 said "memory is fixed when Ollama loads the runner, and admitting requests adds none".
+    That was false on the live stack. With the cache off it holds, and the 300-request run measures it.
+  - **The "1.7 GB resident" figure was Ollama's own estimate** (`/api/ps`: 1.588 GiB), not a measurement. The measured footprint at load is
+    **3.03–3.07 GB** (`E/api-ps.txt`, `E/off2-samples.jsonl`). It is corrected where it appears in `README.md` and in this file; the old text
+    stays, struck or annotated, as ADR-003 left it.
+  - **The vision encoder stays: 855 MB.** Ollama 0.33.2 passes `--mmproj` on argv, which beats `LLAMA_ARG_MMPROJ_AUTO=0` (`E/nomm-*`). The cost
+    is fixed at load (`E/manual-mmproj-{yes,no}-footprint.txt`). Turning it off needs a serving-stack change, which is out of scope.
+  - **`make ollama-env` must run after every reboot** (`launchctl setenv` is lost on reboot), and never during a run: it restarts Ollama.app.
+    It relaunches the app through `env -i`, because a plain `open` hands the caller's whole shell environment to the app and so to every runner
+    (the RCA's own relaunches did this: 75–77 variables, among them tokens). With `env -i` only launchd's environment arrives. `make env-check`
+    fails until it has run.
+  - **Other projects' Ollama models also run without the prompt cache** while the variables are set.
+  - **Residual: a build that ignores the variable.** `env-check` would pass while the cache is on. The version pin is the guard: on 0.33.2 the
+    RCA showed the variable works (`E/off-server-log.txt`), and any other version fails `env-check` first.
+  - **Memory is read with `footprint`, never RSS and never `/api/ps`.** This is method. Any memory reading in an earlier trail that used RSS or
+    `/api/ps` is not a footprint.
+  - **`no-cache` is now honest.** Before, a back-to-back duplicate question got its prefill almost free (0.05 s against 1.29 s), which was
+    invisible in `prompt_eval_count`. Now every generation pays full prefill, and the gateway cache's gain can only be read against that.
+  - **Open, for the author (design §4 F3).** The runner Ollama started at login had `-b 512 -ub 512`; every runner since the RCA's first
+    restart had `-b 1024 -ub 1024`. `env-check` neither pins nor records the batch size, and it changes prefill speed and compute memory.
+    Suggestion: record `-b` and `-ub` in the envelope before Phase 7, as a separate decision. The cache-on medians used here came from a
+    `-b 512` runner.
+  - **Not measured.** A leak under 0.4 MB per request is below what the 300-request check can see; the Phase 7 sweeps record the runner's
+    footprint to settle it. The embedding runner gets the same environment, but its memory under load is not measured.
+  - **Stale text, listed and not edited** (the author's files): `CLAUDE.md`, the hardware-envelope bullet (it does not list the two settings)
+    and `:185–186` ("admitting requests adds none" was false until this entry); `Final_Proposal.md` `:280`, `:333` and `:340` (the 1.6–1.7 GB
+    figure, which is not the measured footprint, and the fixed-memory claim).
+- **Invalidates:** no `run_id` (`experiments/results/` is empty). Item 4.4's live runs (`docs/work/2026-10-29-update-set/evidence/live1`–`live3`)
+  ran with the prompt cache on. Their completeness (1) and precision (0.695) count purged entries, which prompt reuse cannot change, so they
+  stand. Any latency or memory reading in their evidence is void.

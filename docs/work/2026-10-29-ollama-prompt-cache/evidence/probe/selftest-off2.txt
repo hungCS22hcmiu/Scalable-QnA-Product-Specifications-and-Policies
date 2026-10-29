@@ -1,0 +1,8 @@
+PASS  samples: 50 request samples (want 50), 0 abort line(s)
+PASS  distinct prompts: 50 distinct among the first 50 prompts (want 50)
+PASS  one runner: runner_pid values ['31857'] over 51 samples, sample 0 present: True
+PASS  footprints: 51 of 51 samples have a footprint
+PASS  DC 6 memory flat: mean footprint of samples 41-50 = 2685 MB, of samples 1-10 = 3080 MB, increase -395 MB (limit 100)
+FAIL  DC 6 server log: "prompt cache is disabled" x0, "context checkpoints disabled" x0, "cache state:" lines x0 (want >=1, >=1, 0)
+PASS  DC 8 speed: median prefill 508 tok/s (min 431), median decode 36.9 tok/s (min 32.0)
+highest memory pressure seen: 1 (not a check; 1=green 2=yellow 4=red)

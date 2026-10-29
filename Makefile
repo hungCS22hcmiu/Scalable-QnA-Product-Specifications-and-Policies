@@ -34,6 +34,14 @@ export OLLAMA_NUM_PARALLEL := 1
 OLLAMA_VERSION := 0.33.2
 LLM_BLOB := sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
 
+# llama-server's prompt cache and context checkpoints, both off (ADR-017). Ollama 0.33.2 starts the
+# runner with no --cache-ram, so the cache is on at 8192 MiB and keeps a copy of every prompt in
+# RAM. `make ollama-env` sets them as LLAMA_ARG_CACHE_RAM / LLAMA_ARG_CTX_CHECKPOINTS in
+# Ollama.app's environment, and env-check reads them back from the live runner. NOT exported and
+# NOT named LLAMA_ARG_*, so no recipe hands them to a process by accident.
+RUNNER_CACHE_RAM := 0
+RUNNER_CTX_CHECKPOINTS := 0
+
 # The dataset epoch file (item 4.2, ADR-008, interfaces.md E): one integer outside Redis, stamped by
 # rag.server on every retrieval and compared by the gateway at write-back. ABSOLUTE, because the gateway
 # (cd gateway) and rag.server (cd rag) run from different directories and both must read ONE file.
@@ -42,7 +50,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -65,9 +73,35 @@ spike: ## Feasibility spike — measure the memory envelope. SPENT: already froz
 ingest: ## Build the index from the corpus in data/$DATASET_VERSION (default v1). Memory check first
 	cd $(RAG) && $(PY) -m rag.ingest
 
-env-check: ## Verify the frozen envelope against the LIVE runner (ADR-003) -- loads both models, ~2.1 GB
+env-check: ## Verify the frozen envelope and the runner's prompt cache (ADR-003, ADR-017) against the LIVE runner -- loads both models, ~2.1 GB
 	@$(PY) experiments/scripts/env_check.py --frozen-np $(OLLAMA_NUM_PARALLEL) \
-	  --ollama-version $(OLLAMA_VERSION) --llm-blob $(LLM_BLOB)
+	  --ollama-version $(OLLAMA_VERSION) --llm-blob $(LLM_BLOB) \
+	  --cache-ram $(RUNNER_CACHE_RAM) --ctx-checkpoints $(RUNNER_CTX_CHECKPOINTS)
+
+# Puts the two runner-cache variables (RUNNER_* above) in launchd's environment and restarts
+# Ollama.app, so the runners it starts read them (ADR-017). `launchctl setenv` is lost on reboot, so
+# run this after every reboot; env-check fails until you do. While the variables are set, other
+# projects' Ollama models also run without the prompt cache. NEVER run it during a run: it kills
+# the model server. The app is relaunched through `env -i`: a plain `open` hands the caller's whole
+# environment to the app, and every runner would inherit it (design F1). With `env -i` only launchd's
+# environment arrives, and the two variables come with it.
+ollama-env: ## Turn off llama-server's prompt cache for Ollama.app and restart it (ADR-017). After every reboot; never during a run
+	launchctl setenv LLAMA_ARG_CACHE_RAM $(RUNNER_CACHE_RAM)
+	launchctl setenv LLAMA_ARG_CTX_CHECKPOINTS $(RUNNER_CTX_CHECKPOINTS)
+	@pkill -TERM -x Ollama || true
+	@for i in $$(seq 1 30); do pgrep -f -x '.*/ollama serve' >/dev/null || break; sleep 1; done; \
+	 if pgrep -f -x '.*/ollama serve' >/dev/null; then \
+	   echo "FAIL — ollama serve is still running after 30 s; it was probably started outside Ollama.app."; \
+	   echo "       Stop it by hand, then run make ollama-env again."; exit 1; fi
+	env -i HOME="$$HOME" USER="$$USER" PATH=/usr/bin:/bin:/usr/sbin:/sbin open -g -a Ollama
+	@for i in $$(seq 1 60); do curl -sf -m 2 http://localhost:11434/api/version >/dev/null && break; sleep 1; done; \
+	 curl -sf -m 2 http://localhost:11434/api/version >/dev/null || { \
+	   echo "FAIL — Ollama did not answer /api/version within 60 s"; exit 1; }
+	@pid=$$(pgrep -f -x '.*/ollama serve' | head -1); \
+	 echo "  ollama serve pid $$pid, LLAMA_ARG_* in its environment:"; \
+	 ps eww -o command= -p "$$pid" | tr ' ' '\n' | grep -E '^LLAMA_ARG_[A-Z_]*=' \
+	   || { echo "FAIL — no LLAMA_ARG_* variable reached ollama serve"; exit 1; }
+	@echo "  now run make env-check"
 
 redis-check: ## Verify the cache/dependency eviction split is safe (interfaces.md D)
 	@redis-cli PING >/dev/null 2>&1 || { echo "redis not reachable — start it (see CLAUDE.md)"; exit 1; }

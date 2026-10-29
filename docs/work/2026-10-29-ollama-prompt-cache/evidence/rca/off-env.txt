@@ -1,0 +1,10 @@
+# 75 other variables removed 2026-10-29 before commit: the RCA's shell environment, inherited through `open` (design.md §4). Kept: LLAMA_*, OLLAMA_*, DYLD_*, XPC_SERVICE_NAME, _.
+_=/usr/bin/open
+LLAMA_ARG_CACHE_RAM=0
+OLLAMA_CONTEXT_LENGTH=262144
+XPC_SERVICE_NAME=application.com.electron.ollama.25253687.25253693
+OLLAMA_NO_CLOUD=0
+OLLAMA_MODELS=/Users/hung/.ollama/models
+DYLD_LIBRARY_PATH=/Applications/Ollama.app/Contents/Resources:/Applications/Ollama.app/Contents/Resources/mlx_metal_v4
+LLAMA_MEDIA_MARKER=<__ollama_media_4e278a4b2bfa85da4bc4479a2d995b9b__>
+LLAMA_ARG_FIT_TARGET=1657

@@ -1,0 +1,7 @@
+  loading qwen3.5:2b-q4_K_M (num_ctx 8192) and nomic-embed-text as the service would, ~2.1 GB ...
+  frozen    np=1 num_ctx=8192 ollama=0.33.2 blob=sha256-7a3a8d553821…
+  observed  np=1 (argv) / 1 (runner) · -c 8192 · n_ctx/slot 8192 · ollama 0.33.2
+  observed  cache_ram=0 (env) · ctx_checkpoints=0 (env)
+  OK
+RUNNER_CACHE cache_ram=0 ctx_checkpoints=0 runner_pid=62714
+ENVELOPE server_pid=62494 runner_pid=62714 version=0.33.2 np=1 ctx=8192 total_slots=1 n_ctx_slot=8192 blob=sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520

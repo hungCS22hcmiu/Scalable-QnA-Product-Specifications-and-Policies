@@ -1,0 +1,8 @@
+  loading qwen3.5:2b-q4_K_M (num_ctx 8192) and nomic-embed-text as the service would, ~2.1 GB ...
+  frozen    np=1 num_ctx=8192 ollama=0.33.2 blob=sha256-7a3a8d553821…
+  observed  np=1 (argv) / 1 (runner) · -c 8192 · n_ctx/slot 8192 · ollama 0.33.2
+  observed  cache_ram=unset (unset) · ctx_checkpoints=unset (unset)
+  FAIL — runner prompt cache: --cache-ram / LLAMA_ARG_CACHE_RAM is unset (from unset), not the frozen 0; run `make ollama-env`
+  FAIL — runner context checkpoints: --ctx-checkpoints / LLAMA_ARG_CTX_CHECKPOINTS is unset (from unset), not the frozen 0; run `make ollama-env`
+         A run under this envelope is not the configuration the study reports.
+direct script exit 1

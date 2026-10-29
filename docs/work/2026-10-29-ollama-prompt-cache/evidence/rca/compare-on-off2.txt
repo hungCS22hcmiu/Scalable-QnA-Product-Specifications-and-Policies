@@ -1,0 +1,9 @@
+wall_s    median on=2.780 off=2.680 diff=-3.6%
+prompt_s  median on=0.819 off=0.774 diff=-5.5%
+eval_s    median on=1.793 off=1.915 diff=+6.8%
+prefill tok/s median on=479 off=508
+decode tok/s median on=35.5 off=36.9
+same prompt tokens per i: True
+eval tokens total on/off: 3559 3868
+footprint first/last on: 3066.0 7088.0  off: 3074.0 2685.0
+pressure after (set) on: [2]  off: [1]

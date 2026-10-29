@@ -1,0 +1,7 @@
+launchctl setenv LLAMA_ARG_CACHE_RAM 0
+launchctl setenv LLAMA_ARG_CTX_CHECKPOINTS 0
+env -i HOME="$HOME" USER="$USER" PATH=/usr/bin:/bin:/usr/sbin:/sbin open -g -a Ollama
+  ollama serve pid 62494, LLAMA_ARG_* in its environment:
+LLAMA_ARG_CTX_CHECKPOINTS=0
+LLAMA_ARG_CACHE_RAM=0
+  now run make env-check

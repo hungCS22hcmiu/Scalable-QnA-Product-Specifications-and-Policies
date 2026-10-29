@@ -1,0 +1,9 @@
+PASS  samples: 300 request samples (want 300), 0 abort line(s)
+PASS  distinct prompts: 300 distinct among the first 300 prompts (want 300)
+PASS  one runner: runner_pid values ['74979'] over 301 samples, sample 0 present: True
+PASS  footprints: 301 of 301 samples have a footprint
+PASS  DC 6 memory flat: mean footprint of samples 251-300 = 3084 MB, of samples 1-50 = 3083 MB, increase +1 MB (limit 100)
+PASS  DC 6 server log: "prompt cache is disabled" x1, "context checkpoints disabled" x1, "cache state:" lines x0 (want >=1, >=1, 0)
+PASS  DC 8 speed: median prefill 477 tok/s (min 431), median decode 33.4 tok/s (min 32.0)
+PASS  DC 7 no hidden reuse: prefill 1.373 s, then 1.340 s and 1.314 s (each repeat must be >= 0.8 x the first = 1.098 s)
+highest memory pressure seen: 1 (not a check; 1=green 2=yellow 4=red)

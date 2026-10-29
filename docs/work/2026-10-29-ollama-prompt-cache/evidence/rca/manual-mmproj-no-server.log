@@ -1,0 +1,48 @@
+0.00.070.701 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.070.723 I srv          init: The UI is disabled
+0.00.070.723 I srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+0.00.070.778 W srv  llama_server: -----------------
+0.00.070.780 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+0.00.070.780 W srv  llama_server: this can be a security risk (cross-origin attacks)
+0.00.070.780 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+0.00.070.780 W srv  llama_server: -----------------
+0.00.072.135 I srv    load_model: loading model '/Users/hung/.ollama/models/blobs/sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520'
+handle_qwen35: detected Ollama-format qwen35 GGUF; applying compatibility fixes
+compat patch disabled mmap for transformed text tensors
+handle_qwen35: detected Ollama-format qwen35 GGUF; applying compatibility fixes
+compat patch disabled mmap for transformed text tensors
+0.00.721.945 W load: control-looking token: 248064 '<|repo_name|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.721.950 W load: control-looking token: 248063 '<|fim_pad|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.721.950 W load: control-looking token: 248062 '<|fim_suffix|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.721.951 W load: control-looking token: 248061 '<|fim_middle|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.721.951 W load: control-looking token: 248060 '<|fim_prefix|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.722.288 W load: control-looking token: 248065 '<|file_sep|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.817.367 W model has unused tensor blk.24.attn_norm.weight (size = 8192 bytes) -- ignoring
+0.00.817.372 W model has unused tensor blk.24.post_attention_norm.weight (size = 8192 bytes) -- ignoring
+0.00.817.378 W model has unused tensor blk.24.attn_q.weight (size = 4718592 bytes) -- ignoring
+0.00.817.380 W model has unused tensor blk.24.attn_k.weight (size = 589824 bytes) -- ignoring
+0.00.817.382 W model has unused tensor blk.24.attn_v.weight (size = 860160 bytes) -- ignoring
+0.00.817.389 W model has unused tensor blk.24.attn_output.weight (size = 2359296 bytes) -- ignoring
+0.00.817.391 W model has unused tensor blk.24.attn_q_norm.weight (size = 1024 bytes) -- ignoring
+0.00.817.393 W model has unused tensor blk.24.attn_k_norm.weight (size = 1024 bytes) -- ignoring
+0.00.817.395 W model has unused tensor blk.24.ffn_gate.weight (size = 7077888 bytes) -- ignoring
+0.00.817.397 W model has unused tensor blk.24.ffn_down.weight (size = 10321920 bytes) -- ignoring
+0.00.817.399 W model has unused tensor blk.24.ffn_up.weight (size = 7077888 bytes) -- ignoring
+0.00.817.403 W model has unused tensor blk.24.nextn.eh_proj.weight (size = 4718592 bytes) -- ignoring
+0.00.817.405 W model has unused tensor blk.24.nextn.enorm.weight (size = 8192 bytes) -- ignoring
+0.00.817.408 W model has unused tensor blk.24.nextn.hnorm.weight (size = 8192 bytes) -- ignoring
+0.00.817.414 W model has unused tensor blk.24.nextn.shared_head_norm.weight (size = 8192 bytes) -- ignoring
+0.01.498.315 I cmn          init: llama threadpool init, n_threads = 4
+0.01.498.371 W cmn  common_init_: KV cache shifting is not supported for this context, disabling KV cache shifting
+0.01.602.301 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'
+0.01.602.348 W srv          init: --cache-idle-slots requires --cache-ram, disabling
+0.01.603.378 I srv  llama_server: model loaded
+0.01.603.381 I srv  llama_server: listening on http://127.0.0.1:50999
+0.02.164.022 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1
+0.02.164.035 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0
+0.04.243.114 I slot print_timing: id  0 | task 0 | prompt eval time =    1242.74 ms /   646 tokens (    1.92 ms per token,   519.82 tokens per second)
+0.04.243.117 I slot print_timing: id  0 | task 0 |        eval time =     836.32 ms /    32 tokens (   26.98 ms per token,    37.07 tokens per second)
+0.04.243.117 I slot print_timing: id  0 | task 0 |       total time =    2079.06 ms /   678 tokens
+0.04.243.118 I slot print_timing: id  0 | task 0 |    graphs reused =         31
+0.04.243.271 I slot      release: id  0 | task 0 | stop processing: n_tokens = 677, truncated = 0
+0.04.358.354 I srv    operator(): operator(): cleaning up before exit...
