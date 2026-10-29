@@ -105,16 +105,19 @@ acquire a generation permit before reaching the LLM. Without a permit inside bud
 returns `503 busy, retry` rather than letting the work queue invisibly inside the model server,
 which serves one generation slot (ADR-003).
 
-Cached answers are tagged with the source chunks that produced them. **The design:** when a policy
-document is edited, the dependent entries are purged exactly — no waiting for a TTL, and no stale
-answers surviving because a generation was in flight during the edit. **Not built yet** (Phase 4):
-the dependency map that does the purging, `gateway/internal/deps/`, is a stub.
+Cached answers are tagged with the source chunks that produced them. When a source chunk is edited,
+the dependent entries are purged from both tiers — no waiting for a TTL, and no stale answer
+surviving because a generation was in flight during the edit. An edit (`python -m rag.edit`) writes the
+new text, advances the dataset epoch, then calls the gateway's `POST /invalidate`. The reply comes
+after the purge has finished. The dependency map (`gateway/internal/deps/`) does the purging, and the
+epoch guard discards a write-back whose sources changed mid-generation. Built in Phase 4, closed
+2026-10-29.
 
 ## Stack
 
 | Layer | Choice | Why |
 | :--- | :--- | :--- |
-| Gateway | **Go** | Goroutines, a channel-based counting semaphore with a bounded wait queue (`admission`), a hand-rolled `singleflight`-style coalescer (`coalesce`) — no `x/sync` dependency; the `atomic.Pointer` copy-on-write dependency map is the Phase 4 design, not yet code; ~20 MB idle in a 16 GB budget where a Python equivalent with an ML runtime would cost ~2 GB — roughly one concurrent generation slot |
+| Gateway | **Go** | Goroutines, a channel-based counting semaphore with a bounded wait queue (`admission`), a hand-rolled `singleflight`-style coalescer (`coalesce`) — no `x/sync` dependency; a dependency map (`deps`) with one writer goroutine and an `atomic.Pointer` copy-on-write snapshot of invalidated entries; ~20 MB idle in a 16 GB budget where a Python equivalent with an ML runtime would cost ~2 GB — roughly one concurrent generation slot |
 | Cache + vector search | **Redis** (RedisVL) | Sub-ms lookups, exact FLAT vector index, one store for both tiers. It holds only derived state: the corpus of record is the versioned files, so there is no database server (ADR-007) |
 | RAG service | **Python** (LlamaIndex) | Ingestion, chunking, retrieval — invoked only on a miss |
 | LLM | **Qwen 3.5 2B** via Ollama, `q4_K_M`, `think: false` | **Chosen by measurement, not reputation** — 1.7 GB resident, the smallest of five candidates that passed the RAG-QA screen; runs natively, since Docker on macOS has no Metal passthrough |
@@ -127,14 +130,15 @@ the dependency map that does the purging, `gateway/internal/deps/`, is a stub.
 gateway/       Go gateway — the contribution
   cmd/           wiring and config
   internal/      httpapi · cache · reuse · admission · coalesce · telemetry · ragclient · embed · catalog
-                 deps — a stub: source-aware invalidation (C2) is not built
-rag/           Python RAG service (LlamaIndex + gRPC)
+                 deps — the dependency map and blind purge (C2) · testredis — the Go tests' own Redis
+rag/           Python RAG service (LlamaIndex + gRPC) · rag.edit, the source-edit tool
 contracts/     .proto — the single definition of the Go↔Python seam
-experiments/   k6 load scenarios, corpus and envelope scripts, results
+experiments/   k6 load scenarios, corpus, envelope and update-set scripts, results
 ui/            debug UI (built with `make ui`; the gateway serves it)
-data/          dev-v0 (development corpus, not citable) · pqa-manifest.json (hashes and counts of the
-                 Amazon-PQA build, no text) · v1 (experimental corpus, frozen 2026-10-23, gitignored;
-                 the freeze record is v1-freeze.json)
+data/          v1 (the working corpus, frozen 2026-10-23, gitignored; the freeze record is v1-freeze.json)
+                 · pqa-manifest.json (hashes and counts of the Amazon-PQA build, no text)
+                 · the workload and the update set (gitignored; their manifests are tracked)
+                 · dev-v0 (retired 2026-10-29, kept for the demo; not citable) — see data/README.md
 docs/          the plan, the decision log, the contracts, the corpus card, task trails
 Makefile       the command surface — run `make help`
 ```
@@ -164,22 +168,30 @@ request coalescing are built and tested, and `httpapi` is tested on every exit p
 **Phase 3 closed on 2026-10-23.** The experimental corpus `v1` is frozen: 152 products and 12 authored
 policy documents (164 files, 539 chunks), and a workload of 1,274 queries split into validation (622)
 and test (652). The sensitivity gate G1 is recorded as **failed** — 21 pairs against a floor of 50
-(ADR-014, ADR-015) — so it limits where C1 applies and is reported as a finding. The next step is
-Phase 4. It starts with a decision on the MIXED lane (item 4.0), before the dependency map is built.
-Four things are **not** true yet, and the claim above should be read with them:
+(ADR-014, ADR-015) — so it limits where C1 applies and is reported as a finding.
+
+**Phase 4 closed on 2026-10-29.** Source-aware invalidation (C2) is built: the dependency map with blind
+purge, the epoch-guarded write-back, tracking of every Tier-1 key, and the edit path. An update set of 20
+labelled edits on `v1` (10 answer-changing, 10 answer-preserving) checks it. In three functional runs
+(`v1`, not citable), every dependent of an edited chunk left both tiers (completeness 1), no other entry did
+(exactness 0), and an edit during a generation discarded that write-back. Work now runs on `v1`; `dev-v0`
+is retired. The next step is Phase 5. These things are **not** true yet, and the claim above should be read
+with them:
 
 - **The served Tier-2 rule is `similarity ∧ namespace ∧ support`** (and `similarity ∧ namespace` with
   the gate off). θ is computed and logged as a counterfactual but gates nothing (open finding F-K in
   `docs/super-plan.md`). The support gate is served since item 2.3 and has an on/off switch since item
   2.4 (`SUPPORT_GATE`); every judged candidate logs one `refusal_cause`, and every record logs the arm.
-- **Source-aware invalidation (C2) is not built.** `gateway/internal/deps/` is a stub (Phase 4).
+- **The model server's memory is not yet fixed.** Ollama 0.33.2 runs Qwen 3.5 with llama-server's
+  default prompt cache, which grew to about 5.9 GB in one run and reused almost nothing. Until it is turned
+  off (a bugfix before Phase 7), "admitting requests adds no memory" does not hold.
 - **The MIXED lane is an on/off arm (ADR-016).** A question about a product *and* a policy (stratum
   D, 69 of 1,274 queries) is the case it serves. On is the band [0.20, 0.60) (`LANE_SIGMA_HI=0.60`);
   off is the closed default (`LANE_SIGMA` = `LANE_SIGMA_HI` = 0.20). Any other band stops the gateway
   at start. Every evaluation record names the arm in `mixed_lane`. On the `v1` validation split, the
   on arm reads 12 of 33 stratum-D queries as MIXED, and the off arm reads 27 as POLICY and 6 as SPEC.
-- **No citable result exists.** `v1` is frozen, but no experiment has run on it. The judge and the
-  figure pipeline are Phase 5, and `dev-v0` is a development corpus.
+- **No citable result exists.** Phase 4's runs on `v1` were functional checks, not measurements. The
+  judge and the figure pipeline are Phase 5.
 
 The schedule is **eight phases with binary exit criteria** rather than weeks — see
 `docs/super-plan.md`.
@@ -189,8 +201,8 @@ The schedule is **eight phases with binary exit criteria** rather than weeks —
 | 1 | Instrument integrity — nothing measured before this is evidence | ✅ exit criterion met 2026-10-07 |
 | 2 | The answer–evidence support gate | ✅ closed 2026-10-15 |
 | 3 | Corpus and workload (longest lead) | ✅ closed 2026-10-23 — `v1` frozen, G1 recorded as failed |
-| 4 | Source-aware invalidation | **next** — starts with item 4.0, the MIXED-lane decision |
-| 5 | Judging, the false-hit budget, the figure pipeline | |
+| 4 | Source-aware invalidation | ✅ closed 2026-10-29 — completeness 1, exactness 0 on `v1` (not citable) |
+| 5 | Judging, the false-hit budget, the figure pipeline | **next** |
 | 6 | The reuse frontier on held-out test | |
 | 7 | Capacity under concurrent load | |
 | 8 | Write-up and defence | |
@@ -200,7 +212,7 @@ The schedule is **eight phases with binary exit criteria** rather than weeks —
 ```bash
 make setup                                          # report missing tooling
 cd rag && pip3 install -e '.[dev]'                  # install the RAG service
-make ingest                                         # chunk + embed the corpus into Redis
+make ingest                                         # chunk + embed the corpus (v1 by default) into Redis
 make dev                                            # redis + rag service + gateway (functional, not citable)
 make ask Q="can I return this laptop after 30 days?"
 make verify                                         # lint + build + test
@@ -209,16 +221,27 @@ make seam-check                                     # texts reach Go aligned wit
 make support-check                                  # the support gate on live retrieved text; verify never runs it
 ```
 
-To see both cache tiers work, start from a cold cache:
+To check source-aware invalidation end to end on `v1` (item 4.4; it loads both models, functional only):
 
 ```bash
-make demo-reset     # stop the gateway first: empties both tiers, re-ingests dev-v0
+make update-set-verify                         # offline: the 20 labelled edits match v1 and their manifest
+make cache-reset                               # gateway stopped: empties t1:, t2:, lru:, dep:, entry: (never FLUSHDB)
+make update-set-check EVIDENCE=<new dir>       # fill a cache, apply the edits, check both tiers, restore v1
+make update-set-score EVIDENCE=<that dir>      # completeness, exactness, precision from the saved evidence
+```
+
+To see both cache tiers work, the scripted demo still runs on the retired `dev-v0`:
+
+```bash
+make demo-reset     # stop the gateway first. FLUSHALL, then re-ingests dev-v0: this WIPES v1 from Redis
 make ui             # once: build the debug UI (Node at build time only)
 make dev            # terminal 1: the gateway on :8080, which also serves the UI
 make demo           # terminal 2: the four scripted steps, under a minute
+make ingest         # afterwards: put v1 back, then `make corpus-index-check`
 ```
 
-Or open `http://localhost:8080` and follow the manual demo in `docs/0. progress 16-10.md` §1.6.
+Or open `http://localhost:8080` and follow the manual demo in `docs/0. progress 16-10.md` §1.6. Moving
+the demo to `v1` is a follow-up.
 
 To build the experimental corpus source (Phase 3, item 3.1; the PQA files are never redistributed):
 

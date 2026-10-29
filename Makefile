@@ -484,7 +484,7 @@ update-set-check: ## Item 4.4: live run, fill + 20 edits + completeness/exactnes
 	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"
 	$(PY) experiments/scripts/update_set_check.py --evidence-dir $(EVIDENCE)
 
-update-set-score: ## Item 4.4: score a saved run from its committed IDs only; prints score.json (EVIDENCE=dir)
+update-set-score: ## Item 4.4: score a saved run from its evidence folder (IDs in private/), never Redis; prints score.json (EVIDENCE=dir)
 	@test "$(origin EVIDENCE)" = "command line" || { echo "FAIL -- give EVIDENCE=<folder>" >&2; exit 1; }
 	@$(PY) experiments/scripts/score_update_set.py $(EVIDENCE)
 
