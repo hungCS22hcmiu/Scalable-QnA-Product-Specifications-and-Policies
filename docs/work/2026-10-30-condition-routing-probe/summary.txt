@@ -1,0 +1,29 @@
+Run 2026-10-30, v1 in Redis (539 chunks), memory pressure 2, embedding model only. citable: no.
+Output of condition_routing_probe.py as printed (redisvl INFO lines removed):
+
+PART 1 - validation questions on a condition-split policy
+  condition word present: 98/121 rank-1 policy doc correct
+  condition word absent : 9/13 rank-1 policy doc correct
+  wrong cases (gold -> got): [('policy-return-laptops-new', 'policy-return-laptops-renewed'), ('policy-return-phones-opened', 'policy-return-electronics'), ('policy-return-phones-unopened', 'policy-return-phones-opened'), ('policy-warranty-phones-domestic', 'None'), ('policy-warranty-phones-domestic', 'policy-warranty-phones-international')]
+
+PART 2 - synonym rewrites
+  WRONG 'unopened'->'still sealed': got policy-return-furniture-opened
+  WRONG 'unopened'->'never opened': got policy-return-furniture-opened
+  WRONG 'unopened'->'brand-new in its sealed box': got policy-return-furniture-opened
+  WRONG 'unopened'->'still sealed': got policy-return-phones-opened
+  WRONG 'unopened'->'never opened': got policy-return-phones-opened
+  WRONG 'unopened'->'brand-new in its sealed box': got policy-return-phones-opened
+  WRONG 'opened'->'used': got policy-return-furniture-unopened
+  WRONG 'opened'->'unboxed': got policy-return-furniture-unopened
+  WRONG 'opened'->'already taken out of the box': got policy-return-furniture-unopened
+  WRONG 'unopened'->'still sealed': got policy-return-phones-opened
+  WRONG 'unopened'->'never opened': got policy-return-phones-opened
+  WRONG 'unopened'->'brand-new in its sealed box': got policy-return-phones-opened
+  WRONG 'new'->'factory-sealed': got policy-return-laptops-renewed
+  WRONG 'opened'->'used': got policy-return-furniture-unopened
+  WRONG 'opened'->'unboxed': got policy-return-furniture-unopened
+  WRONG 'opened'->'already taken out of the box': got policy-return-furniture-unopened
+  WRONG 'new'->'brand-new': got policy-return-laptops-renewed
+  WRONG 'new'->'factory-sealed': got policy-return-laptops-renewed
+  WRONG 'new'->'factory-sealed': got policy-return-laptops-renewed
+  synonym rewrites: 24/43 rank-1 policy doc correct

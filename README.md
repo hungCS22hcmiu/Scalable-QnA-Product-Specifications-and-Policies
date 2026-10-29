@@ -154,7 +154,8 @@ Makefile       the command surface — run `make help`
 | `docs/contracts/interfaces.md` | The wire contracts: HTTP, gRPC, chunk IDs, Redis schemas, the evaluation log |
 | `docs/contracts/requirements.md` | FR / NFR / RR — a skeleton, unfilled |
 | `docs/data-card.md` | Corpus provenance, licensing, the G1–G5 gate |
-| `docs/Tier 2.md` | How the Tier-2 semantic cache works, from the idea to the mechanism, with worked examples — written for a reader new to the project |
+| `docs/1-System Docs/Tier 2.md` | How the Tier-2 semantic cache works, from the idea to the mechanism, with worked examples and every known false-hit and false-miss trap (§12a) — written for a reader new to the project |
+| `docs/1-System Docs/Redis-Data Structure.md` | What Redis stores and how: corpus, both cache tiers, LRU, dependency records, field by field |
 | `docs/0. progress 16-10.md` | Progress report of 16 Oct 2026, with the scripted demo (§1.5) and a manual demo on the UI page (§1.6) |
 | `docs/work/` | One trail per task, named `<date>-<slug>` |
 
