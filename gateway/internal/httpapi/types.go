@@ -33,7 +33,7 @@ type askRequest struct {
 // field for the reason; the evaluation log's refusal_cause does (interfaces.md H v0.13).
 type askResponse struct {
 	Answer        string   `json:"answer"`
-	Cache         string   `json:"cache"` // TIER1_HIT | TIER2_HIT | MISS | BYPASS
+	Cache         string   `json:"cache"` // TIER1_HIT | TIER2_HIT | MISS; §A also lists BYPASS, never sent (no bypass classifier)
 	LatencyMs     int64    `json:"latency_ms"`
 	Similarity    *float64 `json:"similarity"`
 	SourceOverlap *float64 `json:"source_overlap"`

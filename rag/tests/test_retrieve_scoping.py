@@ -5,7 +5,7 @@ products' chunks, then splice this product's own chunk in only if it didn't natu
 not a pre-filter that would force every policy chunk into the candidate pool and saturate
 PolicyFraction (reuse/lane.go), which is exactly the regression this file also pins.
 
-Pure tests always run; the live tests need a running Redis with the dev-v0 corpus ingested and
+Pure tests always run; the live tests need a running Redis with the v1 corpus ingested and
 are skipped, loudly, otherwise -- never a silent pass (this repo's own /verify philosophy).
 """
 

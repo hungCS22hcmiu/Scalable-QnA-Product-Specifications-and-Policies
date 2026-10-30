@@ -50,7 +50,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -783,6 +783,17 @@ footprint: ## Item 1.6: k6's CPU/RSS at the sweep's rates, co-hosted (EXPLORATOR
 	@echo "  └─────────────────────────────────────────────────────────────┘"
 	$(PY) experiments/scripts/loadgen_footprint.py run --rates "$(RATES)" --duration $(DURATION) --reps $(REPS) \
 	  $(if $(filter-out 0 no false,$(MIXED)),--mixed,) $(if $(NO_FLUSH),--no-flush,) --llm-blob $(LLM_BLOB) --out $(OUT)
+
+# The admission self-check ("docs/1-System Docs/Admission Control/Admission Control.md" §12): 8 distinct and
+# 5 identical questions at once, against a running gateway. citable: no. It loads both models: check the
+# pressure level first, every time; it is recorded, not gated. Start the stack with the queue off, or the
+# burst queues instead of shedding:
+#   GEN_QUEUE_BUDGET=0 make dev        then, in a second shell:   make verify-admission
+# With one permit: 1 x 200 and 7 x 503, and the 5 identical questions share one generation. Each run writes
+# two cache entries, so run `make cache-reset` before a measured run (run rule 11).
+verify-admission: ## Admission self-check: shed + coalescing on a running gateway (GEN_QUEUE_BUDGET=0 make dev first; NOT a measurement)
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"
+	GATEWAY_URL=$${GATEWAY_URL:-http://localhost:8080} experiments/scripts/verify_admission.sh
 
 ui: ## Build the demo UI bundle. Node is BUILD-time only.
 	@command -v npm >/dev/null || { echo "SKIPPED -- npm not installed"; exit 0; }

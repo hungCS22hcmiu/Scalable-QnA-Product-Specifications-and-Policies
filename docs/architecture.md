@@ -187,7 +187,7 @@ edge should be checked against it.
 | :--- | :--- | :--- |
 | `reuse/` | The C1 decision: lane classification, then two chunk-ID sets + similarity → reuse or not | Touch Redis, gRPC, or HTTP. It stays infrastructure-free so C1 is falsifiable in isolation |
 | `deps/` | The **only** writer to the dependency records (`dep:*`, `entry:*`), serialized through one goroutine; the copy-on-write snapshot of invalidated `entry_id`s; reaches both tiers only through the `Purger` interface (item 4.1) | Be written from a request goroutine; hold a lock across a Redis round-trip; import a sibling package |
-| `admission/` | The **sole** acquire/release point for a generation permit | Be bypassed by any miss path — one chokepoint or the memory guarantee is void |
+| `admission/` | The **sole** acquire/release point for a generation permit | Be bypassed by any miss path — one chokepoint, or the queue moves into Ollama, where it is neither counted nor shed (ADR-003) |
 | `coalesce/` | Collapsing concurrent duplicate misses onto one execution; it wraps the `admission/` call, so followers share the leader's result | Hold a permit of its own — `admission/` stays the sole chokepoint |
 | `cache/` | Key normalization, both tiers, and the entry-count bound (`lru:entries`; Redis evicts nothing) | Make a reuse decision — that is `reuse/` |
 | `ragclient/` | Pooled gRPC channel; stamps `dataset_epoch` at retrieval | Be constructed per request |

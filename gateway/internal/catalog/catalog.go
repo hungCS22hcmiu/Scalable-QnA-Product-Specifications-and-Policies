@@ -21,8 +21,8 @@ import (
 // corpusIndex and the kind tag mirror rag/src/rag/store.py's build_schema(). They are duplicated
 // rather than shared because the two services have no common config; if the Python schema changes
 // its index name or drops the `kind` tag, this returns an empty list rather than an error, so the
-// UI shows an empty catalogue and the cause is not obvious. The startup check in main.go exists to
-// surface that at boot instead.
+// UI shows an empty catalogue and the cause is not obvious. Nothing checks this at start-up: main.go
+// only builds the catalog, so an empty product list is the only sign.
 const (
 	corpusIndex = "idx:corpus"
 	kindProduct = "product"

@@ -2,8 +2,8 @@ package cache
 
 import "time"
 
-// Entry is the Tier-1 exact-match cache record (interfaces.md §D, ⚠️ stale as of the 2026-09-09
-// product-scoping bypass -- see cache.Key):
+// Entry is the Tier-1 exact-match cache record (interfaces.md §D; the key includes product_id,
+// ADR-018 -- see cache.Key):
 //
 //	KEY   t1:{sha256(normalized_query "\x00" product_id)}      # HASH
 //	      answer            <string>
@@ -12,8 +12,9 @@ import "time"
 //	      created_at        <rfc3339>
 //	      entry_id          <ulid>            # links to the Tier-2 record / dependency map
 //
-// No `t1_key` or other Tier-2 field this week -- t1_key is written BY Tier-2 (interfaces.md
-// §D: "the Tier-1 key this entry was co-written with"), and Tier-2 doesn't exist until W7.
+// The record holds no `t1_key`: that field lives on the Tier-2 record (interfaces.md §D: "the Tier-1
+// key this entry was co-written with"), and every Tier-1 key of an entry, promoted ones included, is
+// listed in lru:t1keys:{entry_id} (capacity.go), so the trim and the purge can find it.
 type Entry struct {
 	Answer         string
 	SourceChunkIDs []string

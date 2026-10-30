@@ -1,6 +1,7 @@
-"""Load data/dev-v0/*.json -> chunk -> embed (Ollama) -> write to Redis (FLAT index).
+"""Load data/{DATASET_VERSION}/*.json (default v1) -> chunk -> embed (Ollama) -> write to Redis.
 
-W5 scope only: retrieval corpus, no generation. See docs/architecture.md §5.
+The retrieval corpus only (FLAT index); generation is rag.generate. The dataset epoch advances
+after the write.
 """
 
 import json

@@ -10,6 +10,7 @@
 #   sysctl kern.memorystatus_vm_pressure_level   # want 1 (1 normal/green, 2 warn, 4 critical; ADR-014)
 #
 # Usage:
+#   make verify-admission
 #   GATEWAY_URL=http://localhost:8080 ./experiments/scripts/verify_admission.sh
 #
 # Since ADR-003 the gateway grants ONE permit (the one slot Ollama serves), so with
@@ -17,6 +18,9 @@
 # on slide 5 was taken with 4 permits, before ADR-003. main.go defaults the queue to
 # 2x permits, which QUEUES instead of shedding, so set it to 0 to see pure shedding:
 #   cd gateway && GEN_QUEUE_BUDGET=0 go run ./cmd/gateway
+#
+# The products are v1's (2026-10-30; dev-v0 is retired): the first two of each department in
+# data/v1/, so every department's return and warranty policies are reachable. Redis must hold v1.
 
 set -euo pipefail
 
@@ -27,8 +31,10 @@ NONCE="$(date +%s)"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-PRODUCTS=(product-headphones-01 product-headphones-02 product-furniture-01 product-furniture-02
-          product-kitchen-01 product-kitchen-02 product-laptops-01 product-laptops-02)
+PRODUCTS=(product-electronics-b000tnfaq2 product-electronics-b002ixeb1g
+          product-furniture-b000as7sy8 product-furniture-b001e4w9zk
+          product-laptops-b004gmsh80 product-laptops-b00ep09b4m
+          product-phones-b00485cghs product-phones-b004b9qnjs)
 
 echo "== admission-control self-check (NOT citable, NOT the rehearsed demo) =="
 echo "gateway: $GATEWAY_URL"
@@ -39,7 +45,10 @@ fi
 echo
 
 fire() {
-  local idx="$1" question="$2" product_id="$3" outfile="$TMPDIR/resp_$idx.json"
+  # Two statements: bash expands every word of one `local` before it assigns any, so a single
+  # statement read $idx unset, and set -u stopped every request before it was sent.
+  local idx="$1" question="$2" product_id="$3"
+  local outfile="$TMPDIR/resp_$idx.json"
   local status
   status=$(curl -s -o "$outfile" -w '%{http_code}' --max-time 60 \
     -H 'Content-Type: application/json' \
@@ -71,7 +80,7 @@ echo "-- test 2: $N_IDENTICAL concurrent IDENTICAL questions (singleflight coale
 same_q="Admission check $NONCE coalescing probe: how long is the warranty?"
 t0=$(date +%s.%N)
 for i in $(seq 1 "$N_IDENTICAL"); do
-  fire "s$i" "$same_q" "product-headphones-01" &
+  fire "s$i" "$same_q" "${PRODUCTS[0]}" &
 done
 wait
 t1=$(date +%s.%N)

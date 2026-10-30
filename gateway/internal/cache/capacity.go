@@ -166,7 +166,8 @@ func (s *Store) TrimToCapacity(ctx context.Context, capacity int) ([]EvictedEntr
 	return evicted, nil
 }
 
-// CachedEntries is the current entry count, for the startup banner and the run manifest.
+// CachedEntries is the current entry count. Only the tests call it today; it is meant for the run
+// manifest, which item 5.1 defines.
 func (s *Store) CachedEntries(ctx context.Context) (int64, error) {
 	return s.rdb.ZCard(ctx, lruKey).Result()
 }
