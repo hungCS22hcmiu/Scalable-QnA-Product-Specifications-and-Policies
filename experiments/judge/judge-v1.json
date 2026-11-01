@@ -1,0 +1,13 @@
+{
+  "version": "judge-v1",
+  "model": "gemma3:4b-it-q4_K_M",
+  "digest": "a2af6cc3eb7fa8be8504abaf9b04e88f17a119ec3f04a3addf55f92841195f5a",
+  "prompt_file": "prompt-v1.txt",
+  "prompt_sha256": "5e827704cdcbabaab800173b3588dc2a266c0c17559600502ea96b0615d3e57a",
+  "options": {
+    "temperature": 0,
+    "seed": 20261031,
+    "num_ctx": 4096,
+    "num_predict": 8
+  }
+}

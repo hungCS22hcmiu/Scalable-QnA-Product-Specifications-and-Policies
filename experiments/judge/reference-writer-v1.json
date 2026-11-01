@@ -1,0 +1,12 @@
+{
+  "version": "reference-writer-v1",
+  "model": "qwen3.5:4b-q4_K_M",
+  "digest": "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd",
+  "options": {
+    "num_ctx": 8192,
+    "temperature": 0,
+    "seed": 20261101
+  },
+  "think": false,
+  "prompt_sha256": "3e224f4500a18dc065ab6e24c46e25302ac275f8e145085bfb211bcf65ba67dd"
+}

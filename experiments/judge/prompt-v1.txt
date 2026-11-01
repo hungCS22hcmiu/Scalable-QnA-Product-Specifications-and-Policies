@@ -1,0 +1,19 @@
+You check answers from an online shop's assistant.
+
+Question: {question}
+
+Reference answer, written from the correct product and policy documents:
+{reference}
+
+Answer to check:
+{answer}
+
+Is the answer to check correct for this question, judged against the reference?
+- CORRECT: it gives the same facts as the reference. More or fewer details are fine if nothing it says differs.
+- INCORRECT: it states a different number, time, condition or fact; it is about a different product or a
+  different policy; or it says "yes" where the reference says "no", or the reverse.
+- A bare "Yes." or "No." is CORRECT when the reference gives the same yes or no.
+- If the reference says the answer is not known, the answer is CORRECT only if it also gives no answer.
+- If the reference gives the answer and the answer to check says it does not know, it is INCORRECT.
+
+Reply with exactly one word: CORRECT or INCORRECT.

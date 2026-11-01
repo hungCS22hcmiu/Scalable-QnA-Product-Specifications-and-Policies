@@ -61,6 +61,8 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-019 | The served Tier-2 rule is similarity ∧ namespace ∧ support; θ is a logged counterfactual; configuration 3 is similarity alone | in force (settles F-K; the restated C1 needs the advisor's view; configuration selection is built by item 6.0) | none — no runs yet; every log since this repository's base commit (2026-09-21) already served the namespace rule, and no `config_id` in any log selected a path |
 | ADR-020 | Product-scoped retrieval keeps only the asked product's category of policy | in force (G1 and G2 re-measured with ADR-021 on 2026-10-31: G1 26, still failed) | none — no runs yet; ADR-019's overlap table, the 2026-10-30 condition-routing probe and the freeze's G1 / G2 were measured on the old retrieval |
 | ADR-021 | Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked | in force (G1 26, still failed; the end-to-end answer checks, `docs/work/2026-10-31-rag-correctness/plan.md` 1.5, failed on two counts, accepted 2026-10-31; the candidate prompt not adopted, §3) | none — no runs yet; one-chunk spec retrievals before it ground every number taken so far on spec questions, all citable: no |
+| ADR-022 | The offline judge is `gemma3:4b-it-q4_K_M` with prompt v1 at temperature 0, and a reference is built from the question's gold documents | written 2026-11-01 for the author's review, in force when accepted (the model and the two rubric choices are the author's; the prompt is untested until the sanity pairs, plan step 5.3) | none — no runs yet; `Final_Proposal.md` §5 C1 and §9.3 describe the reference as `LLM(retrieve(q), q)`, which this replaces |
+| ADR-023 | References are written by a pinned reference writer, `qwen3.5:4b-q4_K_M` at temperature 0; the served generator stays `qwen3.5:2b-q4_K_M` | in force (the author, 2026-11-01; amends ADR-022's reference definition) | none — no runs yet; Entry 2's 2B reference set is superseded for verdicts and kept as the baseline |
 
 ---
 
@@ -93,7 +95,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | # | Question | Blocks |
 | :--- | :--- | :--- |
 | **F1** — ✅ **resolved by ADR-003, 2026-10-04** | Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for this model. If the permit pool bounds to a concurrency the model server never offers, every shed rate measured so far describes the harness rather than the gateway | ~~No admission-control number is citable until this resolves.~~ Resolved: one slot frozen, one permit, `make env-check` verifies the live runner. Phase 1, item 1.1 |
-| **P1** | The run-manifest schema, the frozen judge prompt, the operational metric definitions and the pre-registration record were deleted with the old protocol document and exist nowhere — not in the proposal, not in code. `experiments/k6/ask.js` still prints values "for manifest.yaml". **ADR-010:** the manifest must record `SUPPORT_GATE`, taking the arm from the records or checking that the environment and the records agree, never from the environment alone | Phases 5, 6 and 7 all produce artefacts with no defined shape. **Owned by `super-plan.md` item 5.1 since 2026-10-29**, before its first artefact |
+| **P1** — ✅ **closed 2026-11-01 by ADR-022; the documents are `contracts/metrics.md`, `contracts/interfaces.md` §I and `preregistration.md`; trail `docs/work/2026-10-30-judge-harness/`** | The run-manifest schema, the frozen judge prompt, the operational metric definitions and the pre-registration record were deleted with the old protocol document and exist nowhere — not in the proposal, not in code. `experiments/k6/ask.js` still prints values "for manifest.yaml". **ADR-010:** the manifest must record `SUPPORT_GATE`, taking the arm from the records or checking that the environment and the records agree, never from the environment alone | ~~Phases 5, 6 and 7 all produce artefacts with no defined shape. **Owned by `super-plan.md` item 5.1 since 2026-10-29**, before its first artefact~~ Closed: the three documents are written and dated 2026-11-01, before the judge's first verdict. The harness's live checks (references, sanity pairs, the cost run) are in the trail's plan, Phases 4–6 |
 
 ---
 
@@ -1899,3 +1901,131 @@ after it, as before.
   - **Item 5.1's numbers move:** its judge decision is ADR-022 and its contract change v0.28 (the plan closed
     2026-10-31). Its `RETRIEVAL_VERSION` starts at this retrieval.
 - **Invalidates:** none — no `run_id` exists.
+
+### ADR-022 — The offline judge is `gemma3:4b-it-q4_K_M` with prompt v1 at temperature 0, and a reference is built from the question's gold documents
+**Decided (frozen)** · 2026-11-01 · *`experiments/judge/judge-v1.json`, `prompt-v1.txt`; `experiments/scripts/judge.py`, `judge_references.py`, `run_manifest.py`, `replay.py`; `contracts/interfaces.md` §H and §I (v0.28); `contracts/metrics.md`; `preregistration.md`; `rag/src/rag/config.py` (`RETRIEVAL_VERSION`); trail `docs/work/2026-10-30-judge-harness/`*
+
+The judge that labels every served answer is **`gemma3:4b-it-q4_K_M`**, digest
+`a2af6cc3eb7fa8be8504abaf9b04e88f17a119ec3f04a3addf55f92841195f5a`, run in Ollama alone after the generator is
+unloaded. Its prompt is `experiments/judge/prompt-v1.txt`, sha256
+`5e827704cdcbabaab800173b3588dc2a266c0c17559600502ea96b0615d3e57a`. Its options are `temperature 0`, `seed 20261031`,
+`num_ctx 4096` and `num_predict 8`. gemma3 lists no thinking mode, so no `think` field is sent; the scripts send
+`think: false` only to a model whose `/api/show` lists `thinking`. A reply counts only if it equals `CORRECT` or
+`INCORRECT` once white space is trimmed at both ends. Anything else is `UNPARSED`, and the raw reply is stored.
+`experiments/judge/judge-v1.json` holds all of this (its sha256 is `1beb1fbd864f919994e9588852cbbaf8f6448b5ede16f547471a022150594d11`,
+and `preregistration.md` holds the same hash).
+
+Each served answer is judged against a **reference** built from the question's **gold documents**:
+`Answer(query, product_id, gold evidence)`, the served generator and prompt, where the gold evidence is every chunk of
+the query's `doc_ids` in document order, passed as `retrieved_chunk_ids`. One reference is generated per distinct
+`(question, product_id)` and stored. A verdict is keyed by `vk1` (`interfaces.md` §H), and each `INCORRECT` record gets
+one error layer (`metrics.md` R7). The counting rules are `counting-v1`.
+
+- **Rationale.**
+  - **The judge is not the generator.** A judge from the generator's family would agree with itself (`Final_Proposal.md`
+    §9.3). Qwen's family is out, and so is Claude (ADR-013). `gemma3:4b-it-q4_K_M` is Google's, 3.3 GB on disk, and
+    already pulled.
+  - **It fits the envelope.** The envelope cannot hold two models, so the generator is unloaded first and the judge
+    runs alone. Its 3.3 GB on disk should fit the ~5–6 GB that is free; that is reasoned, and the cost run reads the
+    judge's footprint. An API judge would send PQA-derived text off the machine, and redistribution of that text is not
+    granted.
+  - **Gold evidence, not the run's retrieval.** `Final_Proposal.md` §9.3 defines the reference as
+    `LLM(retrieve(q), q)`. A request that retrieved the wrong policy document would get a reference with the same
+    error, and the judge would call the reuse correct. After ADR-020 the rank-1 policy document is still not the gold
+    one for **26 of 167** validation policy questions (21 in B-within). On the ADR-021 retrieval, **42 of 124**
+    validation B-within pairs pass the full gate at τ 0.85 (either prompt), and **36 of the 42** are policy-condition
+    pairs in which one question ranked the other condition's document first (ADR-021, its plan's §3.1; citable: no).
+    Gold evidence removes that loop.
+  - **The rubric covers three cases that decide the false-hit rate:** a wrong product or policy is `INCORRECT`; a bare
+    "Yes." or "No." is `CORRECT` when the reference gives the same yes or no; and for an unanswerable question a
+    "don't know" is `CORRECT` and an invented answer is `INCORRECT`.
+  - **The parse reads exact tokens only.** `INCORRECT` contains `CORRECT`, so a substring test would call every wrong
+    answer right.
+  - **The key is a netstring over three fields.** A key on the answer alone merges `(q1, A)` and `(q2, A)`, and the
+    false-hit rate takes whichever verdict came first.
+- **Alternatives.** None was measured: how good a judge is, is item 5.2's measurement.
+  - **`qwen2.5:3b` and `qwen3:4b`.** Qwen's family. Rejected by the first rule above.
+  - **`gemma3:1b`.** 0.8 GB and likely a weaker judge. Rejected.
+  - **`gemma4:e2b`.** 7.2 GB on disk. It does not fit the ~5–6 GB that is free. Rejected.
+  - **An API judge.** Rejected: it sends PQA-derived text off the machine.
+  - **A reference built from the run's own retrieval**, as `Final_Proposal.md` §9.3 says. Rejected on the numbers above.
+  - **Calling a separate `rag.server` over gRPC for the references.** Rejected: the in-process `Answer` handler is the
+    same code, with no port or process to manage.
+- **Consequences.**
+  - **The reference definition changes** from `LLM(retrieve(q), q)` to `LLM(gold(q), q)`. `Final_Proposal.md` §5 C1 and
+    §9.3 describe the old one and are stale (the author's file, not edited).
+  - **Two rubric choices are the author's:** a bare same-polarity "Yes." is `CORRECT`, and so is a partial answer that
+    says nothing wrong. Either choice moves the false-hit rate, so the author confirms both.
+  - **Not known yet.** How good `gemma3:4b` is as a judge: the 12 sanity pairs (plan step 5.3) catch gross errors only,
+    and item 5.2 measures agreement with the author's labels. Whether `temperature 0` with a seed repeats on Ollama
+    0.33.2: the cost run re-judges 30 keys and counts the flips. The `UNPARSED` share: above 2 % stops the work, and a
+    prompt v2 would use Ollama's `format` with an enum of the two words.
+  - **A prompt change is a new version.** Any change to the model, the prompt or the options is `judge-v2`, with a new
+    entry in `preregistration.md`. A wrong sanity verdict stops the work and does not edit the prompt.
+  - **A reference is one sample** of a generator at `temperature 1` (U8), so it can be wrong. Item 5.2 measures that
+    noise (`metrics.md`, layer 5).
+  - **New frozen values:** the judge and its digest, the prompt version and hash, the options, the verdict key, the
+    counting rules, the reference definition, and the reference set's hash (a second entry in `preregistration.md`,
+    before the first verdict). No existing frozen value changes: the generator, the embedding model, `τ_s`, δ
+    (provisional until 5.3), the capacity ratio and `top_k` stay as they are.
+  - **`RETRIEVAL_VERSION`** is new in `rag/src/rag/config.py`, `adr-021` first. Every ADR that changes retrieval bumps
+    it, and the run manifest and the reference set record it. The judge refuses a run whose retrieval is not the
+    reference set's.
+  - **P1 closes.** The metric definitions are `contracts/metrics.md`, the run manifest is `interfaces.md` §I, and the
+    pre-registration record is `preregistration.md`.
+  - **Out of scope here:** judging under `mutation: on` (item 6.5, where the gold text depends on the epoch), the
+    test split's references, and δ (item 5.3).
+  - **Cost.** One model, loaded alone. A guess of 1–3 s per key and about 600 keys per run; the cost run measures it.
+- **Invalidates:** none — no `run_id` exists.
+
+---
+
+### ADR-023 — References are written by a pinned reference writer, `qwen3.5:4b-q4_K_M` at temperature 0; the served generator stays `qwen3.5:2b-q4_K_M`
+**Decided (frozen)** · 2026-11-01 · the author · *amends ADR-022's reference definition; `experiments/judge/reference-writer-v1.json`; `experiments/scripts/judge_references.py`, `judge.py`; `contracts/interfaces.md` §I (v0.29); `contracts/metrics.md` layer 5; `preregistration.md` Entry 4; trails `docs/work/2026-10-30-judge-harness/` (design §4, plan Phase 10) and `docs/work/2026-11-01-generator-selection/`*
+
+A reference is `LLM_w(gold(q), q)`. `LLM_w` is the **reference writer**: `qwen3.5:4b-q4_K_M`, digest
+`2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd`, with `think: false`, `num_ctx` 8192, `temperature`
+0 and `seed` 20261101. It uses the served prompt (`generate._PROMPT_TEMPLATE`, sha256 `3e224f45…`) and the same gold
+evidence as before: every chunk of the query's `doc_ids`, in order. `experiments/judge/reference-writer-v1.json` holds
+these values. The **served generator does not change**: `qwen3.5:2b-q4_K_M` (CLAUDE.md, `rag/src/rag/config.py`),
+the model every run measures.
+
+- **Rationale.**
+  - **The reference is the measuring instrument, and the generator is not the research object.** The author read
+    30 of the 2B references (the judge-harness plan, step 4.6). Five were wrong: 17 %, Wilson 95 % [7.3, 33.6],
+    citable: no. Even the low end of that interval is above δ = 5 %, so the false-hit rate could not be told apart
+    from reference error.
+  - **The 2B errors are the model, not the sampling.** At temperature 0, 2B keeps the same errors. Three of the five
+    are one template: an opened phone's $45 fee, answered "the model is not mentioned".
+  - **4B wrote 2 wrong of the same 30** (rows 17 and 25) in the generator comparison. That reading is provisional and
+    the main session's, not blind. 4B invented no fact and repeated byte for byte across two runs. The comparison's
+    other candidates were rejected for memory (Gemma 4 E2B, 7.0 GB, and the judge's family), for unhonoured
+    `think: false` (Granite 4.2 3B), and for invented facts (Phi-4-mini, Ministral 3 3B).
+  - **Serving stays on 2B** because the machine bounds it (the author, 2026-11-01). 4B decodes at about half the
+    speed (16.9 against 35.9 tok/s), which would halve μ_gen and double every Phase 6 run. The writer runs offline,
+    once per split, so its speed costs nothing at run time.
+  - **Judge independence holds.** The writer is Qwen and the judge is Gemma.
+- **Alternatives.**
+  - **Switch the served generator to 4B.** Rejected by the author: the model is outside the thesis's scope, and the
+    run time would double.
+  - **An evidence-based judge, with no reference.** Not chosen now. It needs a new judge prompt and gives the 4B judge
+    a harder task, unmeasured. Item 5.2's reference-free labels measure that scheme anyway.
+  - **Keep the 2B references** and report 17 % as the noise floor. Rejected: δ = 5 % could not be finalised.
+- **Consequences.**
+  - **The reference set is rebuilt** with the writer (Phase 10). Entry 2's 2B set is kept as the baseline at
+    `experiments/references/validation-qwen2b-t1/`, renamed and not edited. Entry 4 of `preregistration.md` records
+    the new set's hash before the first verdict.
+  - **`version.json` gains a `reference_writer` block**, and `make judge` refuses a set whose writer differs from
+    `reference-writer-v1.json`. The `generator` comparison between the manifest and `version.json` stays: it ties the
+    references to the study state (the served generator) they were frozen beside.
+  - **The miss path will read worse.** 2B answers on a MISS are now judged against a stronger reference, so more of
+    them are `INCORRECT`. That is 2B's real error, reported as the miss-path baseline (M20).
+  - **Layer 5 (`metrics.md`) still applies.** A reference can still be wrong. The noise is now one temperature-0
+    writer's, and item 5.2 measures it.
+  - **The author re-marks only `reference right`** on the same 30 rows (`sufficiency-v3.md`, blind), and step 4.7's
+    stop rule applies to it.
+  - **New frozen values:** the reference writer, its digest and its options. **Changed:** ADR-022's reference
+    definition. **Unchanged:** the served generator, the judge, the prompt, the counting rules and every other
+    frozen value.
+- **Invalidates:** none — no `run_id` exists. Entry 2's reference set is superseded for verdicts and kept as the
+  baseline.

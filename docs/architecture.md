@@ -1,7 +1,7 @@
 # System Architecture & Repository Structure
 
 **Status:** authority for folder structure and module boundaries · **Created:** 2026-08-09 ·
-**Revised:** 2026-10-31
+**Revised:** 2026-11-01
 **Companion to:** `Final_Proposal.md` §6 (architecture), `contracts/interfaces.md` (frozen
 contracts), `decisions.md` (the decision log), `super-plan.md` (build order)
 
@@ -28,6 +28,7 @@ thesis/
 │   ├── Final_Proposal.md           scope, claims, RQs, evaluation  (gitignored)
 │   ├── architecture.md             ← this file
 │   ├── data-card.md                corpus provenance, licensing, the G1–G5 gate
+│   ├── preregistration.md          append-only: the frozen judge and the values fixed before a verdict (item 5.1)
 │   ├── 0. progress 16-10.md        progress report for the supervisor, 2026-10-16
 │   ├── 1. progress 31-10.md        progress report for the supervisor, 2026-10-31
 │   ├── 1-System Docs/              how the system works, written to be read (README.md is the index):
@@ -35,6 +36,7 @@ thesis/
 │   │                               pipeline, also the figure blueprints), Codebase/ (one doc per package)
 │   ├── contracts/
 │   │   ├── interfaces.md           frozen wire contracts; the version is in its header
+│   │   ├── metrics.md              metric definitions and counting rules, `counting-v1` (item 5.1)
 │   │   └── requirements.md         FR / NFR / RR — skeleton, unfilled
 │   ├── work/<YYYY-MM-DD>-<slug>/   design · plan · deliverables · STAGE · evidence/ (older trails: spec · impact
 │   │                               · review · approvals)
@@ -102,15 +104,22 @@ thesis/
 │   │                               · update_set_check (make update-set-check, the live run) · score_update_set (make update-set-score)
 │   │                               · epoch_race_check (item 4.2: make epoch-race-check)
 │   │                               · loadgen_footprint · load_burst (not citable) · verify_admission.sh (make verify-admission)
-│   │                               NOT BUILT: replay, judge, figures
-│   │                               → super-plan items 5.1, 5.4
+│   │                               · judge_references.py (item 5.1: make judge-gold-check / judge-references; the gold audit,
+│   │                                 the gold-anchored reference set, the sufficiency sheet)
+│   │                               · run_manifest.py (item 5.1: make run-manifest / run-manifest-check → interfaces.md §I)
+│   │                               · replay.py (item 5.1: make replay — every query of a split once, in a seeded order)
+│   │                               · judge.py (item 5.1: make judge / judge-sanity — offline, reads raw/ only → interfaces.md §I)
+│   │                               NOT BUILT: figures (make_figures.py) → super-plan item 5.4
+│   ├── judge/                      TRACKED: the frozen judge, prompt-v1.txt and judge-v1.json → ADR-022
+│   ├── references/{split}/         gitignored (question text, PQA-grounded answers): the reference set → interfaces.md §I
 │   ├── k6/                         ask.js · mu_hit.js — run co-hosted (ADR-001)
 │   ├── tests/                      pytest for the scripts
 │   └── results/{run_id}/
-│       ├── manifest.yaml           required; a run without one is invalid
+│       ├── manifest.yaml           required; written by make run-manifest; a run without one is invalid → interfaces.md §I
 │       ├── raw/                    WRITE-ONCE, gitignored (ADR-005)
 │       │   ├── requests.jsonl      one record per request → contracts/interfaces.md §H
 │       │   └── answers/            {answer_sha256}.txt, the served text → interfaces.md §H, ADR-005
+│       ├── judge/                  gitignored, written once by make judge: verdicts · records · summary → interfaces.md §I
 │       └── figures/                regenerated, gitignored
 │
 ├── ui/                           demo debug view (React + Vite)
@@ -264,6 +273,7 @@ Use `make`; do not invent ad-hoc invocations. `make help` is the authority; the 
 | **Epoch (item 4.2, not citable)** | `epoch-advance` · `epoch-race-check` (forces the write-back race; loads the LLM) |
 | **Corpus** | `gate-corpus` — runs the G1–G5 gate and, if it passes, prints the snapshot hash (with `ACCEPT_FAILED=G1`, ADR-014: prints it as a recorded failure and exits 3) · `corpus-assemble` · `corpus-index-check` · `corpus-freeze` · `corpus-verify` — item 3.6, ADR-015 · `pqa-fetch` (curl, resume) · `pqa-build` (Stops 0–3, then the interim files and `data/pqa-manifest.json`) · `pqa-verify` (offline hash check) — item 3.1 · `pqa-select`, `pqa-select-verify`, `pqa-audit-sheet`, `pqa-audit-score`, `epqa-fetch`, `pqa-answerability` — item 3.2 · `policy-check` (schema, terms, ≥ 3 chunks, G5 on `data/policies-v1/`; offline) · `policy-sources` — item 3.3 · `workload-status`, `-sheets`, `-import`, `-labels`, `-author-sheet`, `-author-score`, `-embed`, `-build`, `-verify` — item 3.4 |
 | **Update set (item 4.4, not citable)** | `update-set-probe` (embedding model) · `update-set-verify` (offline) · `cache-reset` (run rule 11: `SCAN` + `UNLINK` of `t1:` `t2:` `lru:` `dep:` `entry:`, never `FLUSHDB`; refuses under a gateway) · `update-set-check` (live run, loads both models) · `update-set-score` (reads the saved evidence only) |
+| **Judge harness (item 5.1, not citable)** | `judge-gold-check` (offline) · `judge-references` (loads the generator) · `replay` (every query of a split once, to a running gateway) · `run-manifest` and `run-manifest-check` (`run-manifest` loads both models) · `judge` and `judge-sanity` (load the judge, which refuses to run while the generator is loaded) |
 | **Housekeeping** | `setup` · `proto` · `spike` (spent: the envelope is frozen) · `check` (documentation consistency sweep) |
 | **Not yet runnable** | `figures` — it invokes `experiments/scripts/make_figures.py`, which does not exist (super-plan item 5.4) |
 
@@ -282,9 +292,9 @@ The tree above is the target. What is real at any moment follows **`docs/super-p
 
 | State | Packages |
 | :--- | :--- |
-| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi, deps}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4; `deps` is the dependency map and blind purge, item 4.1, and the epoch reader and late check, item 4.2) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `rag/src/rag/{edit,epoch}.py` and the update-set scripts (items 4.2, 4.4) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) · `experiments/scripts/select_pqa.py` and `answerability_check.py` (item 3.2; the selection ran 2026-10-20: 152 draft products) · `experiments/scripts/build_workload.py` (item 3.4; the draft build ran 2026-10-22: 1,274 queries) |
+| **Built and tested** | `rag/src/rag/*` · `contracts/` · `gateway/internal/{cache, coalesce, admission, telemetry, ragclient, reuse, httpapi, deps}` (`reuse` includes the support arms, the refusal cause and the gate's on/off switch, item 2.4; `deps` is the dependency map and blind purge, item 4.1, and the epoch reader and late check, item 4.2) · `cmd/gateway` — `httpapi` is tested on every exit path of `Ask` (item 1.2) · `rag/src/rag/{edit,epoch}.py` and the update-set scripts (items 4.2, 4.4) · `experiments/scripts/build_pqa.py` (item 3.1, the Amazon-PQA builder; run on the six real files 2026-10-15) · `experiments/scripts/select_pqa.py` and `answerability_check.py` (item 3.2; the selection ran 2026-10-20: 152 draft products) · `experiments/scripts/build_workload.py` (item 3.4; the draft build ran 2026-10-22: 1,274 queries) · `experiments/scripts/judge.py`, `judge_references.py`, `run_manifest.py` and `replay.py` (item 5.1, written 2026-11-01 and unit-tested with fakes; their live steps are in the trail's plan, `docs/work/2026-10-30-judge-harness/`) |
 | **Built, no tests** | `gateway/internal/{embed, catalog}` — `embed` was listed as tested here until 2026-10-07; it has no test file |
-| **Not built** | a restore path for `data/v1/` (it has no git; `make corpus-assemble` rebuilds it from the drafts and `data/policies-v1/`) · the replay harness, judge harness and figure generators (`experiments/scripts/` — items 5.1, 5.4) · configuration selection (item 6.0) |
+| **Not built** | a restore path for `data/v1/` (it has no git; `make corpus-assemble` rebuilds it from the drafts and `data/policies-v1/`) · the figure generators (`experiments/scripts/` — item 5.4) · configuration selection (item 6.0) |
 
 ## 6. Invariants that fail silently
 

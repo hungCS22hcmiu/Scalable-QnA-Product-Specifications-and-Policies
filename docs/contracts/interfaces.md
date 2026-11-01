@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.27 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-31
+**Status:** Draft v0.29 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-11-01
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -733,12 +733,28 @@ Four evaluation metrics are **not computable without this record**: *decisions c
 > taken at serve time rather than recomputed from a possibly re-generated answer: the Modelfile sets
 > `temperature 1` (U8), so a second generation can be a different answer.
 >
-> ⚠️ **It is not, by itself, a judge verdict key.** The evaluation keys verdicts by
-> `sha256(query ‖ candidate_answer)`. A Tier-2 hit serves a cached answer to a *different* query
-> byte for byte, so a true hit `(q1, A)` and a false hit `(q2, A)` share one `answer_sha256`; keyed on
+> ⚠️ **It is not, by itself, a judge verdict key.** A Tier-2 hit serves a cached answer to a *different*
+> query byte for byte, so a true hit `(q1, A)` and a false hit `(q2, A)` share one `answer_sha256`; keyed on
 > the answer alone they would collapse into one verdict and the false-hit rate would be biased toward
-> whichever came first. The bare `‖` is ambiguous without a delimiter; **item 5.1 fixes it.** The
-> layout serves either key, since both are computable from `query_raw` and `raw/answers/`.
+> whichever came first. **The verdict key (v0.28, item 5.1):**
+>
+> ```
+> verdict_key = sha256( "vk1:" + ns(query_raw) + ns(product_id) + ns(answer_sha256) ), lowercase hex
+> ns(s)       = <the byte length of s in UTF-8, in decimal> ":" <the UTF-8 bytes of s> ","   (a netstring)
+> ```
+>
+> - **Inputs, in this order.** `query_raw` is the record's field as logged, never `query_normalized`.
+>   `product_id` is the record's field, or `""` when the record has none (the key is `omitempty`). `answer_sha256`
+>   is the record's 64-character field. The one question under two `product_id`s gets two keys.
+> - **Why a netstring.** It cannot be split two ways, so no question text can fake a field boundary. The length is
+>   in bytes, not characters.
+> - **Pinned key.** `query_raw` = `Is the café mug 12 oz?` (22 characters, 23 bytes), `product_id` = `product-x`,
+>   `answer_sha256` = the empty answer's hash. The hashed bytes are
+>   `vk1:23:Is the café mug 12 oz?,9:product-x,64:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855,`
+>   and the key is `d2f8597f95e17b78e95c3a62c7f4c2c229e25fe21bb544e5c45647200c5fbb41`. It was computed with
+>   `printf`, `wc -c` and `shasum -a 256`, not with the harness, and `test_key_golden_value` in
+>   `experiments/tests/test_judge.py` pins the same value.
+> - Every input is on disk in `raw/`, so a key needs no cache. The judge's output stores the key (§I).
 >
 > ⚠️ **`similarity_only_decision` is RETIRED at v0.9.** It recorded what a fixed-threshold baseline *would* have decided, inline, because re-deriving it would have required replaying against cache state that no longer exists. It was produced by the unfiltered similarity-only cascade phase, and it is retired **with** that phase. *Decisions changed by provenance* is now a **cross-configuration join** of configurations 3 and 4 on `request_id`'s query identity — valid only on the **static-cache** arm, where both runs are guaranteed identical cache state, which is why retiring the unfiltered phase moves that arm into the non-negotiable list. A log written before the **1.3 commit** carries the old field — the code emitted it until then (ADR-004), so a log dated after v0.9 can still carry it; do not mix the two derivations in one figure.
 
@@ -796,14 +812,151 @@ Field notes:
 
 ---
 
+## I. Run manifest, reference set and judge output  ⚠️ measurement-critical
+
+**New at v0.28 (ADR-022, item 5.1).** Three things sit beside the evaluation log and are not part of it: the run's
+manifest, the reference set that the judge compares answers with, and the judge's output. The gateway writes §H and
+does not change. Everything here is written by scripts under `experiments/`, offline. Nothing in `gateway/` or `rag/`
+imports them. The words are defined in `metrics.md`.
+
+```
+experiments/
+├── judge/                            tracked: the frozen judge (ADR-022)
+│   ├── prompt-v1.txt
+│   └── judge-v1.json
+├── references/{split}/               gitignored: holds question text and PQA-grounded answers
+│   ├── index.jsonl
+│   ├── answers/{reference_sha256}.txt
+│   └── version.json
+└── results/{run_id}/
+    ├── manifest.yaml                 tracked: no question or answer text
+    ├── raw/                          §H: write-once, gitignored
+    └── judge/                        gitignored, written once
+        ├── verdicts.jsonl
+        ├── records.jsonl
+        └── summary.json
+```
+
+### `manifest.yaml`
+
+Written by `make run-manifest RUN_ID=… GATEWAY_LOG=… SPLIT=…` after the gateway has stopped. It is written once and
+never edited: a wrong run gets a new `run_id`. The keys come in this order.
+
+```yaml
+manifest_version: 1
+run_id: <the run folder's name>
+written_at: '<UTC, ISO 8601>'
+gateway: {git_sha: <40 hex>, dirty: <bool>}
+arms: {config_id: 4, mutation: 'off', support_gate: 'on', mixed_lane: 'off'}
+envelope: 'ENVELOPE server_pid=… runner_pid=… version=0.33.2 np=1 ctx=8192 total_slots=1 n_ctx_slot=8192 blob=sha256-…'
+redis: {redis_version: <string>, rdb_last_save_time: <int>}
+corpus: {dataset_version: v1, snapshot_digest: a5708fefa62cec0aef5505e9e5242bc04bf351fd02a2efb5da54a98f211bb2e4}
+workload: {file: data/workload-v1-validation.json, sha256: <64 hex>, K: 622, frozen_cache_capacity: 156}
+cache: {capacity: 156, tau_run: <float>, theta_run: <float>}
+retrieval: {retrieval_version: adr-021, retrieve_py_sha256: <64 hex>, top_k: 5}
+generator: {model: qwen3.5:2b-q4_K_M, digest: <64 hex>, num_ctx: 8192, think: false, temperature: <float>, prompt_sha256: <64 hex>}
+records: {count: <int>, by_cache: {MISS: <int>, TIER1_HIT: <int>, TIER2_HIT: <int>}}
+admissibility: {rule_6: <bool>, rule_10: <bool>, rule_12: <bool>, i9: <bool>, admissible: <bool>}
+```
+
+| Key | Read from | Rule |
+| :--- | :--- | :--- |
+| `run_id` | the folder name | Equals the `{run_id}` in the gateway log's `evaluation log -> …/{run_id}/raw/` line. A log of another run stops the write |
+| `gateway` | `git` | `git_sha` is HEAD. `dirty` is true when `gateway/` or `rag/src/` differs from HEAD (untracked files count) |
+| `arms` | the records | All four are read from `raw/requests.jsonl` (ADR-010). Every record must agree, and a record without a key stops the write. The environment is never the source |
+| `envelope` | `env_check` | The `ENVELOPE` line of the live runner (ADR-003). Every frozen value is checked first, and a failure writes no manifest |
+| `redis` | `INFO` | `redis_version` and `rdb_last_save_time` (ADR-007) |
+| `corpus` | `data/v1-freeze.json` | `dataset_version` and `snapshot_digest` |
+| `workload` | the split file, and `run_files.<split>` of `data/v1-freeze.json` | `file` is relative to the repository. `sha256` is the file's. `K` is `k_distinct_queries` and `frozen_cache_capacity` is `cache_capacity` |
+| `cache` | the gateway's start log | `capacity` from `cache_capacity=`, `tau_run` and `theta_run` from `tau=… theta=…` |
+| `retrieval` | `rag.config`, `retrieve.py` | `retrieval_version` is `RETRIEVAL_VERSION`, which every ADR that changes retrieval bumps (`adr-021` is the first value). `retrieve_py_sha256` is the sha256 of `rag/src/rag/retrieve.py`. `top_k` is `TOP_K` |
+| `generator` | `/api/tags`, `/api/show`, `rag.config`, `generate.py` | Six fields: `model`, `digest`, `num_ctx`, `think`, `temperature` (the Modelfile's), `prompt_sha256` (the sha256 of `generate._PROMPT_TEMPLATE`). One function builds this block for the manifest and for the reference set's `version.json`, so the two always have the same keys |
+| `records` | the records | `count`, and the count of each `cache` value |
+| `admissibility` | the records, the gateway log | Each rule is `true` when it holds. `rule_6`: the log has `shutting down, flushing the evaluation log` and no `THIS RUN IS INCOMPLETE` (a killed gateway leaves neither line, so both are needed). `rule_10`: no `NOT_SCORED`. `rule_12`: no `tier2_search_failed`. `i9`: every hit's `entry_id` and every `candidate_entry_id` is the `entry_id` of some MISS, compared as sets. `admissible`: all four |
+
+- `mutation`, `support_gate` and `mixed_lane` are strings. YAML 1.1 reads a bare `on` or `off` as a boolean, so the
+  writer quotes them. A reader compares strings.
+- `admissible: false` is a fact a manifest can hold. It is not a malformed manifest. `make judge` refuses it.
+- `make run-manifest` refuses while `:8080` listens, and when `manifest.yaml` exists. It always compares the log's
+  `support_gate` and `mixed_lane` with the records', because the manifest has no field for them.
+- `make run-manifest-check RUN_ID=… [GATEWAY_LOG=…]` fails on any of these:
+  - a missing field (null counts as missing; `false`, `0` and `""` are values);
+  - a `run_id` that is not the folder's, or an `envelope` that does not start with `ENVELOPE `;
+  - records that differ among themselves on an arm, or an arm that differs from the manifest's;
+  - a `records.count` that is not the file's;
+  - with `GATEWAY_LOG`: a log of another run, or a `support_gate` or `mixed_lane` that differs from the records'.
+
+### The reference set
+
+`make judge-references SPLIT=validation` writes one **reference** per distinct `(question, product_id)` of the split:
+the gold evidence and the question, answered by the **reference writer** with the served prompt (ADR-023: `qwen3.5:4b-q4_K_M`
+at `temperature 0`, pinned in `experiments/judge/reference-writer-v1.json`; the served generator is not used), generated once and stored. *Gold evidence*
+is every chunk of the query's `doc_ids`, in `doc_ids` order and ordinal order, read from frozen `v1`. It is passed as
+`retrieved_chunk_ids` (§B), so the answer does not depend on what the system retrieved. One reference set serves every
+configuration of its split.
+
+| File | Holds |
+| :--- | :--- |
+| `answers/{reference_sha256}.txt` | The reference text exactly as returned. The name is the sha256 of its UTF-8 bytes |
+| `index.jsonl` | One row per reference, in workload order, keys sorted: `qa_id`, `question`, `product_id` (`""` when none), `stratum`, `answerable`, `gold_doc_ids`, `chunk_ids` (the IDs passed, in order), `reference_sha256` |
+| `version.json` | The study state it was made in: `generator` (the same six fields as the manifest's), `reference_writer` (`reference-writer-v1.json`'s fields and the live digest, ADR-023), `corpus` (`dataset_version`, `snapshot_digest`), `retrieval` (`retrieval_version`, `retrieve_py_sha256`, `top_k`), `split`, `references` (the count), `built_at` |
+
+- **The reference set's hash** is the sha256 of `index.jsonl`. A dated entry in `preregistration.md` records it before
+  the first verdict.
+- **It refuses** when the folder exists (it builds in `{split}.partial` and renames, so the folder exists only for a
+  finished set), when the pressure level is 4, unless `make corpus-index-check` passes, when the gold audit finds a
+  problem, and on a reply whose `source_chunk_ids` are not exactly the IDs sent, in order. An empty list of IDs stops
+  it: `Answer` would retrieve instead.
+- **The gold audit** (`make judge-gold-check SPLIT=…`): every `doc_id` exists in `v1`; strata A, B-within, B-cross and
+  C have one document, and D has one `product-` and one `policy-`; every `reference_answer` is `""`; no gold set is over
+  24,000 characters of context, because Ollama drops prompt text past `num_ctx` with no error.
+
+### The judge and its output
+
+`experiments/judge/judge-v1.json` is the one record of the frozen judge (ADR-022): `version`, `model`, `digest`,
+`prompt_file`, `prompt_sha256` and `options` (`temperature`, `seed`, `num_ctx`, `num_predict`). The reply must equal
+`CORRECT` or `INCORRECT` once white space is trimmed at both ends. Anything else is `UNPARSED`, and the raw reply is
+stored.
+
+`make judge RUN_ID=…` reads only `raw/`, `manifest.yaml`, the reference set, `experiments/judge/` and
+`preregistration.md`. **It refuses before the first call** when:
+- the manifest check fails, the manifest says `admissible: false`, or the run has `mutation: on`;
+- the manifest and the reference set's `version.json` differ on `corpus.snapshot_digest`, on the three `retrieval`
+  fields, or on any of the six `generator` fields (the generator's prompt included);
+- the reference set's `reference_writer` differs from `experiments/judge/reference-writer-v1.json` (ADR-023);
+- the live digest of the judge model, or the prompt file's hash, differs from `judge-v1.json`;
+- `preregistration.md` does not contain the sha256 of `judge-v1.json`;
+- `/api/ps` lists the generator;
+- `judge/` or `judge.partial/` exists.
+
+It also checks the hash of every answer file it reads (§H, answer-store rule 1), and stops on a record that matches no
+reference by the exact `(query_raw, product_id or "")`. It writes `judge.partial/` and renames it to `judge/` after the
+last step.
+
+| File | Holds |
+| :--- | :--- |
+| `verdicts.jsonl` | One row per verdict key: `verdict_key`, `verdict`, `reply` (raw), `seconds`, `reference_sha256` |
+| `records.jsonl` | One row per record of `raw/requests.jsonl`: `request_id`, `cache`, `qa_id`, `stratum`, `answerable`, `verdict_key`, `verdict`, `layer`, `retrieval_miss`, `gold_doc_ids`, `retrieved_chunk_ids`, `entry_sources`, `candidate_sources`, `entry_miss_request_id`, `reference_sha256`, `reference_version`, `manifest_sha256`, `judge_version`. A record with `answer_sha256 == ""` has `verdict_key`, `verdict` and `layer` null |
+| `summary.json` | Counts only: the records by `cache` and how many were judged; the verdict keys and their `CORRECT`, `INCORRECT` and `UNPARSED` counts; `unparsed_share` and `rates_reportable` (false above 2 %); `layers` (`retrieval`, `generation`, `inherited`, `reuse`, `undecided`); seconds per verdict (median, p95, total); wall time; every memory-pressure reading; the 30 re-judged keys and how many flipped |
+
+- `layer` is set only on an `INCORRECT` record, by the rules of `metrics.md` R7. `retrieval_miss` is set on every
+  record that has a retrieval, `CORRECT` ones too.
+- `reference_version` is the reference set's hash (the sha256 of `index.jsonl`). `judge_version` is the `version` of
+  `judge-v1.json`. `manifest_sha256` is the sha256 of the manifest file.
+- `judge/` holds question text and PQA-grounded answers, so it is gitignored. The manifest stays tracked.
+
+---
+
 ## Versioning
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.27** (2026-10-31).
+**Current version: v0.29** (2026-11-01).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.28** | 2026-11-01 | **The judge harness's contract** (**ADR-022**, item 5.1, which closes P1). §H gives the verdict key's exact formula (`vk1`: a netstring over `query_raw`, `product_id` and `answer_sha256`) and one pinned key, in place of the open delimiter. New §I gives `manifest.yaml` (with a `generator` block of six fields, the retrieval fields and the admissibility verdict), the reference set's layout and the judge output's layout. No wire shape, `.proto`, §A–§G, Redis schema or Go change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched, and the gateway's record is not changed (the harness only reads it). `rag/src/rag/config.py` gains `RETRIEVAL_VERSION` (`adr-021`), which the manifest records. No run exists, so none is invalidated |
+| **v0.29** | 2026-11-01 | **References come from a pinned reference writer** (**ADR-023**). §I: a reference is the gold evidence answered by `qwen3.5:4b-q4_K_M` at `temperature 0` with the served prompt, not by the served generator; `version.json` gains `reference_writer`; `make judge` also refuses a set whose writer differs from `reference-writer-v1.json`. The served generator, the manifest, §A–§H, the `.proto`, Redis and Go are unchanged. No run exists, so none is invalidated |
 | **v0.27** | 2026-10-31 | **Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked** (**ADR-021**). §B: when the natural top k holds no policy chunk, each slot of another product's chunk is refilled with this product's best unused chunk, in score order; with any policy chunk, retrieval is as in v0.8. Lane counts cannot move. No wire shape, `.proto` field, §C–§H or Redis schema change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but a spec question's retrieval now returns more of its product's chunk IDs. No run exists, so none is invalidated |
 | **v0.26** | 2026-10-31 | **Product-scoped retrieval keeps only the asked product's category of policy** (**ADR-020**). §B: after the splice, each policy chunk of another category is replaced by the best unused policy chunk of the product's category, and the policy slots are refilled in score order; the number of policy chunks, so `PolicyFraction` and the lane, is unchanged. §A's `product_id` row says so. No wire shape, `.proto` field, §C–§H or Redis schema change (the `category` and `kind` tags already existed); `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but **which** policy chunk IDs a product-scoped retrieval returns changes. No run exists, so none is invalidated |
 | **v0.25** | 2026-10-30 | **`BYPASS` is removed** (doc-only). §A's `cache` enum is `TIER1_HIT` \| `TIER2_HIT` \| `MISS`; §G says the bypass classifier was never built and is out of scope; the request-flow map loses its classify step. The gateway never sent `BYPASS`, so no code path, record or run changes. Also, at this version, the gateway refuses a `MUTATION` other than `on` or `off` at start, as it already does for `SUPPORT_GATE` (§H's `mutation` is `off\|on`); unset still means `off`. No wire shape, `.proto`, §B–§F or Redis schema change |

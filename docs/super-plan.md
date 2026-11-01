@@ -266,7 +266,8 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
   across queries, so a true hit `(q1, A)` and a false hit `(q2, A)` collapse into one verdict and the
   false-hit rate is biased toward whichever came first. The key must be `(query, answer)`, and the
   delimiter in `sha256(query ‖ answer)` is unspecified. Row 5.1's wording ("deduped by
-  `answer_sha256`") needs rewording; **not edited**, it is 5.1's design. §H v0.11 already says it.
+  `answer_sha256`") needs rewording; **not edited**, it is 5.1's design. §H v0.11 already says it. *(Reworded at
+  5.1's close, 2026-11-01: the key is `vk1`, §H v0.28.)*
   5.1 must also decide whether the judge needs the retrieved evidence text; it is **not stored**, and
   under `mutation: on` it is recoverable only if the mutation harness writes the applied update set
   with epochs into `raw/`.
@@ -478,7 +479,7 @@ Also from 4.4: `dev-v0` is retired (the author, 2026-10-29), so Redis holds `v1`
 
 **Exit:** judge-to-human and reference-anchored-against-reference-free agreement are both recorded · δ is finalised against the measured noise floor · `make figures` regenerates every figure from `raw/` on a clean checkout plus the raw archive (`raw/` is gitignored, ADR-005).
 
-*The judge harness and the figure generators do not exist; `experiments/README.md` claims both do.* ~25 h.
+*The figure generators do not exist (the judge harness was built by item 5.1, 2026-11-01).* ~25 h.
 
 **Found 2026-10-31, before item 5.1, and resolved outside the items by ADR-020** (in chat, at the author's instruction;
 `interfaces.md` v0.26; evidence `docs/work/2026-10-31-category-scoping-probe/`): product-scoped retrieval ranked
@@ -489,12 +490,19 @@ ADR-021 (`interfaces.md` v0.27) refills a spec question's retrieval with its own
 re-measured on the new retrieval in green pressure (G1 26, still failed); the candidate generator prompt was measured
 and not adopted. Item 5.1 builds its references on this retrieval, and its own numbers become ADR-022 and v0.28.
 
+**Progress, 2026-11-01: item 5.1 is done** (ADR-022, ADR-023, `interfaces.md` v0.29, trail
+`docs/work/2026-10-30-judge-harness/`). The judge is `gemma3:4b-it-q4_K_M`. References are written by a pinned
+`qwen3.5:4b-q4_K_M` at `temperature` 0, after the 2B's references failed the author's check (5 of 30 wrong; the 4B's,
+3 of 30). The served generator stays the 2B. The writer was chosen by a diagnostic comparison of six local models
+(`docs/work/2026-11-01-generator-selection/`, citable: no). **The exit is not met** (run 2026-11-01): no agreement
+is recorded (5.2), δ is not final (5.3), and `make figures` fails because `make_figures.py` does not exist (5.4).
+
 | # | Item | Discharges | Rests on | Unblocked when | Done when |
 | :---: | :--- | :--- | :--- | :--- | :--- |
-| 5.1 | **Judge harness** — does not exist. Frozen prompt, judge model ≠ generator, offline batch with the generator unloaded, verdicts deduped by `answer_sha256`, reading Phase 1's answer store. **It owns P1 first** (`decisions.md`, open questions; added 2026-10-29): the operational metric definitions with their counting rules (`Final_Proposal.md` §9.1–§9.2), the run-manifest schema and the pre-registration record. `Final_Proposal.md` §9.1 requires them before Phase 5 produces its first artefact | C1, C3 | scope reduction, P1 | ✅ 1.5, ✅ 3.6 | P1's metric definitions, counting rules and run-manifest schema are written and dated **before** the harness writes its first artefact. Judge model id and prompt version are frozen and recorded **before** any frontier is computed, and per-configuration cost is measured before scaling to five |
-| 5.2 | **Labelling ablation** on ~100 pairs under both schemes; agreement reported **by containment bucket** | C1 | validity is method | 5.1 | Both agreement numbers recorded; circularity bounded or quantified |
+| 5.1 | **Judge harness** — built 2026-11-01. Frozen prompt, judge model ≠ generator, offline batch with the generator unloaded, verdicts keyed by `vk1` over `query_raw`, `product_id` and `answer_sha256` (`interfaces.md` §H; `answer_sha256` alone cannot key a reused answer), reading Phase 1's answer store. **It owns P1 first** (`decisions.md`, open questions; added 2026-10-29): the operational metric definitions with their counting rules (`Final_Proposal.md` §9.1–§9.2), the run-manifest schema and the pre-registration record. `Final_Proposal.md` §9.1 requires them before Phase 5 produces its first artefact | C1, C3 | scope reduction, P1 | ✅ Done 2026-11-01 — ADR-022, ADR-023, trail docs/work/2026-10-30-judge-harness/ | P1's metric definitions, counting rules and run-manifest schema are written and dated **before** the harness writes its first artefact. Judge model id and prompt version are frozen and recorded **before** any frontier is computed, and per-configuration cost is measured before scaling to five |
+| 5.2 | **Labelling ablation** on ~100 pairs under both schemes; agreement reported **by containment bucket** | C1 | validity is method | ✅ 5.1 | Both agreement numbers recorded; circularity bounded or quantified |
 | 5.3 | **Finalise δ** against the measured judge error | C1 | false-hit budget | 5.2 | δ is fixed and clearly exceeds the noise floor, or the gap is reported as the reason it cannot be |
-| 5.4 | **Figure generators** — do not exist. `make figures` invokes an absent script with no guard | C3 | `raw/` is write-once | 5.1 | `make figures` regenerates every figure from write-once `raw/` on a clean checkout **plus the raw archive** (`raw/` is gitignored since 2026-10-06: it holds PQA-derived text and the remote is public, ADR-005), and never the reverse |
+| 5.4 | **Figure generators** — do not exist. `make figures` invokes an absent script with no guard | C3 | `raw/` is write-once | ✅ 5.1 | `make figures` regenerates every figure from write-once `raw/` on a clean checkout **plus the raw archive** (`raw/` is gitignored since 2026-10-06: it holds PQA-derived text and the remote is public, ADR-005), and never the reverse |
 | 5.5 | **Cap the request size on `/ask`.** The gateway decodes the body with no limit today (`httpapi/handler.go`), so one very large request can take a lot of gateway memory. Decided 2026-10-27: this is the only input guard built; a per-client rate limit and a filter for meaningless questions are not (see 8.2). Optional: if it is not built, 8.2 reports it as a limitation | S2 | `interfaces.md` §A | Phase 4 exit | A body over the limit is refused with a 4xx on the same path as a malformed request, before any record exists, so no new outcome enters the evaluation record; the limit is written in `interfaces.md` §A and is above the longest question in the frozen `v1` workload, checked against the files |
 
 ### Phase 6 — Headline B, the frontier

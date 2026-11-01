@@ -50,7 +50,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -534,6 +534,53 @@ update-set-check: ## Item 4.4: live run, fill + 20 edits + completeness/exactnes
 update-set-score: ## Item 4.4: score a saved run from its evidence folder (IDs in private/), never Redis; prints score.json (EVIDENCE=dir)
 	@test "$(origin EVIDENCE)" = "command line" || { echo "FAIL -- give EVIDENCE=<folder>" >&2; exit 1; }
 	@$(PY) experiments/scripts/score_update_set.py $(EVIDENCE)
+
+# Item 5.1: the judge harness (docs/work/2026-10-30-judge-harness/design.md). All citable: no. One model is
+# loaded at a time: the reference writer for judge-references (ADR-023), the generator for run-manifest, the judge for judge and
+# judge-sanity, which refuse while the generator is loaded. The targets that load a model print the memory
+# pressure level, and the scripts stop at 4 (judge-references, judge, judge-sanity, replay): check it first,
+# every time. A missing argument fails with a usage line.
+#
+#   make judge-gold-check SPLIT=validation                      # offline: the gold labels
+#   make judge-references SPLIT=validation                      # loads the reference writer; ~1 hour
+#   RUN_ID=<id> CONFIG_ID=4 ... make dev                        # a run, then in a second shell:
+#   make replay SPLIT=validation                                # every query once, seeded order
+#   (stop the gateway, SIGINT)  make run-manifest RUN_ID=<id> GATEWAY_LOG=<file> SPLIT=validation
+#   ollama stop <the generator>; make judge RUN_ID=<id>         # loads the judge
+judge-gold-check: ## Item 5.1: audit the workload's gold labels, offline (SPLIT=validation)
+	@test -n "$(SPLIT)" || { echo "usage: make judge-gold-check SPLIT=validation"; exit 2; }
+	$(PY) experiments/scripts/judge_references.py gold-check --split "$(SPLIT)"
+
+judge-references: ## Item 5.1: one gold-anchored reference per query; needs corpus-index-check to pass (loads the reference writer, ADR-023; SPLIT=validation)
+	@test -n "$(SPLIT)" || { echo "usage: make judge-references SPLIT=validation"; exit 2; }
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; the script stops at 4)"
+	$(PY) experiments/scripts/judge_references.py build --split "$(SPLIT)"
+
+replay: ## Item 5.1: send every query of a split once to the gateway on :8080, seeded order (SPLIT=validation)
+	@test -n "$(SPLIT)" || { echo "usage: make replay SPLIT=validation"; exit 2; }
+	$(PY) experiments/scripts/replay.py --split "$(SPLIT)"
+
+run-manifest: ## Item 5.1: write results/RUN_ID/manifest.yaml from raw/ and the gateway log; stop the gateway first (loads both models)
+	@test -n "$(RUN_ID)" -a -n "$(GATEWAY_LOG)" -a -n "$(SPLIT)" || { \
+	   echo "usage: make run-manifest RUN_ID=<id> GATEWAY_LOG=<file> SPLIT=validation"; exit 2; }
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; recorded, not gated)"
+	$(PY) experiments/scripts/run_manifest.py write --run-id "$(RUN_ID)" --gateway-log "$(GATEWAY_LOG)" \
+	  --split "$(SPLIT)" --frozen-np $(OLLAMA_NUM_PARALLEL) --ollama-version $(OLLAMA_VERSION) \
+	  --llm-blob $(LLM_BLOB) --cache-ram $(RUNNER_CACHE_RAM) --ctx-checkpoints $(RUNNER_CTX_CHECKPOINTS)
+
+run-manifest-check: ## Item 5.1: check results/RUN_ID/manifest.yaml: fields, arms against the records (GATEWAY_LOG= also checks the log)
+	@test -n "$(RUN_ID)" || { echo "usage: make run-manifest-check RUN_ID=<id> [GATEWAY_LOG=<file>]"; exit 2; }
+	$(PY) experiments/scripts/run_manifest.py check --run-id "$(RUN_ID)" $(if $(GATEWAY_LOG),--gateway-log "$(GATEWAY_LOG)",)
+
+judge: ## Item 5.1: judge every served answer of results/RUN_ID/raw/ (loads the judge; unload the generator first)
+	@test -n "$(RUN_ID)" || { echo "usage: make judge RUN_ID=<id>"; exit 2; }
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; the script stops at 4)"
+	$(PY) experiments/scripts/judge.py run --run-id "$(RUN_ID)"
+
+judge-sanity: ## Item 5.1: judge hand-made pairs; any wrong verdict exits 1 (loads the judge; FILE=<sanity.jsonl>)
+	@test -n "$(FILE)" || { echo "usage: make judge-sanity FILE=<sanity.jsonl>"; exit 2; }
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; the script stops at 4)"
+	$(PY) experiments/scripts/judge.py sanity --file "$(FILE)"
 
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
