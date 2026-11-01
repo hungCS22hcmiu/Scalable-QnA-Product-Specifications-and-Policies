@@ -9,7 +9,7 @@
 // `503 busy, retry` -- a graceful-degradation event the scalability eval counts, never an error
 // (interfaces.md A).
 //
-// architecture-guardrails.md: this package must be the SOLE place a permit is acquired, and no
+// docs/architecture.md §2: this package must be the SOLE place a permit is acquired, and no
 // miss path may bypass it. httpapi has exactly one call site for that reason.
 package admission
 

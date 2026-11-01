@@ -331,9 +331,8 @@ def check_g4(doc_ids: list[str]) -> Criterion:
 def check_g3(queries: list[Query]) -> tuple[Criterion, int]:
     """Zero Tier-1 collisions: no two queries sharing `(normalize(q), product_id)` may disagree.
 
-    ⚠️ BYPASS 2026-09-09: the partition key gained `product_id` because the Tier-1 cache key did
-    (gateway/internal/cache/key.go), reversing the "product_id in the Tier-1 key --
-    Rejected" without the owed superseding ADR.
+    The partition key includes `product_id` because the Tier-1 cache key does
+    (gateway/internal/cache/key.go; ADR-018, which recorded the 2026-09-09 change).
     Grouping by `normalize(q)` alone, as before, would now check a STRICTER invariant than Tier 1
     actually needs: two queries with the same text but different `product_id` no longer share a
     Redis key, so they can no longer collide there either.

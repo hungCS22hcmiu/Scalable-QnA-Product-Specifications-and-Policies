@@ -1,0 +1,21 @@
+
+== before (ADR-020 retrieval, no refill)
+  own-product chunks per spec question: {1: 231, 2: 123, 3: 48, 4: 22, 5: 7} (n=431)
+  lanes, MIXED off: {'POLICY': 186, 'SPEC': 436} | MIXED on: {'MIXED': 24, 'POLICY': 162, 'SPEC': 436}
+  foreign-category policy chunk: 0 | rank-1 policy not gold: 26 / 167
+  condition-routing: word present 99/121, absent 9/13, synonyms 24/43
+  plan 1.2 cases retrieving their answer chunk: 0/5
+
+== V1 always refill
+  own-product chunks per spec question: {1: 96, 2: 80, 3: 80, 4: 50, 5: 125} (n=431)
+  lanes, MIXED off: {'POLICY': 186, 'SPEC': 436} | MIXED on: {'MIXED': 30, 'POLICY': 156, 'SPEC': 436}
+  foreign-category policy chunk: 0 | rank-1 policy not gold: 26 / 167
+  condition-routing: word present 99/121, absent 9/13, synonyms 24/43
+  plan 1.2 cases retrieving their answer chunk: 5/5
+
+== V2 refill only when no policy chunk
+  own-product chunks per spec question: {1: 98, 2: 80, 3: 80, 4: 48, 5: 125} (n=431)
+  lanes, MIXED off: {'POLICY': 186, 'SPEC': 436} | MIXED on: {'MIXED': 24, 'POLICY': 162, 'SPEC': 436}
+  foreign-category policy chunk: 0 | rank-1 policy not gold: 26 / 167
+  condition-routing: word present 99/121, absent 9/13, synonyms 24/43
+  plan 1.2 cases retrieving their answer chunk: 5/5

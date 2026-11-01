@@ -29,13 +29,15 @@ Both services are real and running end-to-end.
 
 - **Python RAG service** (`rag/src/rag/`) — ingestion, chunking, embedding, retrieval, and the gRPC
   server. Works today.
-- **Go gateway** (`gateway/internal/`) — `httpapi` (569 lines), `reuse` (732), `cache` (662),
-  `telemetry` (234), `coalesce` (216), `admission` (197), `ragclient`, `embed`, `catalog`. The
-  two-tier cache, the reuse rule with its three lanes, admission control and request coalescing are
-  all built and tested.
-- **Not built:** `gateway/internal/deps/` is a one-line stub — **C2, source-aware invalidation,
-  does not exist**. `httpapi/` is tested on every exit path of `Ask` (item 1.2, 2026-10-04), against
-  fakes: Redis, Ollama and Python are not needed, and Redis semantics stay `cache/`'s to test.
+- **Go gateway** (`gateway/internal/`, lines without tests, 2026-10-30) — `httpapi` (1,363), `reuse`
+  (1,345), `cache` (775), `deps` (498), `telemetry` (403), `ragclient` (164), `admission` (126), `embed`
+  (109), `coalesce` (107), `catalog` (102). The two-tier cache, the reuse rule with its three lanes,
+  admission control, request coalescing and **C2, source-aware invalidation** (the dependency map, blind
+  purge and the epoch guard; Phase 4, closed 2026-10-29) are all built and tested. `httpapi/` is tested on
+  every exit path of `Ask` (item 1.2, 2026-10-04), against fakes: Redis, Ollama and Python are not needed,
+  and Redis semantics stay `cache/`'s to test.
+- **Not built yet:** the Phase 5 judge harness and figure generators (`make figures` calls a script that
+  does not exist), and configuration selection: `CONFIG_ID` only labels the record until item 6.0.
 
 **Commands that work today:**
 - `cd rag && pip3 install -e '.[dev]'` — install the RAG service + dev tools.
@@ -50,7 +52,8 @@ Both services are real and running end-to-end.
   **cask**, so `brew services` cannot manage it; persistence is a manual LaunchAgent at
   `~/Library/LaunchAgents/com.redis-stack.server.plist` (`RunAtLoad` + `KeepAlive`). Check with
   `launchctl list | grep redis-stack` and `redis-cli PING`.
-- `make ingest` — chunk + embed `data/dev-v0/*.json` into Redis.
+- `make ingest` — chunk + embed `data/$DATASET_VERSION/*.json` into Redis (default `v1`; `dev-v0` is
+  retired and never cited).
 - `rag ask "<question>"` — retrieval-only CLI, prints top-k chunks with chunk IDs.
 - `make seam-check` — item 1.4's live check that `texts` reaches Go aligned with `chunk_ids`, with
   Redis as the oracle. Starts its own `rag.server` on `:50052` from the working tree and loads the
@@ -117,7 +120,7 @@ says "from W8" or "this week" is stale — report it rather than acting on it.
   before creating a directory or adding an import.
 - **`docs/contracts/interfaces.md`** — interface and data contracts (HTTP `/ask`, Go↔Python gRPC
   including the retrieval-only RPC, the stable chunk-ID scheme, Redis cache/dependency schemas,
-  invalidation event). **At v0.9.** Code at the seam must conform.
+  invalidation event). **At v0.25.** Code at the seam must conform.
 - **`docs/contracts/requirements.md`** — skeleton, deliberately unfilled. Requirements split
   **three** ways: **FR** (what the system does) · **NFR** (how well) · **RR — Research
   Requirements** (what makes a measurement admissible). RR exists because most binding constraints

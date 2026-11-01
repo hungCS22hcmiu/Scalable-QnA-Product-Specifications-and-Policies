@@ -59,6 +59,8 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-017 | The model runner keeps no prompt cache and no context checkpoints; envelope memory is read with `footprint` | in force (amends ADR-003's envelope; `make ollama-env` runs after every reboot; the batch size is open, §F3) | no `run_id`; item 4.4's live runs (`docs/work/2026-10-29-update-set/evidence/live1`–`live3`) ran with the cache on: their completeness and precision stand, any latency or memory reading in them is void |
 | ADR-018 | The Tier-1 key includes `product_id` | in force (records a change built on 2026-09-09 without a decision; the code comments in `key.go` and `types.go` now cite it) | none — no runs yet; every log since 2026-09-09 already used this key, and on the frozen `v1` workload it changes no hit |
 | ADR-019 | The served Tier-2 rule is similarity ∧ namespace ∧ support; θ is a logged counterfactual; configuration 3 is similarity alone | in force (settles F-K; the restated C1 needs the advisor's view; configuration selection is built by item 6.0) | none — no runs yet; every log since this repository's base commit (2026-09-21) already served the namespace rule, and no `config_id` in any log selected a path |
+| ADR-020 | Product-scoped retrieval keeps only the asked product's category of policy | in force (G1 and G2 re-measured with ADR-021 on 2026-10-31: G1 26, still failed) | none — no runs yet; ADR-019's overlap table, the 2026-10-30 condition-routing probe and the freeze's G1 / G2 were measured on the old retrieval |
+| ADR-021 | Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked | in force (G1 26, still failed; the end-to-end answer checks, `docs/work/2026-10-31-rag-correctness/plan.md` 1.5, failed on two counts, accepted 2026-10-31; the candidate prompt not adopted, §3) | none — no runs yet; one-chunk spec retrievals before it ground every number taken so far on spec questions, all citable: no |
 
 ---
 
@@ -1678,6 +1680,12 @@ said so itself ("a superseding ADR is still owed before this is citable or merge
 ### ADR-019 — The served Tier-2 rule is similarity ∧ namespace ∧ support; θ is a logged counterfactual; configuration 3 is similarity alone
 **Decided (scope)** · 2026-10-30 · *`gateway/internal/reuse/lane.go` (`DecideNamespace`), `httpapi/cascade.go` (the counterfactual), `reuse/cause.go`; `super-plan.md` F-K, items 6.0, 6.1 and 6.2; `Final_Proposal.md` and `CLAUDE.md` (listed, not edited); evidence `docs/work/2026-10-30-adr-019-theta-overlap/`*
 
+> **Clarified 2026-10-30 (no change of decision).** Where the counterfactual is written, precisely:
+> `source_overlap` is a field of the **evaluation record** (§H) and of the `/ask` response; `overlap_decision` is a
+> field of the **`/ask` response only** (`httpapi/types.go`), not of the record. An analysis that needs the
+> counterfactual decision computes it from the record as `source_overlap ≥ θ`, with the run's θ (`REUSE_THETA`,
+> logged at start). Found while writing `docs/1-System Docs/Codebase/gateway/reuse.md`.
+
 The served Tier-2 reuse rule is `sim(q,e) ≥ τ ∧ namespace(q) = namespace(e) ∧ support(answer(e), text(retrieve(q)))`,
 with the support gate switchable per run (ADR-010) and the MIXED lane's composite key (ADR-016). The containment
 conjunct `overlap(retrieve(q), sources(e)) ≥ θ` is **not served**. It is computed for every candidate that clears τ
@@ -1750,3 +1758,144 @@ since 2026-10-04 (`super-plan.md`, "Found while closing 1.2").
 - **Invalidates:** none — no `run_id` exists. Every log since this repository's base commit (2026-09-21, the earliest
   history that can be checked) already served the namespace rule, and no `config_id` in any log selected a path: it
   was a label only.
+
+### ADR-020 — Product-scoped retrieval keeps only the asked product's category of policy
+**Decided (method)** · 2026-10-31 · *`rag/src/rag/retrieve.py` (`_ensure_category_policies`, `_swap_foreign_policies`), `rag/tests/test_retrieve_category.py`; `interfaces.md` §B v0.26; `gateway/internal/ragclient/retrieve.go` (comment); no task trail (done in chat at the author's instruction); evidence `docs/work/2026-10-31-category-scoping-probe/`*
+
+When a request carries `product_id`, retrieval runs as before: the natural top-k search, then drop other products'
+chunks, then splice in the product's own chunk. **Then each policy chunk whose `category` differs from the asked
+product's category is replaced** by the best unused policy chunk of the product's category, from one more search
+filtered on `kind = policy ∧ category`. The policy slots are refilled in score order. The **number** of policy chunks
+stays the natural ranking's, so `PolicyFraction` and the lane do not move. A policy with no category applies to every
+product and is kept. An unknown product, or a request without `product_id`, is unchanged.
+
+- **Rationale.**
+  - **The policy corpus is per category, and the ranking did not know the category.** Each of the 12 policy
+    documents has one `category` (ADR-012), the windows differ (laptops new 30 days, phones 14, furniture opened
+    180), and the `category` tag was already on every chunk (`rag/store.py`). But nothing in the search used it.
+  - **Measured before the change, on the `v1` validation split** (embedding model only, pressure 1, citable: no):
+    of 170 POLICY-lane questions with a `product_id`, **58** had another category's policy chunk in the top 5,
+    and **13** ranked another category's policy first (11 of them in stratum C). Rank-1 policy is the POLICY
+    lane's namespace, so each of those was a wrong answer and a wrong cache partition at once.
+  - **A question that does not name its category always failed.** "How long is the warranty on this?" ranked
+    `policy-warranty-laptops` first for 12 of 12 electronics, furniture and phones products, and "can I return
+    this if I opened it?" ranked `policy-return-furniture-opened` first for 12 of 12 products in each other
+    category. The workload names its category (`Final_Proposal.md` §9.3), so its 13 understate what a real
+    user meets.
+  - **Why now:** item 5.1's reference answers are `LLM(retrieve(q), q)`. Built on the old retrieval, a reference
+    would share the cached answer's wrong policy, and the judge would call the reuse correct. No run exists yet.
+- **Alternatives.**
+  - **Drop foreign policy chunks and replace nothing.** Rejected: for a question that does not name its category
+    the right policy is rarely in the natural top 5, so it would lose every policy chunk and move to the SPEC lane.
+    That changes `PolicyFraction`, which this decision keeps fixed.
+  - **Pre-filter to this product and its category's policies.** Rejected: about 3 product chunks and 8 – 12 policy
+    chunks against `top_k = 5` is the too-small pool that flooded `PolicyFraction` in v0.8 (`interfaces.md` §B).
+  - **Put the category in the POLICY namespace only.** Rejected: the LLM would still read the wrong policy, so the
+    first answer is already wrong.
+  - **Keep retrieval and report it as a limitation.** Rejected by the author: it would build 5.1's reference set
+    on a retrieval known to be wrong.
+- **Consequences.**
+  - **Measured after the change** (same split and probe; pressure 1 before, 2 at the end; citable: no): foreign
+    policy chunks 58 → **0**, foreign rank-1 13 → **0**, rank-1 document not the gold one 38 → **26**. The lane
+    counts are identical (MIXED off: SPEC 436, POLICY 186; MIXED on: 436 / 24 / 162).
+    The three questions that do not name their category now rank their own category's policy first for 12 of 12
+    products in every category, and none loses its policy chunks. The 2026-10-30 condition-routing probe gives
+    99 / 121 (was 98) and 9 / 13 with and without the condition word, and 24 / 43 synonyms (unchanged): every
+    case left is inside one category (pressure 2, citable: no).
+  - **What is left is inside one category.** 21 of the 26 are B-within traps (opened against unopened, new
+    against renewed): RQ2a's residual, which this does not touch and is not meant to.
+  - **Cost.** One more filtered vector search, and one more query embedding inside `Retrieve`, only when a foreign
+    policy chunk is present (58 of 170 above; every question that does not name its category). `Retrieve` runs
+    beside the gateway's embedding on every Tier-1 miss, so this can add to Tier-2 hit-path latency. Phase 7
+    measures it, with item 7.0.
+  - **Checked:** 8 new pure tests and 2 new live tests (each live test also shows the old ranking failing with the
+    swap turned off); the 5 existing scoping tests unchanged; `make seam-check` and `make verify` pass
+    (2026-10-31).
+  - **Frozen corpus statistics measured on the old retrieval.** The corpus files, the snapshot and chunk digests,
+    `K` and the capacity do not change, and `data/v1-freeze.json` is write-once and not rewritten. But
+    `corpus_gate.py` retrieves through the same scoped `retrieve`, so the freeze's **G1 (21 of 50) and G2** were
+    measured on the old retrieval. **Open:** re-run `make gate-corpus` in green pressure into a new folder and
+    record G1 and G2 here. ADR-019's overlap table and the 2026-10-30 condition-routing probe are read as "before
+    ADR-020".
+  - **Item 5.1** (trail `docs/work/2026-10-30-judge-harness/`, open at `spec`) generates its references after this
+    change. Its judge decision becomes ADR-022 and its contract change v0.28 (ADR-021 and v0.27 went to the
+    own-product refill, 2026-10-31).
+  - **Stale text, listed and not edited** (the author's files): `Final_Proposal.md` §9.3 ("scopes retrieval to that
+    product plus all policy content"), ADR-019's rationale ("all policy chunks"), and the retrieval descriptions in
+    `docs/1-System Docs/` (`Codebase/gateway/ragclient.md:39` says "every policy chunk").
+- **Invalidates:** none — no `run_id` exists. Item 4.4's live runs (not citable) used the old retrieval; their
+  completeness and precision are computed from each run's own `entry_sources`, so they stand as functional results.
+
+### ADR-021 — Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked
+**Decided (method)** · 2026-10-31 · *`rag/src/rag/retrieve.py` (`_refill_own`, `_ensure_own_chunks`, `_REFILL_POLICY_FREE_ONLY`), `rag/tests/test_retrieve_own_chunks.py`; `interfaces.md` §B v0.27; plan and evidence `docs/work/2026-10-31-rag-correctness/` (not a task trail: a light plan chosen by the author)*
+
+When a request carries `product_id` and the natural top k holds **no policy chunk**, each slot that held another
+product's chunk is refilled with this product's best unused chunk, from one search filtered on its `doc_id`, and the
+product slots are put in score order. When the natural top k holds any policy chunk, retrieval is unchanged: other
+products' chunks are dropped as before (v0.8). The splice of the product's own chunk and ADR-020's category swap run
+after it, as before.
+
+- **Rationale.**
+  - **Spec questions kept one chunk.** The natural top k is taken over the whole corpus, so for a spec question it is
+    mostly other products' chunks, and dropping them left **231 of 431** `v1` validation spec questions with a
+    single chunk of their own product, against 1 – 8 chunks per product.
+  - **That chunk often did not hold the answer**, so the answer was wrong at the MISS, before any reuse, and was
+    then cached. Five cases were seen on 2026-10-31, among them "What comes in the box?" (the box list is in
+    `#chunk-5`; only `#chunk-0` was retrieved) and "What is the standby time?" ("I don't know"; 400 hours is in
+    `#chunk-1`). Two paraphrases also kept two different single chunks, so the support gate refused correct reuse.
+  - **The author's priority** (2026-10-31, with the mentor): answers must be right at the RAG before the cache is
+    measured.
+- **Alternatives** (measured on the validation split, embedding only, pressure 1, citable: no;
+  `variant-probe-output.txt` in the plan folder).
+  - **V1, refill every product-scoped retrieval.** One-chunk spec questions 96, but it moved the MIXED-on lane
+    counts (MIXED 24 → 30, POLICY 162 → 156). Rejected by the choice rule written before the measurement.
+  - **Raise `top_k`.** Rejected: `top_k` is frozen.
+  - **Keep it and report it.** Rejected by the author: it leaves wrong answers at the MISS.
+- **Consequences.**
+  - **Measured after** (same split, pressure 1): one-chunk spec questions **231 → 98**; the five cases retrieve the
+    chunk that holds their answer (0 / 5 → 5 / 5); lane counts unchanged under both MIXED arms, by construction;
+    category probe 0, rank-1 policy not the gold one 26 / 167, condition-routing 99 / 121, 9 / 13, 24 / 43, all as
+    before. 11 new tests (6 pure, 5 live; the live ones failed on the ADR-020 retrieval first, `red-run.txt`);
+    existing tests unchanged; `make seam-check` and `make verify` pass.
+  - **Stratum D gets no refill.** A question about a product and a policy keeps the old behaviour, so its product
+    half can still miss its chunk. A limitation, chosen to keep every lane fixed.
+  - **Cost.** One more filtered vector search, and one more query embedding inside `Retrieve`, for a spec question
+    whose natural top k held another product's chunk. It is on the Tier-2 hit path (retrieval runs beside the
+    gateway's embedding); Phase 7 measures it, with item 7.0.
+  - **Numbers measured on the old retrieval** are read as "before ADR-021": ADR-019's overlap table (spec
+    retrievals now hold more chunks), the 2026-10-31 manual probes, and the freeze's G1 / G2, which the plan's §2
+    re-measures once for ADR-020 and ADR-021 together.
+  - **G1 and G2 on the ADR-020 + ADR-021 retrieval** (`make gate-corpus`, 2026-10-31, pressure 1 in all 53
+    readings; report `data/v1-draft/gate/after-adr-021/report.json`). G1 **26** pairs (validation 17, test 9)
+    against the floor of 50: still FAILED, so ADR-014's reading of C1 stands. G2 B-within 7 and 4, B-cross 10
+    and 5. Source overlap over the 1,342 high-similarity pairs: mean 0.835, variance 0.0713 (was 0.797,
+    0.0769). The corpus is unchanged: the index check passes and the snapshot digest is the frozen one.
+  - **End-to-end answer checks** (plan 1.5, 2026-10-31, the demo gateway, pressure 1 – 2, every run from a cold
+    cache, citable: no; outputs in the plan folder, those quoting corpus text under its gitignored
+    `evidence/private/`). **Failed on two counts**, accepted by the author the same day
+    as failed with known causes:
+    - **One case fails at the generator, not at retrieval.** Each of the five cases was asked three times. Four
+      state the fact in at least 2 of 3. "Is a carrying case included?" answers "No" in 3 of 3, although
+      `#chunk-1` ("provided EVA carrying bag") is retrieved every time. The plan's §3 is the lever.
+    - **Trap T2 became a TIER2_HIT.** "15 hours", the answer to the Bluetooth-only question, was served to the
+      question with noise cancelling on (12 hours). Similarity 0.907, as before ADR-021. `S_lex` 1.00: the answer
+      is two words, and tokens under three characters are dropped, so only "hours" is scored. The numeric arm
+      admitted it too, as the evidence is the same product's chunks. This is the same-evidence,
+      opposite-condition residual, not an effect of the retrieval: before ADR-021 it was refused only because
+      that answer was longer (`S_lex` 0.43).
+    - Paraphrases served 2 / 8 (before 0 / 8). Self-support 19 / 29 (before 16 / 30): spec 10 / 16 (was 7 / 17),
+      policy 9 / 13 unchanged.
+  - **The generator's prompt, measured** (plan §3.1, 2026-10-31, validation split, τ 0.85, gate on with both arms,
+    MIXED off, one sample per arm, the gateway's own `embed` and `reuse` code; pressure 1 in 438 of 440 readings;
+    citable: no). The candidate prompt was **not adopted**: the paraphrase pass rate rose 5.0 points (88 → 102 of
+    281, 31.3 % → 36.3 %) against the 15 the rule needed, and the B-within pass rate did not move (42 of 124 under
+    both). **The old prompt's measured cost:** of the 220 paraphrase pairs that clear τ and the namespace, the
+    support gate refuses 132 (118 with the candidate), more than τ refuses (57). "Don't know" on answerable first
+    questions 17 / 200 (candidate 14); median answer 44 words (candidate 29).
+  - **B-within pairs served at τ 0.85: 42 of 124, under either prompt.** 36 are policy-condition pairs in which one
+    of the two questions retrieved the other condition's policy document first (18 each way), so both share a
+    namespace and evidence. A condition-routing effect of the ADR-020 + ADR-021 retrieval, not of the prompt.
+    Whether each served answer is wrong is for item 5.1's judge.
+  - **Item 5.1's numbers move:** its judge decision is ADR-022 and its contract change v0.28 (the plan closed
+    2026-10-31). Its `RETRIEVAL_VERSION` starts at this retrieval.
+- **Invalidates:** none — no `run_id` exists.

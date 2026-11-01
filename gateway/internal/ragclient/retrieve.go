@@ -39,8 +39,8 @@ type RetrieveResult struct {
 // httpapi.topKServerDefault. A literal here would drift the day the frozen chunking changes.
 //
 // productID is optional (interfaces.md B v0.8): when non-empty, the RAG service scopes
-// its search to that product's own chunk plus every policy chunk, instead of searching the whole
-// corpus unscoped. This never changes the reuse decision -- reuse/lane.go and reuse/rule.go still
+// its search to that product's own chunk plus the policy chunks of that product's category
+// (ADR-020, v0.26), instead of searching the whole corpus unscoped. This never changes the reuse decision -- reuse/lane.go and reuse/rule.go still
 // decide purely from the chunks that come back, exactly as before.
 func (c *Client) Retrieve(ctx context.Context, query string, topK uint32, productID string) (*RetrieveResult, error) {
 	resp, err := c.rpc.Retrieve(ctx, &ragpb.RetrieveRequest{Query: query, TopK: topK, ProductId: productID})

@@ -8,7 +8,7 @@ import (
 // Normalize implements the Tier-1 normalization exactly: lowercase, collapse internal
 // whitespace, strip surrounding/most punctuation. No stemming, no stopwords, no synonyms --
 // that would smuggle a reuse decision into a package that must never make one
-// (architecture-guardrails.md: cache/ owns key normalization, never a reuse decision).
+// (docs/architecture.md §2: cache/ owns key normalization, never a reuse decision).
 // The identical function must run on both the read and write paths or Tier-1 hit rate is
 // understated.
 func Normalize(query string) string {

@@ -81,7 +81,7 @@ var _ epochSource = (*deps.EpochFile)(nil) // the real source must keep satisfyi
 
 // Handler serves POST /ask: cache.Get -> miss -> ragclient.Answer -> cache.Put. Single call
 // site, so W16's admission control has exactly one place to insert later
-// (architecture-guardrails.md: admission/ must be the sole place a permit is acquired --
+// (docs/architecture.md §2: admission/ must be the sole place a permit is acquired --
 // no miss path may bypass it).
 //
 // The cascade is orchestrated HERE rather than inside cache/ or reuse/. httpapi is the leftmost
@@ -95,7 +95,7 @@ type Handler struct {
 
 	// Admission bounds in-flight generations to the slots the model server serves (one, ADR-003),
 	// queues a bounded number behind them, and sheds the rest. It must
-	// be the SOLE place a permit is acquired (architecture-guardrails.md), which is why the miss
+	// be the SOLE place a permit is acquired (docs/architecture.md §2), which is why the miss
 	// path has exactly one call site.
 	Admission *admission.Pool
 
@@ -217,8 +217,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	// abandonment alike. A deferred emit is what guarantees "every", because a return added later
 	// cannot forget it.
 	normalized := cache.Normalize(req.Question)
-	// ⚠️ BYPASS 2026-09-09 (reverses the "product_id in Tier-1 key -- Rejected"; see
-	// cache.Key). Computed ONCE and reused everywhere below, so the formula cannot drift between
+	// The Tier-1 key includes product_id (ADR-018; see cache.Key). Computed ONCE and reused everywhere below, so the formula cannot drift between
 	// the eval-log record, the Tier-1 lookup, the coalescing key and Tier-2's t1_key -- a
 	// four-way duplication this replaces (approvals.md).
 	t1Key := cache.Key(normalized, req.ProductID)
@@ -444,7 +443,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	// governing the envelope, and it would also make the no-cache baseline's generation count a
 	// function of the load generator's concurrency instead of the workload's redundancy.
 	//
-	// product_id is now INSIDE t1Key itself (⚠️ BYPASS 2026-09-09, cache.Key), so reusing it here
+	// product_id is INSIDE t1Key itself (ADR-018, cache.Key), so reusing it here
 	// needs no separate suffix: two requests with the same question text but different
 	// product_id already hash to different keys, and collapsing them would partition one
 	// caller's answer under the other's product.
@@ -522,7 +521,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		// A failed write-back must NOT fail the request. The generation already succeeded, and it
 		// is the most expensive resource in the system -- discarding it because a cache write
 		// failed spends it for nothing, which is backwards on this thesis's own premise. It also
-		// produces a served-request outcome that is none of TIER1_HIT | TIER2_HIT | MISS | BYPASS
+		// produces a served-request outcome that is none of TIER1_HIT | TIER2_HIT | MISS
 		// | 503-shed, the only categories the evaluation's goodput/shed split accounts
 		// for, so a nonzero rate of it would leak out of both the goodput numerator and the shed
 		// denominator. Serve the answer, count it as the MISS it was, and surface the failure on

@@ -115,8 +115,8 @@ list when there is no catalog). Neither is on a measured path.
 `similarity`, `source_overlap`, `sources`, `model_used`, `request_id`, plus the extensions `lane`, `namespace`,
 `reuse_rule` and `overlap_decision`), and the `cache` outcome names (`TIER1_HIT`, `TIER2_HIT`, `MISS`, `SHED`,
 `ABANDONED`, `GENERATION_FAILED`). `overlap_decision` is in the **response** only, not in the evaluation record. The
-response's `cache` is `TIER1_HIT`, `TIER2_HIT` or `MISS`; `interfaces.md` §A also lists `BYPASS`, which the gateway
-never sends (the bypass classifier is out of scope).
+response's `cache` is `TIER1_HIT`, `TIER2_HIT` or `MISS` (`interfaces.md` §A; v0.25 removed `BYPASS`, which the
+gateway never sent).
 
 ## 4. Callers and callees
 

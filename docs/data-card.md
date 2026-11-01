@@ -342,6 +342,12 @@ The check is structural — it reads the corpus files, needs no ingested index, 
 
 **Recorded as frozen corpus statistics** (they are also what make a null C1 interpretable rather than merely disappointing — proposal §5 C1 fallback). Every one of them is printed by `make gate-corpus`, and `REPORT=<path>` additionally writes them as JSON so the freeze record is machine-readable rather than transcribed by hand:
 
+> ⚠️ **Measured on the pre-ADR-020 retrieval.** G1, G2 and the source-overlap distribution below are the freeze's
+> record (`data/v1-freeze.json`, not rewritten). **Re-measured on 2026-10-31 on the ADR-020 + ADR-021 retrieval**
+> (`make gate-corpus`, pressure 1; ADR-021): G1 **26** pairs (validation 17, test 9), still FAILED against 50;
+> G2 B-within 7 (validation) and 4 (test), B-cross 10 and 5; source overlap mean 0.835, variance 0.0713. Cite
+> these for the current retrieval. The digests, `K`, the capacity and the per-stratum counts do not change.
+
 - **G1 (FAILED, recorded; ADR-014):** **21** pairs with `sim ≥ 0.85` and `J ≤ 0.2` inside a split (validation 13, test 8), floor 50; 18 more across the splits (not gated). 1,342 pairs reach cosine 0.85 in all, and 39 of them have `J ≤ 0.2`. Who made the 21 (built target, paraphrase of one cluster, or two products): validation 1 + 2 + 10, test 2 + 4 + 2. **Reachable traps** (a probe whose `pair_of` partner is at cosine ≥ 0.85; reported, not gated; no sample size): as records 74 of 129 in validation, 108 of 155 in test, 182 of 284; as unique pairs 45 of 99, 67 of 112, 112 of 211.
 - **G2 (passes, thinly):** B-within 3 in each split; B-cross 10 in validation and 5 in test; ratio 0.30 and 0.60; unlabelled 0. Validation: 1 built trap + 2 paraphrase pairs. Test: 2 built traps + 1 pair that is neither. S5 (G2 met by paraphrases only) was not raised. Unscoped retrieval, for comparison only: validation G1 = 2 (B-within 2), test G1 = 12 (B-within 9).
 - **G3 (passes):** 0 Tier-1 collision groups, 0 benign duplicate groups.

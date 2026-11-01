@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.24 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-30
+**Status:** Draft v0.27 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-10-31
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -152,7 +152,6 @@ Keyed to proposal §6 (architecture diagram). Each numbered contract is specifie
 ```
 Client ──(A) HTTP POST /ask──▶ Go Gateway
                                   │
-                                  ├─ (G) classify: cacheable? ──▶ (bypass) live source
                                   ├─ Tier-1 exact lookup ─────────▶ (D) Redis
                                   ├─ (F) embed query ─────────────▶ Embedding service
                                   ├─ Tier-2 vector search ────────▶ (D) Redis
@@ -180,7 +179,7 @@ Request:
 | Field | Type | Notes |
 | :--- | :--- | :--- |
 | `question` | string | Required. |
-| `product_id` | string\|null | **Optional (v0.6).** The product the question was asked about — the page a production assistant is embedded in already knows it. Read **only** by the spec lane, to pin which product that lane's namespace names; the policy lane ignores it, because scoping a policy answer by product spends capacity on one answer per product. Absent, the namespace falls back to the rank-1 product document, which is correct but less stable. It is **not** otherwise part of the reuse decision. It also scopes retrieval (§B, v0.8). **It is part of the Tier-1 key** (§D, **ADR-018**, v0.23), for every request that carries it, in either lane. |
+| `product_id` | string\|null | **Optional (v0.6).** The product the question was asked about — the page a production assistant is embedded in already knows it. Read **only** by the spec lane, to pin which product that lane's namespace names; the policy lane ignores it, because scoping a policy answer by product spends capacity on one answer per product. Absent, the namespace falls back to the rank-1 product document, which is correct but less stable. It is **not** otherwise part of the reuse decision. It also scopes retrieval (§B, v0.8), and since v0.26 it decides which category's policy chunks retrieval returns (§B, ADR-020). **It is part of the Tier-1 key** (§D, **ADR-018**, v0.23), for every request that carries it, in either lane. |
 
 > ⚠️ **`stratum` is deliberately not a request field.** The evaluation log (§H) carries it, but it is a
 > property of the *workload*, not of a client request. The measurement harness may send it as an
@@ -192,11 +191,11 @@ Success response (`200 application/json`) — the six fields the debug UI needs 
 ```json
 {
   "answer": "Returns are accepted within 30 days of delivery...",
-  "cache": "TIER2_HIT",                    // TIER1_HIT | TIER2_HIT | MISS | BYPASS
+  "cache": "TIER2_HIT",                    // TIER1_HIT | TIER2_HIT | MISS
   "latency_ms": 48,
   "similarity": 0.93,                       // nearest Tier-2 entry in the query's namespace; null when none was judged (v0.10)
   "source_overlap": 0.80,                   // containment of that entry, a logged counterfactual (ADR-019); null unless it cleared τ (v0.10)
-  "sources": ["policy-returns#chunk-2"],    // provenance tags (Contribution 2); [] on BYPASS
+  "sources": ["policy-returns#chunk-2"],    // provenance tags (Contribution 2)
   "model_used": "qwen3.5-2b",                // constant for now (routing rejected)
   "request_id": "01J..."                    // extension: correlation id for tracing/eval
 }
@@ -205,9 +204,9 @@ Success response (`200 application/json`) — the six fields the debug UI needs 
 | Field | Type | Notes |
 | :--- | :--- | :--- |
 | `answer` | string | Final answer text. |
-| `cache` | enum | `TIER1_HIT` \| `TIER2_HIT` \| `MISS` \| `BYPASS`. Drives the debug-UI badge colors (debug UI §3). |
+| `cache` | enum | `TIER1_HIT` \| `TIER2_HIT` \| `MISS`. Drives the debug-UI badge colors (debug UI §3). `BYPASS` was removed in v0.25: no bypass classifier exists (§G), and the gateway never sent it. A shed request gets the `503` body below, not this response; SHED, ABANDONED and GENERATION_FAILED exist only in the evaluation log (§H). |
 | `latency_ms` | int | Gateway-internal wall time; the eval also records off-box end-to-end separately (an evaluation rule, not an error path). |
-| `similarity` | float\|null | Cosine similarity of the nearest Tier-2 entry **within the query's namespace** (v0.10, ADR-004). `null` on TIER1_HIT and BYPASS, when the embedding or retrieval failed, when the retrieval returned **no chunks** (v0.13: no search is run), and on a MISS whose namespace holds no entry — a lookalike in another namespace is never searched, so it reports no similarity. |
+| `similarity` | float\|null | Cosine similarity of the nearest Tier-2 entry **within the query's namespace** (v0.10, ADR-004). `null` on TIER1_HIT, when the embedding or retrieval failed, when the retrieval returned **no chunks** (v0.13: no search is run), and on a MISS whose namespace holds no entry — a lookalike in another namespace is never searched, so it reports no similarity. |
 | `source_overlap` | float\|null | Fraction of the candidate entry's `source_chunk_ids` also returned by retrieval on the incoming query — the containment **counterfactual**: θ is not served and not swept (**ADR-019**, v0.24), so no decision reads it. `null` unless retrieval succeeded and a same-namespace candidate cleared τ (v0.10). While θ is outside the served decision, a candidate that cleared τ is served **unless the support gate refuses it** (v0.13; with the gate on, v0.14: with the gate off it is served), so a MISS can carry an overlap: the cause is `SUPPORT` or `NOT_SCORED` in the evaluation log (§H). A candidate below τ never carries one. |
 | `sources` | string[] | Chunk IDs (§C) that grounded the answer. On a MISS that followed a support refusal these are the **new** entry's, never the refused candidate's (v0.13). |
 | `model_used` | string\|null | Constant (`qwen3.5-2b`) — retained for forward compatibility with routing (future work). |
@@ -325,6 +324,26 @@ message AnswerRequest {
 // may search over, never whether a retrieved candidate should be reused — `reuse/lane.go`,
 // `reuse/rule.go`, and the cache-key functions are unaffected and still derive their partition
 // from post-retrieval evidence (that boundary, unchanged).
+//
+// **Category of policy (v0.26, ADR-020).** After the splice, each policy chunk whose `category`
+// differs from the asked product's category (read from the product's own chunk) is REPLACED by
+// the best unused policy chunk of the product's category, from one more search filtered on
+// `kind = policy AND category`. The policy slots are refilled in score order, so rank-1 policy is
+// the best one of the right category. The NUMBER of policy chunks is the natural ranking's, so
+// PolicyFraction and the lane cannot move; a slot is dropped only if the category runs out of
+// policy chunks. A policy chunk with no category is never replaced. An unknown product_id (no own
+// chunk) and an empty product_id are unchanged. Why: rank-1 policy is the POLICY lane's namespace,
+// and before this a question that does not name its category ranked one category's policy first
+// for every product.
+//
+// **Own-product refill (v0.27, ADR-021).** Before the splice: when the natural top k holds NO
+// policy chunk, each slot that held another product's chunk is refilled with this product's best
+// unused chunk, from one more search filtered on its doc_id, and the product slots are put in score
+// order; a slot is dropped only if the product runs out of chunks. When the natural top k holds any
+// policy chunk, other products' chunks are only dropped, as in v0.8, so PolicyFraction and the lane
+// cannot move. The order is: natural search, refill or drop, splice, category swap. Why: dropping
+// alone left 231 of 431 v1 validation spec questions with one chunk of their own product, and the
+// answer was often in another one.
 
 // **`retrieved_chunk_ids` (v0.7).** Chunk IDs the caller already retrieved for this
 // query. When non-empty the service **skips its own retrieval** and grounds generation on exactly
@@ -562,17 +581,15 @@ POST /embed   { "text": "..." }
 
 ---
 
-## G. Bypass classifier
+## G. Bypass classifier — not built, out of scope
 
-**Demo stub only — not an evaluated component.** The corpus contains no dynamic content and there is no live inventory source, so a learned or evaluated classifier would be scored against a stub while adding a false-hit cause that contaminates the headline. It is therefore a **hardcoded keyword rule** that exists so the demo can show the routing decision (debug UI §1).
-
-```
-classify(query) -> { "route": "cacheable" | "bypass", "reason": "<label>" }
-```
-
-- `cacheable` → continues into Tier-1/Tier-2. This is the path all evaluation traffic takes.
-- `bypass` → returns the stub response, sets `"cache": "BYPASS"`, `sources: []`.
-- **Bypass accuracy is not a reported metric**, and `BYPASS` does not appear in the evaluation workload.
+**Removed in v0.25.** This section used to describe a demo-only keyword stub that routed a question to a live
+source and answered `"cache": "BYPASS"`. **No such classifier was ever built**: the gateway runs none, sends no
+`BYPASS`, and every request goes into Tier 1 and Tier 2. The bypass classifier is out of scope (`CLAUDE.md`, "Do not
+reintroduce cut scope"): the frozen corpus holds no dynamic content (no price, stock or order status), so there is
+nothing to route around the cache. If dynamic content is ever added, the classifier needs its own decision first,
+because a classifier error would be a false-hit cause with no bucket in the evaluation. The letter G is kept so the
+other section letters do not move.
 
 ---
 
@@ -783,10 +800,13 @@ Field notes:
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.24** (2026-10-30).
+**Current version: v0.27** (2026-10-31).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
+| **v0.27** | 2026-10-31 | **Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked** (**ADR-021**). §B: when the natural top k holds no policy chunk, each slot of another product's chunk is refilled with this product's best unused chunk, in score order; with any policy chunk, retrieval is as in v0.8. Lane counts cannot move. No wire shape, `.proto` field, §C–§H or Redis schema change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but a spec question's retrieval now returns more of its product's chunk IDs. No run exists, so none is invalidated |
+| **v0.26** | 2026-10-31 | **Product-scoped retrieval keeps only the asked product's category of policy** (**ADR-020**). §B: after the splice, each policy chunk of another category is replaced by the best unused policy chunk of the product's category, and the policy slots are refilled in score order; the number of policy chunks, so `PolicyFraction` and the lane, is unchanged. §A's `product_id` row says so. No wire shape, `.proto` field, §C–§H or Redis schema change (the `category` and `kind` tags already existed); `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but **which** policy chunk IDs a product-scoped retrieval returns changes. No run exists, so none is invalidated |
+| **v0.25** | 2026-10-30 | **`BYPASS` is removed** (doc-only). §A's `cache` enum is `TIER1_HIT` \| `TIER2_HIT` \| `MISS`; §G says the bypass classifier was never built and is out of scope; the request-flow map loses its classify step. The gateway never sent `BYPASS`, so no code path, record or run changes. Also, at this version, the gateway refuses a `MUTATION` other than `on` or `off` at start, as it already does for `SUPPORT_GATE` (§H's `mutation` is `off\|on`); unset still means `off`. No wire shape, `.proto`, §B–§F or Redis schema change |
 | **v0.24** | 2026-10-30 | **θ is a logged counterfactual, not part of the served rule** (**ADR-019**, settles F-K). §A's `source_overlap` is described as the containment counterfactual; the served Tier-2 rule is similarity ∧ namespace ∧ support. No wire shape, `.proto`, §B–§H or Redis schema change, and no code change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning. Configuration 3 is defined as similarity alone; its code path is item 6.0 |
 | **v0.23** | 2026-10-29 | **The Tier-1 key includes `product_id`** (**ADR-018**). §D: Tier 1 is keyed by `sha256(normalized_query "\x00" product_id)`; an empty `product_id` is its own partition. §A: `product_id` is part of the Tier-1 key for every request that carries it, in either lane, and still not otherwise part of the reuse decision. The v0.6 note that the rejection of `product_id` as a cache key "stands untouched" is annotated, not deleted. This records a change built on 2026-09-09 without a decision; no code changes here. No wire shape, `.proto`, §B, §C, §E or §H change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning. On the frozen `v1` workload no normalized question is shared across products (0 of 622 / 0 of 652), so no hit changes |
 | **v0.22** | 2026-10-29 | **The model runner's prompt cache and context checkpoints are frozen off** (**ADR-017**, bugfix `2026-10-29-ollama-prompt-cache`). The frozen study-wide list gains `LLAMA_ARG_CACHE_RAM=0` and `LLAMA_ARG_CTX_CHECKPOINTS=0`, which `make ollama-env` sets in Ollama.app's environment and `make env-check` reads from the live runner. No wire shape, `.proto`, §A–§H or Redis schema change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. Before this, Ollama 0.33.2 ran the model with llama-server's prompt cache on at 8192 MiB, which kept a copy of every prompt in RAM (the runner's `footprint` grew from 3,066 to 7,088 MB over 50 prompts); any latency or memory reading in item 4.4's live runs is void, and `no-cache` generations now pay full prefill |

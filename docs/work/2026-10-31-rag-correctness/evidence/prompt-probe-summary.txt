@@ -1,0 +1,18 @@
+Plan §3.1 — the generator's prompt, validation split. citable: no.
+Run 2026-10-31 19:18; tau 0.85; gate on, both arms; MIXED off; one sample per arm.
+Templates: old 3e224f4500a1, new d509a38e747e (sha256, first 12).
+Pairs judged 405 of 405.
+
+paraphrase old: pass 88/281 = 31.3 % (Wilson 95 % 26.2–37.0)  causes {'NAMESPACE': 4, 'NONE': 88, 'SIMILARITY': 57, 'SUPPORT': 132}  namespace+support at any tau 113/281
+paraphrase new: pass 102/281 = 36.3 % (Wilson 95 % 30.9–42.1)  causes {'NAMESPACE': 4, 'NONE': 102, 'SIMILARITY': 57, 'SUPPORT': 118}  namespace+support at any tau 132/281
+paraphrase rise: +5.0 points
+
+trap       old: pass 42/124 = 33.9 % (Wilson 95 % 26.1–42.6)  causes {'NAMESPACE': 26, 'NONE': 42, 'SIMILARITY': 45, 'SUPPORT': 11}  namespace+support at any tau 63/124
+trap       new: pass 42/124 = 33.9 % (Wilson 95 % 26.1–42.6)  causes {'NAMESPACE': 26, 'NONE': 42, 'SIMILARITY': 45, 'SUPPORT': 11}  namespace+support at any tau 63/124
+trap       rise: +0.0 points
+
+Rule: paraphrase rise +5.0 >= 15 is False; trap rise +0.0 <= 5 is True. Decision: KEEP the old prompt.
+
+Beside the rule, old: "don't know" on answerable first questions 17/200 (8.5 %); answer length median 44 words.
+Beside the rule, new: "don't know" on answerable first questions 14/200 (7.0 %); answer length median 29 words.
+Pressure readings over the generation: {'1': 438, '2': 2}.

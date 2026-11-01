@@ -10,7 +10,7 @@ import (
 )
 
 // Store owns Tier-1 exact-match reads and writes. It must never make a reuse decision --
-// sha256 equality is not a judgement (architecture-guardrails.md).
+// sha256 equality is not a judgement (docs/architecture.md §2).
 type Store struct {
 	rdb *redis.Client
 	dim int // Tier-2 vector width, supplied by main.go from embed.Dim -- see tier2.go

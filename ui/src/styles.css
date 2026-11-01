@@ -60,7 +60,7 @@ a { color: var(--accent); text-decoration: none; }
 .meta { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .badge { font-size: 11px; font-weight: 700; letter-spacing: .06em; padding: 3px 8px; border-radius: 5px; color: #0e1116; }
 .b-t1 { background: var(--t1); } .b-t2 { background: var(--t2); }
-.b-miss { background: var(--miss); } .b-bypass { background: var(--dim); }
+.b-miss { background: var(--miss); }
 .b-shed { background: var(--shed); color: #fff; }
 .lat b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .lat-sub { color: var(--dim); font-size: 11px; }

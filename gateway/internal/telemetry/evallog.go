@@ -123,7 +123,7 @@ type Record struct {
 	// is not admissible, and the Logger counts them (Tier2SearchFailures).
 	Tier2SearchFailed bool `json:"tier2_search_failed,omitempty"`
 	// ProductID records the request's product scope now that it is part of the Tier-1 key
-	// (⚠️ BYPASS 2026-09-09, reverses the rejection -- cache.Key). Required, not optional,
+	// (ADR-018, cache.Key). Required, not optional,
 	// because handler.go's offline stratum join on query_normalized was exact only under
 	// the one-stratum-per-normalised-form guarantee, which a product-scoped Tier-1 key
 	// relaxes; t1_key alone cannot recover which product a record belongs to.

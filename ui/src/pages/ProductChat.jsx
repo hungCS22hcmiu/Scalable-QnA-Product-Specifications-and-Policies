@@ -7,7 +7,6 @@ const BADGE = {
   TIER1_HIT: { cls: 'b-t1', label: 'TIER 1 HIT', hint: 'exact hash match — no embedding, no search' },
   TIER2_HIT: { cls: 'b-t2', label: 'TIER 2 HIT', hint: 'semantic reuse, permitted by the provenance rule' },
   MISS: { cls: 'b-miss', label: 'MISS', hint: 'the model ran' },
-  BYPASS: { cls: 'b-bypass', label: 'BYPASS', hint: 'dynamic content, never cached' },
 }
 
 const fmt = (v) => (v === null || v === undefined ? '—' : v.toFixed(4))

@@ -9,7 +9,7 @@ import (
 // Client owns the pooled gRPC channel to the Python RAG service (interfaces.md §B).
 // "Pooled" means constructed once at startup, not per request -- gRPC multiplexes many
 // concurrent calls over one HTTP/2 connection internally, so no custom connection pool is
-// needed (architecture-guardrails.md: ragclient/ must not be constructed per request).
+// needed (docs/architecture.md §2: ragclient/ must not be constructed per request).
 type Client struct {
 	conn *grpc.ClientConn
 	rpc  ragpb.RagServiceClient

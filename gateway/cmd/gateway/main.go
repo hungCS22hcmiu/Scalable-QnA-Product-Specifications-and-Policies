@@ -148,6 +148,24 @@ func epochFromEnv(lookup func(string) (string, bool)) (*deps.EpochFile, uint64, 
 	return f, n, nil
 }
 
+// mutationFromEnv reads the run's mutation arm (interfaces.md §H: `mutation` is off|on, v0.25), in
+// os.LookupEnv's shape as gateFromEnv is and for the same reason: getenv reads an empty value as unset, so
+// `MUTATION=` would quietly label a run "off". Unset means "off". Set-but-empty, "ON", " on" and every other
+// value are errors, and the caller stops the process before it opens Redis or the evaluation log: a run is
+// identified by (config_id, mutation), so a misspelt value names the wrong run, and invariant I13 reads it.
+// Pure, on gateFromEnv's pattern, so the rule is testable. On error the value returned is "off".
+func mutationFromEnv(lookup func(string) (string, bool)) (string, error) {
+	v, set := lookup("MUTATION")
+	if !set {
+		return "off", nil
+	}
+	if v != "off" && v != "on" {
+		return "off", fmt.Errorf("MUTATION=%q is not \"on\" or \"off\" (unset means \"off\"): a run is "+
+			"identified by (config_id, mutation), so a value that is almost right stops the gateway", v)
+	}
+	return v, nil
+}
+
 // runCounts is everything that can make a finished run inadmissible. A struct rather than
 // positional arguments, so two int64 counts cannot be passed in the wrong order.
 type runCounts struct {
@@ -263,6 +281,12 @@ func main() {
 		log.Fatalf("gateway: %v", err)
 	}
 	log.Printf("gateway: dataset_epoch_file=%s epoch=%d (ADR-008)", epochFile.Path(), epochNow)
+	// The mutation arm, for the same reason and in the same place (interfaces.md v0.25): a misspelt
+	// MUTATION would label the run wrongly with no error, and a run is named by (config_id, mutation).
+	mutation, err := mutationFromEnv(os.LookupEnv)
+	if err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
 
 	redisAddr := getenv("REDIS_URL", "localhost:6379")
 	ollamaURL := getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -394,7 +418,7 @@ func main() {
 	handler.Eval = evalLog
 	handler.RunID = getenv("RUN_ID", "")
 	handler.ConfigID = getenvInt("CONFIG_ID", 0)
-	handler.Mutation = getenv("MUTATION", "off")
+	handler.Mutation = mutation
 	handler.SupportGate = supportGate
 	// Always set: a gateway without a map registers nothing, silently, and no purge can reach its
 	// entries (design.md failure mode 8; TestMainWiresDeps reads this file for it).

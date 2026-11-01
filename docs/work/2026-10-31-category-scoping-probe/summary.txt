@@ -1,0 +1,80 @@
+category_probe.py on the v1 validation split (622 queries, 606 with a product_id). Embedding model only. citable: no.
+Counts and doc IDs only. redisvl INFO lines removed.
+
+=== BEFORE ADR-020 (2026-10-31, pressure 1 before, 1 after) ===
+
+BY LANE, MIXED off (the default band)
+  lane SPEC                          n=436 | with policy chunk   0 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded   0, rank-1 != gold   0
+  lane POLICY                        n=186 | with policy chunk 170 | any other-category policy chunk  58 | rank-1 policy other category  13 | policy-grounded 167, rank-1 != gold  38
+
+BY LANE, MIXED on [0.20, 0.60)
+  lane SPEC                          n=436 | with policy chunk   0 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded   0, rank-1 != gold   0
+  lane MIXED                         n= 24 | with policy chunk  24 | any other-category policy chunk   1 | rank-1 policy other category   0 | policy-grounded  21, rank-1 != gold   0
+  lane POLICY                        n=162 | with policy chunk 146 | any other-category policy chunk  57 | rank-1 policy other category  13 | policy-grounded 146, rank-1 != gold  38
+
+BY STRATUM
+  stratum A                          n=371 | with policy chunk  16 | any other-category policy chunk   6 | rank-1 policy other category   2 | policy-grounded  14, rank-1 != gold   2
+  stratum B-cross                    n= 11 | with policy chunk   0 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded   0, rank-1 != gold   0
+  stratum B-within                   n=124 | with policy chunk  51 | any other-category policy chunk   7 | rank-1 policy other category   0 | policy-grounded  51, rank-1 != gold  21
+  stratum C                          n= 83 | with policy chunk  76 | any other-category policy chunk  38 | rank-1 policy other category  11 | policy-grounded  75, rank-1 != gold  14
+  stratum D                          n= 33 | with policy chunk  27 | any other-category policy chunk   7 | rank-1 policy other category   0 | policy-grounded  27, rank-1 != gold   1
+
+RANK-1 OTHER-CATEGORY CASES among policy-grounded queries (product category -> rank-1 doc), counts
+    5  electronics  -> policy-warranty-phones-domestic
+    1  electronics  -> policy-warranty-furniture
+    1  electronics  -> policy-return-furniture-unopened
+    1  electronics  -> policy-return-furniture-opened
+    1  laptops      -> policy-warranty-phones-domestic
+    1  electronics  -> policy-return-laptops-renewed
+    1  laptops      -> policy-warranty-electronics
+    1  laptops      -> policy-warranty-furniture
+    1  phones       -> policy-return-electronics
+
+Questions that do not name their category (authored for this probe, not in the workload; the first 12 validation
+products of each category; rank-1 policy of another category):
+  "how long is the warranty on this?"          electronics 12/12, furniture 12/12, laptops 0/12, phones 12/12  (all -> policy-warranty-laptops)
+  "can I return this if I opened it?"          electronics 12/12, furniture 0/12, laptops 12/12, phones 12/12  (all -> policy-return-furniture-opened)
+  "what is the return window for this item?"   electronics 12/12, furniture 0/12, laptops 12/12, phones 12/12  (all -> policy-return-furniture-opened)
+
+=== AFTER ADR-020 (2026-10-31, pressure 1 before, 2 after) ===
+
+BY LANE, MIXED off (the default band)
+  lane SPEC                          n=436 | with policy chunk   0 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded   0, rank-1 != gold   0
+  lane POLICY                        n=186 | with policy chunk 170 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded 167, rank-1 != gold  26
+
+BY LANE, MIXED on [0.20, 0.60)
+  lane SPEC                          n=436 | with policy chunk   0 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded   0, rank-1 != gold   0
+  lane MIXED                         n= 24 | with policy chunk  24 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded  21, rank-1 != gold   0
+  lane POLICY                        n=162 | with policy chunk 146 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded 146, rank-1 != gold  26
+
+BY STRATUM
+  stratum A                          n=371 | with policy chunk  16 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded  14, rank-1 != gold   0
+  stratum B-cross                    n= 11 | with policy chunk   0 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded   0, rank-1 != gold   0
+  stratum B-within                   n=124 | with policy chunk  51 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded  51, rank-1 != gold  21
+  stratum C                          n= 83 | with policy chunk  76 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded  75, rank-1 != gold   4
+  stratum D                          n= 33 | with policy chunk  27 | any other-category policy chunk   0 | rank-1 policy other category   0 | policy-grounded  27, rank-1 != gold   1
+
+RANK-1 OTHER-CATEGORY CASES among policy-grounded queries (product category -> rank-1 doc), counts
+  (none)
+
+=== AFTER ADR-020, the two other checks (2026-10-31, pressure 2 before and after; citable: no) ===
+
+Questions that do not name their category (same 12 products per category as above). rank-1 policy, and how many
+products lost every policy chunk:
+  "how long is the warranty on this?"         wrong category 0/12 in all four; no-policy 0
+      rank-1: electronics -> policy-warranty-electronics 12, furniture -> policy-warranty-furniture 12,
+              laptops -> policy-warranty-laptops 12, phones -> policy-warranty-phones-domestic 12
+  "can I return this if I opened it?"         wrong category 0/12 in all four; no-policy 0
+      rank-1: electronics -> policy-return-electronics 12, furniture -> policy-return-furniture-opened 12,
+              laptops -> policy-return-laptops-renewed 12, phones -> policy-return-phones-opened 12
+  "what is the return window for this item?"  wrong category 0/12 in all four; no-policy 0
+      rank-1: electronics -> policy-return-electronics 12, furniture -> policy-return-furniture-opened 12,
+              laptops -> policy-return-laptops-new 12, phones -> policy-return-phones-opened 12
+
+docs/work/2026-10-30-condition-routing-probe/condition_routing_probe.py, re-run on the ADR-020 retrieval:
+  PART 1  condition word present: 99/121 (was 98/121)   absent: 9/13 (was 9/13)
+          the one cross-category wrong case (policy-return-phones-opened -> policy-return-electronics) is gone;
+          the four left are inside one category: laptops-new -> laptops-renewed, phones-unopened -> phones-opened,
+          phones-domestic -> None, phones-domestic -> phones-international
+  PART 2  synonym rewrites: 24/43 (was 24/43); every wrong case is inside one category (opened <-> unopened,
+          new <-> renewed)

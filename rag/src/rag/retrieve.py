@@ -104,6 +104,77 @@ def _drop_other_products(nodes: list, product_id: str) -> list:
     ]
 
 
+# ADR-021 measured two ways to refill the slots other products' chunks held. True refills only a
+# retrieval whose natural top k holds no policy chunk (a pure spec question), so no lane can move;
+# False refills every product-scoped retrieval. Fixed by the choice rule in
+# docs/work/2026-10-31-rag-correctness/plan.md, step 1.1: True, because on the v1 validation split
+# False moved MIXED-on lane counts (MIXED 24 -> 30), while True left every lane count unchanged.
+_REFILL_POLICY_FREE_ONLY = True
+
+
+def _refill_own(natural: list, product_id: str, candidates: list, policy_free_only: bool) -> list:
+    """Refill the slots of other products' chunks with this product's best unused chunks (ADR-021).
+
+    Pure, so the rule is testable without Redis. `natural` is the unscoped top k; `candidates` are
+    this product's chunks in rank order, from one search filtered on its doc_id.
+
+    Before ADR-021 those slots were simply dropped (_drop_other_products). The natural top k is
+    taken over the whole corpus, so for a spec question it is mostly OTHER products' chunks, and
+    231 of 431 v1 validation spec questions kept a single chunk of their own product: an answer in
+    another chunk was "not in the context", and two paraphrases often kept two different single
+    chunks, so the support gate refused a correct reuse.
+
+    Product slots are refilled in score order (all scores come from the same query against the same
+    FLAT cosine index); policy slots and their order are untouched. A slot is dropped only when the
+    product has too few chunks to fill it. With `policy_free_only`, a retrieval that holds any
+    policy chunk is returned exactly as before, so PolicyFraction and the lane cannot move.
+    """
+    kept = _drop_other_products(natural, product_id)
+    if policy_free_only and any(_is_policy(n) for n in natural):
+        return kept
+    slots = [
+        i for i, n in enumerate(natural) if n.metadata.get("doc_id", "").startswith("product-")
+    ]
+    own = [natural[i] for i in slots if natural[i].metadata.get("doc_id") == product_id]
+    if len(own) == len(slots):
+        return kept
+    present = {n.metadata.get("chunk_id") for n in natural}
+    fill = [
+        c
+        for c in candidates
+        if c.metadata.get("doc_id") == product_id and c.metadata.get("chunk_id") not in present
+    ]
+    pool = sorted(own + fill[: len(slots) - len(own)], key=lambda n: n.score or 0.0, reverse=True)
+    refill = iter(pool)
+    slot_set = set(slots)
+    out = []
+    for i, n in enumerate(natural):
+        if i not in slot_set:
+            out.append(n)
+            continue
+        nxt = next(refill, None)
+        if nxt is not None:
+            out.append(nxt)
+    return out
+
+
+def _ensure_own_chunks(index, natural: list, query: str, product_id: str, top_k: int) -> list:
+    """Drop other products' chunks and refill their slots with this product's (ADR-021).
+
+    Issues one more search, filtered on this product's doc_id, only when a slot needs refilling.
+    """
+    needs_refill = any(
+        n.metadata.get("doc_id", "").startswith("product-")
+        and n.metadata.get("doc_id") != product_id
+        for n in natural
+    )
+    if not needs_refill or (_REFILL_POLICY_FREE_ONLY and any(_is_policy(n) for n in natural)):
+        return _drop_other_products(natural, product_id)
+    own_filter = MetadataFilters(filters=[MetadataFilter(key="doc_id", value=product_id)])
+    candidates = index.as_retriever(similarity_top_k=top_k, filters=own_filter).retrieve(query)
+    return _refill_own(natural, product_id, candidates, _REFILL_POLICY_FREE_ONLY)
+
+
 def _ensure_own_chunk(index, nodes: list, query: str, product_id: str, top_k: int) -> list:
     """If product_id's own chunk did not naturally rank -- the generic-phrasing
     failure product scoping exists to close -- fetch it with one small,
@@ -121,6 +192,99 @@ def _ensure_own_chunk(index, nodes: list, query: str, product_id: str, top_k: in
     return (own_nodes + nodes)[:top_k]
 
 
+def _is_policy(node) -> bool:
+    return node.metadata.get("doc_id", "").startswith("policy-")
+
+
+def _product_category(nodes: list, product_id: str) -> str:
+    """The asked product's category, read from its own chunk's metadata. "" when that chunk is
+    absent (an unknown product_id, so _ensure_own_chunk found nothing): then nothing is swapped."""
+    for n in nodes:
+        if n.metadata.get("doc_id") == product_id:
+            return n.metadata.get("category") or ""
+    return ""
+
+
+def _is_foreign_policy(node, category: str) -> bool:
+    """A policy chunk of ANOTHER category. A policy with no category applies to every product and
+    is never foreign."""
+    cat = node.metadata.get("category") or ""
+    return _is_policy(node) and cat != "" and cat != category
+
+
+def _swap_foreign_policies(nodes: list, category: str, candidates: list) -> list:
+    """Replace each other-category policy chunk with the best unused same-category one (ADR-020).
+
+    Pure, so the rule is testable without Redis. `candidates` are this category's policy chunks in
+    rank order, from one filtered search; anything else in them is ignored.
+
+    The COUNT of policy chunks is the natural ranking's and is never changed, only WHICH policy
+    fills each policy slot. PolicyFraction (reuse/lane.go) reads that count, so the lane cannot
+    move, and a plain spec question (no policy chunk) is returned untouched -- the flooding
+    regression _drop_other_products' docstring records cannot come back through here. A slot is
+    removed only when the category has too few policy chunks to fill it.
+
+    The policy slots are refilled in score order, because the POLICY lane's namespace is the
+    rank-1 policy document: a replacement that scores higher than a policy which ranked
+    naturally must take the earlier slot, or the namespace would name the weaker document.
+    Product slots keep their positions. All scores come from the same query against the same
+    FLAT cosine index, so they compare.
+    """
+    if not category or not any(_is_foreign_policy(n, category) for n in nodes):
+        return nodes
+    slots = [i for i, n in enumerate(nodes) if _is_policy(n)]
+    kept = [nodes[i] for i in slots if not _is_foreign_policy(nodes[i], category)]
+    present = {n.metadata.get("chunk_id") for n in nodes}
+    fill = [
+        c
+        for c in candidates
+        if _is_policy(c)
+        and (c.metadata.get("category") or "") == category
+        and c.metadata.get("chunk_id") not in present
+    ]
+    pool = sorted(kept + fill[: len(slots) - len(kept)], key=lambda n: n.score or 0.0, reverse=True)
+    refill = iter(pool)
+    slot_set = set(slots)
+    out = []
+    for i, n in enumerate(nodes):
+        if i not in slot_set:
+            out.append(n)
+            continue
+        nxt = next(refill, None)
+        if nxt is not None:
+            out.append(nxt)
+    return out
+
+
+def _ensure_category_policies(index, nodes: list, query: str, product_id: str, top_k: int) -> list:
+    """Product-scoped retrieval keeps only policy chunks of the asked product's category (ADR-020).
+
+    The policy corpus is per category, and the windows differ (laptops new 30 days, phones 14,
+    furniture opened 180), but nothing in the ranking knew the product's category. Measured on
+    v1 before this fix (validation split, citable: no): 13 of 170 policy-lane questions ranked
+    another category's policy first, and a question that does not name its category -- "can I
+    return this if I opened it?" -- did so for every product outside the one category that won.
+    Rank-1 policy is the POLICY lane's namespace, so that was a wrong answer and a wrong cache
+    partition at once.
+
+    Runs after _ensure_own_chunk, which supplies the product's own chunk and so its category.
+    Issues one more, category-filtered search only when a foreign policy chunk is present.
+    """
+    category = _product_category(nodes, product_id)
+    if not category or not any(_is_foreign_policy(n, category) for n in nodes):
+        return nodes
+    policy_filter = MetadataFilters(
+        filters=[
+            MetadataFilter(key="kind", value="policy"),
+            MetadataFilter(key="category", value=category),
+        ]
+    )
+    candidates = index.as_retriever(similarity_top_k=2 * top_k, filters=policy_filter).retrieve(
+        query
+    )
+    return _swap_foreign_policies(nodes, category, candidates)
+
+
 def retrieve(
     query: str, top_k: int = config.TOP_K, product_id: str | None = None
 ) -> tuple[list[RetrievedChunk], int]:
@@ -131,8 +295,9 @@ def retrieve(
     index = VectorStoreIndex.from_vector_store(vector_store, embed_model=OllamaEmbedding())
     nodes = index.as_retriever(similarity_top_k=top_k).retrieve(query)
     if product_id:
-        nodes = _drop_other_products(nodes, product_id)
+        nodes = _ensure_own_chunks(index, nodes, query, product_id, top_k)
         nodes = _ensure_own_chunk(index, nodes, query, product_id, top_k)
+        nodes = _ensure_category_policies(index, nodes, query, product_id, top_k)
     return _to_chunks(nodes), ep
 
 

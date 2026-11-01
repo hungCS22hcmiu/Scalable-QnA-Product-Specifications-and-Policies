@@ -1,0 +1,10 @@
+Plan step 1.2, the red run: tests/test_retrieve_own_chunks.py on the retrieval of 2026-10-31 (ADR-020, before ADR-021). Pressure 1. Expected: all five fail.
+
+INFO     redisvl.index.index:index.py:456 Index already exists, not overwriting.
+=========================== short test summary info ============================
+FAILED tests/test_retrieve_own_chunks.py::test_the_chunk_holding_the_answer_is_retrieved[product-electronics-b07r8pr5yz-What comes in the box?-any_of0]
+FAILED tests/test_retrieve_own_chunks.py::test_the_chunk_holding_the_answer_is_retrieved[product-electronics-b07r8pr5yz-How long does a full charge take?-any_of1]
+FAILED tests/test_retrieve_own_chunks.py::test_the_chunk_holding_the_answer_is_retrieved[product-electronics-b07b63r768-Are these headphones foldable?-any_of2]
+FAILED tests/test_retrieve_own_chunks.py::test_the_chunk_holding_the_answer_is_retrieved[product-electronics-b07b63r768-What is the standby time?-any_of3]
+FAILED tests/test_retrieve_own_chunks.py::test_the_chunk_holding_the_answer_is_retrieved[product-electronics-b07b63r768-Is a carrying case included?-any_of4]
+5 failed in 1.60s

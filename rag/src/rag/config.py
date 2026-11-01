@@ -14,6 +14,9 @@ EMBEDDING_DIM = 768
 CHUNK_SIZE = 256
 CHUNK_OVERLAP = 40
 TOP_K = 5
+# Names the retrieval a run or a reference set was made with. Every ADR that changes retrieval
+# bumps it. First value: ADR-020's category swap plus ADR-021's own-product refill.
+RETRIEVAL_VERSION = "adr-021"
 
 # --- dataset version, bump for v1, never re-chunk in place ---
 # The default is v1, the frozen corpus (item 4.4, 2026-10-29: the author retired dev-v0). Set

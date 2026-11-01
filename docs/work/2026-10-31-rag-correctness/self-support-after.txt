@@ -1,0 +1,10 @@
+pressure before: 2
+
+PART B - self-support of fresh MISS answers, validation queries
+  MISS answers scored: 29   S_lex >= 0.6 on own evidence: 19 (66%)
+  lane POLICY  9/13 pass
+  lane SPEC    10/16 pass
+  distribution: [0.12, 0.33, 0.38, 0.39, 0.46, 0.53, 0.53, 0.53, 0.56, 0.57, 0.6, 0.64, 0.65, 0.67, 0.67, 0.67, 0.67, 0.68, 0.7, 0.71, 0.73, 0.73, 0.75, 0.75, 0.76, 0.78, 0.89, 1.0, 1.0]
+  most common missing tokens: [('context', 20), ('based', 10), ('according', 9), ('explicitly', 7), ('answer', 5), ('under', 5), ('states', 5), ('does', 4), ('yes', 4), ('provided', 4), ('because', 3), ('additionally', 3), ('has', 3), ('duration', 2), ('coverage', 2)]
+
+pressure after: 2

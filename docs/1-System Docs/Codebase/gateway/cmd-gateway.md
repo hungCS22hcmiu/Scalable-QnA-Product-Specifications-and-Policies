@@ -1,7 +1,7 @@
 # `gateway/cmd/gateway/` — start-up, configuration and shutdown
 
 **Describes:** commit `29b24a6` (30 Oct 2026); last changed in `68d732e` (item 4.4). **Files:** `main.go` (491 lines)
-and nine test files.
+and ten test files.
 
 ## 1. Purpose
 
@@ -21,7 +21,7 @@ admissible**. It serves **C3**: a run that was configured wrong, or lost records
 ### Start-up order
 
 1. **Refuse retired or bad settings**, before Redis, the log or the port is opened: `retiredEnv`, then
-   `gateFromEnv`, `bandFromEnv` and `epochFromEnv`. A typo burns no run ID.
+   `gateFromEnv`, `bandFromEnv`, `epochFromEnv` and `mutationFromEnv`. A typo burns no run ID.
 2. Connect to Redis and dial the RAG service (`ragclient.New`).
 3. `cache.NewStore` and **`EnsureCacheIndex`**: create `idx:cache` if needed and **wait until it is complete**; a
    scan longer than 10 s stops the gateway.
@@ -56,12 +56,12 @@ admissible**. It serves **C3**: a run that was configured wrong, or lost records
 | `RUN_ID` | "" | empty turns the evaluation log off (`make dev`); a reused ID stops the gateway (write-once) |
 | `RESULTS_DIR` | `experiments/results` | where `{RUN_ID}/raw/` goes |
 | `CONFIG_ID` | 0 | **a label only** until item 6.0; not an integer stops the gateway |
-| `MUTATION` | `off` | **a label only**, and **not validated**: any string is written to the record |
+| `MUTATION` | `off` (unset) | **a label only** (no edit runs because of it); exactly `on` or `off`, anything else stops the gateway (`interfaces.md` v0.25) |
 | `UI_DIR` | "" | the built demo page |
 
-**Why `SUPPORT_GATE`, the lane band and the epoch file use `os.LookupEnv`.** `getenv` reads an empty value as
-unset, so `SUPPORT_GATE=` would quietly run the default arm under a run ID meant for the other. These three tell
-"unset" from "set but empty" and refuse the second.
+**Why `SUPPORT_GATE`, the lane band, the epoch file and `MUTATION` use `os.LookupEnv`.** `getenv` reads an empty
+value as unset, so `SUPPORT_GATE=` would quietly run the default arm under a run ID meant for the other. These four
+tell "unset" from "set but empty" and refuse the second.
 
 ### Shutdown order, and the run verdict
 
@@ -98,14 +98,15 @@ can own paths like `/p/{doc_id}`. The UI is served by the gateway, so no Node pr
 | `TestGateFromEnv`, `TestGateFromEnvErrorShowsTheValue` | only `on` / `off`; the error shows the bad value |
 | `TestBandFromEnv`, `TestBandFromEnvRunsBeforeSideEffects` | only the two pinned bands; checked before anything opens |
 | `TestEpochFromEnv`, `TestEpochFromEnvRunsBeforeSideEffects` | the epoch file rules; checked before anything opens |
+| `TestMutationFromEnv`, `TestMutationFromEnvErrorShowsTheValue`, `TestMutationFromEnvRunsBeforeSideEffects` | only `on` / `off`; the error shows the bad value; checked before anything opens, and the handler takes the parsed value |
 | `TestMainWiresDeps`, `TestMainWiresEpoch` | `main.go` sets the dependency map and the epoch source (they read the source file) |
 | `TestIncompleteNamesTheConditionThatFired`, `TestIncompleteReportsTheCounts`, `TestACleanRunIsComplete`, `TestIncompleteNamesTier2SearchFailures` | the run verdict |
 | `TestFinishRunReadsTheCountersAfterTheBufferHasDrained` and three more `TestFinishRun*` | close first, read the counters after |
 
 ## 6. Silent failures to watch
 
-- **`CONFIG_ID` and `MUTATION` are labels only.** Setting `CONFIG_ID=1` still runs the full system, and `MUTATION`
-  accepts any spelling. A record's `config_id` does not yet name the path that ran (item 6.0).
+- **`CONFIG_ID` is a label only.** Setting `CONFIG_ID=1` still runs the full system: a record's `config_id` does not
+  yet name the path that ran (item 6.0). `MUTATION` is a label too, but since v0.25 only `on` or `off` is accepted.
 - **`OLLAMA_NUM_PARALLEL` above 1** only warns. A measured run must check `permits` against `make env-check`'s
   `ENVELOPE` line.
 - **`CACHE_CAPACITY=0`** gives upper-bound hit rates. Set it to `round(0.25 × K)` for a measured run.
