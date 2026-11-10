@@ -1,0 +1,72 @@
+maxmemory-policy=noeviction  maxmemory=0
+  OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FUNCTIONAL RUN — latencies printed here are NOT citable.    │
+  │  For a number that reaches the thesis, use: make measure     │
+  └─────────────────────────────────────────────────────────────┘
+  memory available: 41% (floor 25%; models need ~2.1 GB of 16 GB)
+  rag.server pid 65571 listening on :50051
+2026/11/07 18:15:35 gateway: dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2 (ADR-008)
+2026/11/07 18:15:35 gateway: tau=0.850 theta=0.60 dim=768 index=idx:cache  (all DEMO values, swept later)
+2026/11/07 18:15:35 gateway: lane_band=[0.20,0.20) mixed_lane=off (pinned, ADR-016)
+2026/11/07 18:15:35 gateway: admission permits=1 queue_budget=2  (permits = the frozen served slot count,
+         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)
+2026/11/07 18:15:35 gateway: cache_capacity=0  UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen
+2026/11/07 18:15:35 gateway: evaluation log DISABLED (RUN_ID unset) -- functional run, produces no measurement
+2026/11/07 18:15:35 gateway: support_gate=on  (default: a candidate that clears tau and the namespace is refused
+         when the cached answer is not supported by this request's evidence)
+2026/11/07 18:15:35 gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first
+         (interfaces.md rule 11). Records carry support_gate so a log names its arm.
+2026/11/07 18:15:35 gateway: serving demo UI from /Users/hung/Desktop/Sem1/thesis/ui/dist
+2026/11/07 18:15:35 gateway listening on :8080 (redis=localhost:6379 rag=localhost:50051)
+rag.server listening on 0.0.0.0:50051 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+2026/11/07 18:16:01 gateway: request_id=06GVBE6WWM9EB37ZSE3GX4FPDC cache=MISS t_tier1=2.173625ms t_embed=585.772166ms t_search=570µs t_overlap=625.479292ms
+2026/11/07 18:16:15 gateway: request_id=06GVBE9JH42M6VTEWAZJ2DCEGR cache=TIER1_HIT t_tier1=1.175458ms
+2026/11/07 18:16:16 gateway: cascade lane=POLICY ns=policy-return-electronics entry_lane=POLICY entry_ns=policy-return-electronics sim=0.9932
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=1.00)
+          cause=SUPPORT gate=on support=lex=0.5625 (of 32) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b07zj7qg33#chunk-1 policy-return-electronics#chunk-0 policy-return-electronics#chunk-1 policy-return-electronics#chunk-2 policy-warranty-electronics#chunk-2]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-return-electronics#chunk-0 policy-return-electronics#chunk-1 policy-return-electronics#chunk-2 policy-warranty-electronics#chunk-2]
+2026/11/07 18:16:21 gateway: request_id=06GVBE9PNMRFGQ2AAQ9NEYW72G cache=MISS t_tier1=258.791µs t_embed=42.729917ms t_search=544.083µs t_overlap=105.663208ms
+2026/11/07 18:16:41 gateway: request_id=06GVBEBYS0JPSJ6NG0EGNP0BT4 cache=MISS t_tier1=138.833µs t_embed=26.697083ms t_search=216.292µs t_overlap=58.08225ms
+2026/11/07 18:16:42 gateway: cascade lane=POLICY ns=policy-return-electronics entry_lane=POLICY entry_ns=policy-return-electronics sim=1.0000
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=0.80)
+          cause=SUPPORT gate=on support=lex=0.5625 (of 32) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b079jfb616#chunk-1 policy-return-electronics#chunk-0 policy-return-electronics#chunk-1 policy-return-electronics#chunk-2 policy-warranty-electronics#chunk-2]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-return-electronics#chunk-0 policy-return-electronics#chunk-1 policy-return-electronics#chunk-2 policy-warranty-electronics#chunk-2]
+2026/11/07 18:16:47 gateway: request_id=06GVBECSW17XT84HD5NDMEZQDR cache=MISS t_tier1=192.291µs t_embed=28.345542ms t_search=243.167µs t_overlap=87.467917ms
+2026/11/07 18:17:07 gateway: cascade lane=POLICY ns=policy-return-electronics entry_lane=POLICY entry_ns=policy-return-electronics sim=0.8240
+          ns_decision=false (rule=namespace lane_match=false)  band=false overlap_decision=false (overlap=0.00)
+          cause=SIMILARITY gate=on support=not run
+          retrieved=[product-electronics-b07zj7qg33#chunk-1 policy-return-electronics#chunk-0 policy-return-electronics#chunk-1 policy-return-electronics#chunk-2 policy-warranty-electronics#chunk-2]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-return-electronics#chunk-0 policy-return-electronics#chunk-1 policy-return-electronics#chunk-2 policy-warranty-electronics#chunk-2]
+2026/11/07 18:17:10 gateway: request_id=06GVBEFVHZT6P7F6835Q9CPZW0 cache=MISS t_tier1=3.833458ms t_embed=28.261416ms t_search=313.125µs t_overlap=82.433167ms
+2026/11/07 18:17:15 gateway: request_id=06GVBEGDFP6N4GFFYPEG3F0PFG cache=MISS t_tier1=195.625µs t_embed=27.433584ms t_search=249.542µs t_overlap=83.982375ms
+2026/11/07 18:17:16 gateway: cascade lane=POLICY ns=policy-warranty-electronics entry_lane=POLICY entry_ns=policy-warranty-electronics sim=0.9256
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=1.00)
+          cause=NONE gate=on support=lex=0.8684 (of 38) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0 policy-warranty-electronics#chunk-1 policy-return-electronics#chunk-0]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0 policy-return-electronics#chunk-0 policy-warranty-electronics#chunk-1]
+2026/11/07 18:17:16 gateway: request_id=06GVBEH0XJJ05SRYPHW4CGH55G cache=TIER2_HIT t_tier1=180.75µs t_embed=29.705333ms t_search=315.875µs t_overlap=85.976875ms
+2026/11/07 18:17:33 gateway: cascade lane=POLICY ns=policy-warranty-electronics entry_lane=POLICY entry_ns=policy-warranty-electronics sim=1.0000
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=0.75)
+          cause=NONE gate=on support=lex=0.8421 (of 38) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b079jfb616#chunk-1 policy-warranty-electronics#chunk-0 policy-return-electronics#chunk-0 policy-warranty-electronics#chunk-1]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0 policy-return-electronics#chunk-0 policy-warranty-electronics#chunk-1]
+2026/11/07 18:17:33 gateway: request_id=06GVBEK0YYQM6A0897CWTWE2TC cache=TIER2_HIT t_tier1=172.125µs t_embed=29.1495ms t_search=279.167µs t_overlap=84.650917ms
+2026/11/07 18:17:41 gateway: request_id=06GVBEKW3N291FN7YS3BVZ0C9R cache=MISS t_tier1=149.541µs t_embed=26.089417ms t_search=214.666µs t_overlap=58.475125ms
+2026/11/07 18:17:42 gateway: cascade lane=SPEC ns=product-laptops-b07qvm5x8w entry_lane=SPEC entry_ns=product-laptops-b07qvm5x8w sim=0.9105
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=1.00)
+          cause=NONE gate=on support=lex=0.9091 (of 11) numeric_ok=true (unsupported=0 unreadable=0 unitless=1)
+          retrieved=[product-laptops-b07qvm5x8w#chunk-0 product-laptops-b07qvm5x8w#chunk-2 product-laptops-b07qvm5x8w#chunk-1]
+          entry_sources=[product-laptops-b07qvm5x8w#chunk-0 product-laptops-b07qvm5x8w#chunk-1 product-laptops-b07qvm5x8w#chunk-2]
+2026/11/07 18:17:42 gateway: request_id=06GVBEM79RTZSMW117KAQJ5Y0M cache=TIER2_HIT t_tier1=278.167µs t_embed=29.393375ms t_search=328.708µs t_overlap=68.261458ms
+2026/11/07 18:17:44 gateway: cascade lane=SPEC ns=product-laptops-b07qvm5x8w entry_lane=SPEC entry_ns=product-laptops-b07qvm5x8w sim=0.7821
+          ns_decision=false (rule=namespace lane_match=false)  band=false overlap_decision=false (overlap=0.00)
+          cause=SIMILARITY gate=on support=not run
+          retrieved=[product-laptops-b07qvm5x8w#chunk-0 product-laptops-b07qvm5x8w#chunk-1 product-laptops-b07qvm5x8w#chunk-2]
+          entry_sources=[product-laptops-b07qvm5x8w#chunk-0 product-laptops-b07qvm5x8w#chunk-1 product-laptops-b07qvm5x8w#chunk-2]
+2026/11/07 18:17:45 gateway: request_id=06GVBEMBRDK8DKVTW96RGSPRMC cache=MISS t_tier1=2.486042ms t_embed=24.285208ms t_search=332.666µs t_overlap=62.681333ms
+2026/11/07 18:19:20 gateway: shutting down, flushing the evaluation log
+Terminated: 15
+make: *** [dev] Error 143

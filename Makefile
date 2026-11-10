@@ -190,13 +190,18 @@ dev: redis-check ## Run redis + rag service + gateway locally (FUNCTIONAL — nu
 	   sleep 0.5; \
 	 done; \
 	 echo "  rag.server pid $$rag_pid listening on :$$rag_port"; \
+	 if [ -z "$${RUN_ID}" ] && [ -z "$${LANE_SIGMA+x}" ] && [ -z "$${LANE_SIGMA_HI+x}" ]; then \
+	   export LANE_SIGMA_HI=0.60; \
+	   echo "  MIXED lane ON for this demo run (LANE_SIGMA_HI=0.60, the ADR-016 on arm). A run with RUN_ID,"; \
+	   echo "  or with LANE_SIGMA / LANE_SIGMA_HI set, keeps the gateway's own default (off). 2026-11-07, author's demo."; \
+	 fi; \
 	 cd $(GATEWAY) && RESULTS_DIR=$${RESULTS_DIR:-$(PWD)/experiments/results} \
 	   UI_DIR=$${UI_DIR:-$(PWD)/ui/dist} go run ./cmd/gateway
 
-ask: ## One query end to end.  make ask Q="can I return this laptop?"
-	@test -n "$(Q)" || { echo 'usage: make ask Q="your question"'; exit 1; }
+ask: ## One query end to end.  make ask Q="can I return this laptop?" P=product-laptops-b07qvm5x8w
+	@test -n "$(Q)" && test -n "$(P)" || { echo 'usage: make ask Q="your question" P=<product_id>  (product_id is required, ADR-025)'; exit 1; }
 	curl -sS -X POST localhost:8080/ask -H 'content-type: application/json' \
-	  -d '{"question":"$(Q)"}' | jq .
+	  -d '{"question":"$(Q)","product_id":"$(P)"}' | jq .
 
 # Restore a known-cold state so a rehearsal starts where the demo script assumes it does
 #. A warm cache turns step 1 into TIER1_HIT and collapses all four steps
@@ -278,6 +283,10 @@ demo-reset: ## Restore the dev-v0 corpus, flush both tiers, pre-warm nothing. Re
 DEMO_Q1 := Am I entitled to a full refund on my headphones 30 days after delivery?
 DEMO_Q3 := Is a full refund possible for my headphones 30 days after delivery?
 DEMO_Q4 := Am I entitled to a full refund on my sofa 30 days after delivery?
+# Since ADR-025 every /ask names its product. These are Tier 2.md Example A's v1 products (headphones H1
+# and the sofa), so on v1 the steps play out as Example A does, not as the dev-v0 comment above says.
+DEMO_P_HEADPHONES := product-electronics-b07zj7qg33
+DEMO_P_SOFA := product-furniture-b019x98zxm
 DEMO_PAUSE ?= 2
 
 demo: ## Rehearse the four demo steps against a cold cache
@@ -292,7 +301,7 @@ demo: ## Rehearse the four demo steps against a cold cache
 	@tmp=$$(mktemp -d); trap 'rm -rf $$tmp' EXIT; \
 	 tau=$${REUSE_TAU:-0.85}; theta=$${REUSE_THETA:-0.60}; \
 	 ask() { curl -sS -X POST localhost:8080/ask -H 'content-type: application/json' \
-	           -d "$$(jq -nc --arg q "$$1" '{question:$$q}')" > "$$2"; }; \
+	           -d "$$(jq -nc --arg q "$$1" --arg p "$$3" '{question:$$q, product_id:$$p}')" > "$$2"; }; \
 	 num() { case "$$1" in null) printf '%s' "—";; *) printf "$$2" "$$1";; esac; }; \
 	 line() { printf '    %s  ·  %s ms  ·  similarity %s  ·  source_overlap %s\n' \
 	   "$$(jq -r .cache "$$1")" "$$(jq -r .latency_ms "$$1")" \
@@ -303,16 +312,16 @@ demo: ## Rehearse the four demo steps against a cold cache
 	 printf '  latencies here are NOT citable (dev-v0, make dev)\n'; \
 	 \
 	 hdr 1 "fresh question — the cost every uncached system pays" "$(DEMO_Q1)"; \
-	 ask "$(DEMO_Q1)" "$$tmp/1.json"; line "$$tmp/1.json"; sleep $(DEMO_PAUSE); \
+	 ask "$(DEMO_Q1)" "$$tmp/1.json" "$(DEMO_P_HEADPHONES)"; line "$$tmp/1.json"; sleep $(DEMO_PAUSE); \
 	 \
 	 hdr 2 "exact repeat — Tier 1" "$(DEMO_Q1)"; \
-	 ask "$(DEMO_Q1)" "$$tmp/2.json"; line "$$tmp/2.json"; sleep $(DEMO_PAUSE); \
+	 ask "$(DEMO_Q1)" "$$tmp/2.json" "$(DEMO_P_HEADPHONES)"; line "$$tmp/2.json"; sleep $(DEMO_PAUSE); \
 	 \
 	 hdr 3 "paraphrase — Tier 2, different words, same evidence" "$(DEMO_Q3)"; \
-	 ask "$(DEMO_Q3)" "$$tmp/3.json"; line "$$tmp/3.json"; sleep $(DEMO_PAUSE); \
+	 ask "$(DEMO_Q3)" "$$tmp/3.json" "$(DEMO_P_HEADPHONES)"; line "$$tmp/3.json"; sleep $(DEMO_PAUSE); \
 	 \
 	 hdr 4 "the trap — high similarity, different evidence" "$(DEMO_Q4)"; \
-	 ask "$(DEMO_Q4)" "$$tmp/4.json"; line "$$tmp/4.json"; \
+	 ask "$(DEMO_Q4)" "$$tmp/4.json" "$(DEMO_P_SOFA)"; line "$$tmp/4.json"; \
 	 printf '\n    The refusal is arithmetic, not a model score — check it by eye:\n\n'; \
 	 jq -r --slurpfile e "$$tmp/1.json" '\
 	   ($$e[0].sources) as $$src | (.sources) as $$got | \

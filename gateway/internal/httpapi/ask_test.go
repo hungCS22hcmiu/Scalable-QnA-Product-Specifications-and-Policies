@@ -681,6 +681,34 @@ func TestRejectsBadMethodAndBody(t *testing.T) {
 	}
 }
 
+// ADR-025. A request with no product_id, or a blank one, is refused like a malformed request:
+// 400, and nothing downstream runs -- no retrieval, no generation.
+func TestRejectsMissingProductID(t *testing.T) {
+	hs := newHarness(t, 1, 0)
+	for _, tc := range []struct{ name, body string }{
+		{"absent", `{"question": "how long is the warranty?"}`},
+		{"empty", `{"question": "how long is the warranty?", "product_id": ""}`},
+		{"blank", `{"question": "how long is the warranty?", "product_id": "   "}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			hs.h.Ask(w, httptest.NewRequest(http.MethodPost, "/ask", strings.NewReader(tc.body)))
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status %d, want %d", w.Code, http.StatusBadRequest)
+			}
+			if !strings.Contains(w.Body.String(), "product_id") {
+				t.Errorf("body %q does not name product_id", w.Body.String())
+			}
+		})
+	}
+	if n := len(hs.rag.retrieveCalls()); n != 0 {
+		t.Errorf("Retrieve ran %d times, want 0", n)
+	}
+	if n := len(hs.rag.answerCalls()); n != 0 {
+		t.Errorf("Answer ran %d times, want 0", n)
+	}
+}
+
 // Path 6. An entry in ANOTHER namespace above tau must not lift an entry in THIS namespace that is
 // below tau: tau judges the candidate actually served, not the global nearest (B-cross). The
 // in-namespace entry satisfies every conjunct but tau and carries kettle.otherAnswer, so serving it

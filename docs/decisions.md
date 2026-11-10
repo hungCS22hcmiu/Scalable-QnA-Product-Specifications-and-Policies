@@ -63,6 +63,8 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-021 | Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked | in force (G1 26, still failed; the end-to-end answer checks, `docs/work/2026-10-31-rag-correctness/plan.md` 1.5, failed on two counts, accepted 2026-10-31; the candidate prompt not adopted, §3) | none — no runs yet; one-chunk spec retrievals before it ground every number taken so far on spec questions, all citable: no |
 | ADR-022 | The offline judge is `gemma3:4b-it-q4_K_M` with prompt v1 at temperature 0, and a reference is built from the question's gold documents | written 2026-11-01 for the author's review, in force when accepted (the model and the two rubric choices are the author's; the prompt is untested until the sanity pairs, plan step 5.3) | none — no runs yet; `Final_Proposal.md` §5 C1 and §9.3 describe the reference as `LLM(retrieve(q), q)`, which this replaces |
 | ADR-023 | References are written by a pinned reference writer, `qwen3.5:4b-q4_K_M` at temperature 0; the served generator stays `qwen3.5:2b-q4_K_M` | in force (the author, 2026-11-01; amends ADR-022's reference definition) | none — no runs yet; Entry 2's 2B reference set is superseded for verdicts and kept as the baseline |
+| ADR-024 | With a `product_id`, the POLICY namespace names the product as well as the policy document | decided (the author, 2026-11-07; option (b) of item 5.6, closes F-NAME); **not built** — a task under item 5.6 builds it | no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) and `Tier 2.md` Examples A and B are read as "before ADR-024" |
+| ADR-025 | Every `/ask` request must carry a `product_id` | in force (the author, 2026-11-08; built the same day, `interfaces.md` v0.30); **open:** the 16 validation queries with none are dropped (decided 2026-11-08), but the workload is not regenerated yet; it must be before the next replay of validation | none — no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) holds 16 requests that would now get `400` |
 
 ---
 
@@ -95,6 +97,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | # | Question | Blocks |
 | :--- | :--- | :--- |
 | **F1** — ✅ **resolved by ADR-003, 2026-10-04** | Ollama overrides `OLLAMA_NUM_PARALLEL` to `-np 1` for this model. If the permit pool bounds to a concurrency the model server never offers, every shed rate measured so far describes the harness rather than the gateway | ~~No admission-control number is citable until this resolves.~~ Resolved: one slot frozen, one permit, `make env-check` verifies the live runner. Phase 1, item 1.1 |
+| **F-NAME** — ✅ **decided by ADR-024, 2026-11-07: option (b), `product_id` joins the POLICY namespace; not built yet**; owned by `super-plan.md` item 5.6 | A POLICY-lane answer is shared by every product of its category, but the generator writes the asked product's name into it. A Tier-2 hit can then serve product A an answer that names product B. The support gate does not stop it (`S_lex` 0.60–0.74 on the 3 cases seen), and the judge rubric calls it `INCORRECT`. Seen in the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no): 3 of 94 Tier-2 hits, plus 1 stratum-D hit that served another product's spec | Item 6.1. The fix (the generator prompt, `product_id` in the POLICY namespace, or keep and report) is chosen by an ADR before the sweep is pre-registered |
 | **P1** — ✅ **closed 2026-11-01 by ADR-022; the documents are `contracts/metrics.md`, `contracts/interfaces.md` §I and `preregistration.md`; trail `docs/work/2026-10-30-judge-harness/`** | The run-manifest schema, the frozen judge prompt, the operational metric definitions and the pre-registration record were deleted with the old protocol document and exist nowhere — not in the proposal, not in code. `experiments/k6/ask.js` still prints values "for manifest.yaml". **ADR-010:** the manifest must record `SUPPORT_GATE`, taking the arm from the records or checking that the environment and the records agree, never from the environment alone | ~~Phases 5, 6 and 7 all produce artefacts with no defined shape. **Owned by `super-plan.md` item 5.1 since 2026-10-29**, before its first artefact~~ Closed: the three documents are written and dated 2026-11-01, before the judge's first verdict. The harness's live checks (references, sanity pairs, the cost run) are in the trail's plan, Phases 4–6 |
 
 ---
@@ -2029,3 +2032,105 @@ the model every run measures.
     frozen value.
 - **Invalidates:** none — no `run_id` exists. Entry 2's reference set is superseded for verdicts and kept as the
   baseline.
+
+### ADR-024 — With a `product_id`, the POLICY namespace names the product as well as the policy document
+**Decided (method)** · 2026-11-07 · the author · *`super-plan.md` item 5.6; open question F-NAME; `gateway/internal/reuse/lane.go` (`Namespace`); `contracts/interfaces.md` §A (`product_id`) and §D; `docs/1-System Docs/Tier 2.md` Step 4, Examples A and B*
+
+The study takes option (b) of item 5.6. When a request carries a `product_id`, the POLICY namespace is built from
+**the product and the rank-1 policy document**, not from the policy document alone. Without a `product_id`, it stays
+the rank-1 policy document, as today. A POLICY namespace and a MIXED namespace must still never be equal, so the
+lanes cannot meet through the namespace (the property `lane.go` states for `mixedSeparator`). The format is the
+build task's choice. **Not built yet:** a task under item 5.6 builds it.
+
+- **Rationale.**
+  - **It is the largest false-hit cause measured so far.** In the cost run `2026-11-01T21-17-56_cfg4_judgecost`
+    (configuration 4, gate on, MIXED off, validation, τ 0.85, citable: no), 6 of 94 Tier-2 hits came from another
+    product's entry. The judge called 4 of them `INCORRECT`: 3 named the other product, and 1 was a stratum-D hit
+    with another desk's finish. The support gate passed all 4 (`S_lex` 0.60–0.74). 4 of 94 is about 4.3 %, close
+    to the provisional δ = 5 % from one cause alone.
+  - **It was seen again live.** In `Tier 2.md` Example B (e) (7 Nov 2026, citable: no), a warranty question asked on
+    one pair of headphones was served the answer written for another pair, which says "Soundcore store". The gate
+    passed it at 0.8421: the brand is 1 word of 38.
+  - **It changes no answer.** The served prompt, the references (ADR-022, ADR-023) and item 5.2's pairs stay valid.
+- **Alternatives.**
+  - **(a) A prompt that keeps product names out of policy answers.** Rejected. It changes the served prompt, which
+    the reference writer also uses (ADR-023, hash `3e224f45…`), so the references and item 5.2 would be redone.
+    A prompt also gives no guarantee: a 2B model can still copy the name.
+  - **(c) Keep it and report it.** Rejected. One cause would use most of the false-hit budget.
+  - **(d) A provenance check in the gate:** refuse when the cached answer holds a word that appears only in the
+    entry's own product chunks and not in the new evidence. It would keep the 2 correct cross-product hits. Not
+    taken: it is a new mechanism with n = 6 behind it, and it changes the gate the thesis adopts from prior work.
+    Future work.
+- **Consequences.**
+  - **No reuse across products in the POLICY lane** when a `product_id` is present. In the cost run that removes
+    2 correct and 4 wrong hits. Each product now writes its own policy answers, so the cache holds more entries and
+    the model generates more often. On `v1` the cost is small. With real traffic, where many products share one
+    policy, it would be larger: the write-up reports it as a limit.
+  - **Framing.** Separation across products now comes from `product_id`, request metadata, in every lane.
+    Retrieval provenance still decides the policy half (which kind, condition or region document) and feeds the
+    gate. So the claim rests on the B-within stratum, as `data-card.md` §2 ("Why B is split") already warns, and the write-up must not
+    credit provenance for B-cross.
+  - **MIXED (ADR-016) shrinks.** With a `product_id`, POLICY and MIXED both carry the product, so the MIXED arm's
+    measured effect is mostly lane separation. ADR-016 stands, and its arms still run.
+  - **The check that shows the fix works** (item 5.6): (1) a unit test: the same policy chunks with two
+    `product_id`s give two POLICY namespaces, no `product_id` gives the policy document, and a POLICY and a MIXED
+    namespace built from the same pair differ; (2) a live replay of `Tier 2.md` Example B, Question 4, now ends as a
+    MISS with nothing judged; (3) Phase 6 counts POLICY-lane hits whose entry was written for another `product_id`,
+    and the count is 0 for requests that carry one.
+  - **Tests.** The existing lane tests build POLICY namespaces with no `product_id`, so they keep their meaning. A
+    test that pins a POLICY namespace with a `product_id` becomes stale, and changing it needs the author's approval
+    in the task's `design.md` §4.
+  - **Stale text, updated by the build task:** `interfaces.md` §A ("the policy lane ignores it") and §D, a contract
+    change (v0.31; v0.30 went to ADR-025); `Tier 2.md` Step 4 ("Why are policy answers not split by product?"), Example A Question 5 and
+    Example B (e); the false-miss row 6 of `Tier 2.md` §12a, which now applies to the POLICY lane too;
+    `Final_Proposal.md`, the author's to edit.
+  - **Unchanged:** Tier 1 (its key already holds `product_id`, ADR-018), the lane rule and its band, the gate, τ,
+    the dependency map and every other frozen value.
+- **Invalidates:** no citable run. The cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) ran the old
+  POLICY namespace and is read as "before ADR-024". So are `Tier 2.md` Examples A and B, and the 2026-10-31 prompt
+  probe's cross-product pairs, if any.
+
+### ADR-025 — Every `/ask` request must carry a `product_id`
+**Decided (interface)** · 2026-11-08 · the author · *`contracts/interfaces.md` §A (v0.30); `gateway/internal/httpapi/handler.go` (`Ask`); `data/workload-v1-validation.json`*
+
+The gateway refuses a request whose `product_id` is absent, empty or blank, with `400`. The check sits on the
+malformed-request path, before any record exists, so no new outcome enters the evaluation log (§H). It does not
+check that the id names a real product. **Built 2026-11-08**, with the new test `TestRejectsMissingProductID`;
+`make test-go` passed.
+
+- **Rationale.**
+  - **Every real caller has one.** The demo UI sends the product of the page. All 652 test queries and 606 of the
+    622 validation queries carry one.
+  - **A request with no product takes the weak path.** Retrieval is not scoped, so it can return other products'
+    chunks (`Tier 2.md` Example A as first written), and the SPEC namespace falls back to the rank-1 product chunk,
+    which drifts across paraphrases (`interfaces.md` §A, v0.6).
+- **Alternatives.**
+  - **Keep it optional and trust the clients.** Rejected: a client that forgets it takes the weak path with no error.
+  - **Also refuse an unknown id.** Not taken: it needs the corpus on the `/ask` path, and `catalog/` is kept off it
+    on purpose. A wrong id still gets an answer, but retrieval drops every product chunk (none is its own) and
+    refills none, so only the policy chunks of the top k are left, and there may be none.
+- **Consequences.**
+  - **Open: the workload is out of step.** 16 validation queries have no `product_id`: the `condition-department`
+    probes of `policy-return-laptops-new` and `policy-return-laptops-renewed`, 8 each, all stratum B-within (16 of
+    the 124 B-within validation queries). The test split has none. Until this is fixed, `replay.py` and k6 send
+    them with no `product_id` and get `400`. **Decided 2026-11-08 (the author): drop them**, because that question
+    can no longer reach the system. The rejected fix gave each a laptop `product_id`, which turns the probe into a
+    `policy-condition` probe (a kind the workload already has) and means redoing their references. **Not done
+    yet:** the workload is regenerated later, through `make workload-build`, which rewrites
+    `data/workload-manifest.json`, and the corpus freeze reads that manifest (`freeze_corpus.py`). **It must be
+    done before the next replay of validation.** After it, validation has 606 queries and 108 B-within; the
+    `condition-department` probe kind is gone.
+  - **Callers fixed in the same change:** `make ask` now needs `P=<product_id>`; `make demo` sends `Tier 2.md`
+    Example A's `v1` products.
+  - **Callers not fixed:** the smoke fallback of `experiments/k6/ask.js` and `SMOKE_QUESTIONS` in
+    `experiments/scripts/loadgen_footprint.py` hold `dev-v0` questions with no product, so each now gets `400`.
+    `update_set_check.py` sends a query's `product_id` when it has one, so it fails only if it picks one of the 16
+    (it can: the update set edits `policy-return-laptops-renewed`).
+  - **Code kept:** the lane code and the RAG service still handle `""`, and their tests use it, but `/ask` no
+    longer reaches them that way. ADR-024's "without a `product_id`" case is unreachable for the same reason.
+    ADR-024's contract change becomes v0.31.
+  - **Stale text:** the sentences of `interfaces.md` §A about the absent case (marked in place); `Tier 2.md`
+    wherever it describes a request with no `product_id`; `super-plan.md` item 5.5 ("this is the only input guard
+    built"). The `types.go` comment is updated.
+- **Invalidates:** no citable run. The cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) holds the 16
+  requests with no `product_id`; under ADR-025 they would get `400`.

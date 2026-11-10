@@ -1,0 +1,8 @@
+POLICY | policy-return-electronics | Can I get a full refund on these headphones 30 days after delivery? | hits=0 | 2026-11-07T11:16:01Z
+POLICY | policy-return-electronics | Is a full refund possible for these headphones 30 days after delivery? | hits=0 | 2026-11-07T11:16:21Z
+POLICY | policy-return-furniture-opened | Can I get a full refund on this sofa 30 days after delivery? | hits=0 | 2026-11-07T11:16:41Z
+POLICY | policy-return-electronics | Can I get a full refund on these headphones 30 days after delivery? | hits=0 | 2026-11-07T11:16:47Z
+POLICY | policy-return-electronics | How long do I have to return these headphones? | hits=0 | 2026-11-07T11:17:10Z
+POLICY | policy-warranty-electronics | How long is the warranty on these headphones? | hits=2 | 2026-11-07T11:17:15Z
+SPEC | product-laptops-b07qvm5x8w | Which graphics card does this laptop have? | hits=1 | 2026-11-07T11:17:41Z
+SPEC | product-laptops-b07qvm5x8w | How much RAM does this laptop have? | hits=0 | 2026-11-07T11:17:45Z

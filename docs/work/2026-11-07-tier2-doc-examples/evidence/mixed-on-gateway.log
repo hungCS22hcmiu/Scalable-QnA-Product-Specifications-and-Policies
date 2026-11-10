@@ -1,0 +1,42 @@
+maxmemory-policy=noeviction  maxmemory=0
+  OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FUNCTIONAL RUN — latencies printed here are NOT citable.    │
+  │  For a number that reaches the thesis, use: make measure     │
+  └─────────────────────────────────────────────────────────────┘
+  memory available: 67% (floor 25%; models need ~2.1 GB of 16 GB)
+  rag.server pid 67974 listening on :50051
+  MIXED lane ON for this demo run (LANE_SIGMA_HI=0.60, the ADR-016 on arm). A run with RUN_ID,
+  or with LANE_SIGMA / LANE_SIGMA_HI set, keeps the gateway's own default (off). 2026-11-07, author's demo.
+2026/11/07 18:34:56 gateway: dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2 (ADR-008)
+2026/11/07 18:34:56 gateway: tau=0.850 theta=0.60 dim=768 index=idx:cache  (all DEMO values, swept later)
+2026/11/07 18:34:56 gateway: lane_band=[0.20,0.60) mixed_lane=on (pinned, ADR-016)
+2026/11/07 18:34:56 gateway: admission permits=1 queue_budget=2  (permits = the frozen served slot count,
+         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)
+2026/11/07 18:34:56 gateway: cache_capacity=0  UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen
+2026/11/07 18:34:56 gateway: evaluation log DISABLED (RUN_ID unset) -- functional run, produces no measurement
+2026/11/07 18:34:56 gateway: support_gate=on  (default: a candidate that clears tau and the namespace is refused
+         when the cached answer is not supported by this request's evidence)
+2026/11/07 18:34:56 gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first
+         (interfaces.md rule 11). Records carry support_gate so a log names its arm.
+2026/11/07 18:34:56 gateway: serving demo UI from /Users/hung/Desktop/Sem1/thesis/ui/dist
+2026/11/07 18:34:56 gateway listening on :8080 (redis=localhost:6379 rag=localhost:50051)
+rag.server listening on 0.0.0.0:50051 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+2026/11/07 18:35:14 gateway: request_id=06GVBJKNE31181HF3E3VK1M92C cache=MISS t_tier1=318.75µs t_embed=29.683792ms t_search=595.584µs t_overlap=335.728875ms
+2026/11/07 18:35:16 gateway: cascade lane=MIXED ns=product-electronics-b07zj7qg33|policy-warranty-electronics entry_lane=MIXED entry_ns=product-electronics-b07zj7qg33|policy-warranty-electronics sim=0.9308
+          ns_decision=true (rule=composite lane_match=true)  band=true overlap_decision=true (overlap=1.00)
+          cause=NONE gate=on support=lex=0.6977 (of 43) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0]
+2026/11/07 18:35:16 gateway: request_id=06GVBJMQMNM6D62Y0QCNX4W6YW cache=TIER2_HIT t_tier1=629.75µs t_embed=542.480875ms t_search=439.5µs t_overlap=586.604458ms
+2026/11/07 18:35:20 gateway: request_id=06GVBJMY3F1TM5P9K856W2WKRG cache=MISS t_tier1=189.208µs t_embed=24.085916ms t_search=257.834µs t_overlap=59.457333ms
+2026/11/07 18:35:35 gateway: cascade lane=MIXED ns=product-electronics-b07zj7qg33|policy-warranty-electronics entry_lane=MIXED entry_ns=product-electronics-b07zj7qg33|policy-warranty-electronics sim=0.8660
+          ns_decision=true (rule=composite lane_match=true)  band=true overlap_decision=true (overlap=1.00)
+          cause=NONE gate=on support=lex=0.6977 (of 43) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[policy-warranty-electronics#chunk-0 product-electronics-b07zj7qg33#chunk-1]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0]
+2026/11/07 18:35:35 gateway: request_id=06GVBJQ3FPSK7ZPNCPKYTBYMW4 cache=TIER2_HIT t_tier1=273.583µs t_embed=25.998334ms t_search=340.5µs t_overlap=40.805708ms
+2026/11/07 18:35:58 gateway: request_id=06GVBJRKX69SZ18KP56WYRHSWW cache=MISS t_tier1=177.875µs t_embed=27.219667ms t_search=267.792µs t_overlap=79.678667ms
+2026/11/07 18:36:08 gateway: shutting down, flushing the evaluation log
+Terminated: 15
+make: *** [dev] Error 143

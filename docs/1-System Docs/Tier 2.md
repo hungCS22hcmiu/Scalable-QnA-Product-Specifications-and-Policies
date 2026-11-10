@@ -1,18 +1,22 @@
 # Tier 2 — the semantic cache, from the idea to the mechanism
 
-**For:** a reader who is new to this project · **Describes:** the code at commit `ff1c6ff` (29 Oct 2026),
-checked on 30 Oct 2026. The decisions behind it go up to ADR-019.
+**For:** a reader who is new to this project · **Describes:** the code at commit `d642c45` (1 Nov 2026).
+Part 2 was checked against `ff1c6ff` on 30 Oct 2026. Since then only retrieval has changed (ADR-020 and
+ADR-021, Step 1). The worked examples were re-run on 7 Nov 2026.
 **About the numbers:**
-- **The worked examples (§9–11) use `dev-v0`**, the small development corpus (44 documents: 4 store
-  policies and 40 products). It was retired on 29 Oct 2026. They show how the mechanism behaves, and they
-  are **not** results of the thesis.
+- **The worked examples §9, §10, §11a and §11b are live runs on `v1`** (7 Nov 2026, cold cache, `make dev`).
+  It was a functional run under yellow memory pressure, so the latencies are not measurements and
+  **none of it is citable**. The raw output is in `docs/work/2026-11-07-tier2-doc-examples/`.
+- **`dev-v0` numbers remain** in §3, in §10's unit-test case and in Example C (§11). `dev-v0` is the
+  small development corpus (44 documents: 4 store policies and 40 products), retired on 29 Oct 2026.
+  These numbers show how the mechanism behaves, and they are **not** results of the thesis.
 - **Some numbers come from `v1`**, the final corpus (frozen on 23 Oct 2026): the lane counts in Step 3
   (ADR-015 and ADR-016), the overlap measurement in §8 (ADR-019) and the trap measurements in §12a. They come
   from the validation split, and they are **not citable** either.
 - **The thesis results are measured in Phase 6**, on the held-out test split.
 
-**Contents.** Part 1, the idea (§1–4) · Part 2, the mechanism (§5–8) · Part 3, four worked
-examples (§9–11a) · Part 4, measuring, traps and limits (§12–13) · Code map and further reading (§14)
+**Contents.** Part 1, the idea (§1–4) · Part 2, the mechanism (§5–8) · Part 3, five worked
+examples (§9–11b) · Part 4, measuring, traps and limits (§12–13) · Code map and further reading (§14)
 
 ---
 
@@ -26,7 +30,7 @@ This project is a question-answering assistant for an online shop. It answers qu
 
 It runs on **one laptop**: a MacBook M1 with 16 GB of memory. The answers come from a small language
 model (Qwen 3.5 2B) that runs locally and writes **one answer at a time**. Writing one answer takes
-seconds (3 to 9 seconds in the demo runs of §9). Reading a stored answer from a cache takes
+seconds (1.3 to 8.1 seconds in the runs of Part 3). Reading a stored answer from a cache takes
 milliseconds.
 
 So every question the cache answers **safely** is a question the model does not have to answer. This
@@ -51,8 +55,8 @@ turns a sentence into a list of numbers, here 768 numbers from the model `nomic-
 Sentences with similar meanings get lists of numbers that point in a similar direction.
 
 How close two such lists are is measured by **cosine similarity**. It is a number up to 1.0, and 1.0
-means "the same direction". In the examples below, paraphrases of a question score between 0.93 and
-0.98.
+means "the same direction". In the examples below, paraphrases of a question score between 0.91 and
+0.99.
 
 A basic semantic cache works in three steps:
 
@@ -65,8 +69,8 @@ new question ──embed──►  [0.012, -0.044, …, 0.031]      (768 numbers
                                   │
                                   │  find the nearest stored vector
                                   ▼
-stored: "Am I entitled to a full refund on my headphones …"
-        similarity 0.9750  ≥  τ = 0.85   →   serve the stored answer?
+stored: "Can I get a full refund on these headphones …"
+        similarity 0.9932  ≥  τ = 0.85   →   serve the stored answer?
 ```
 
 ## 3. Why similarity alone is not safe
@@ -99,7 +103,7 @@ answer, a **retriever** searches the shop's documents and returns the five most 
 called **chunks**. The model then writes its answer from those chunks.
 
 Every chunk has a stable ID that names its document, for example
-`policy-returns-electronics#chunk-0` or `product-headphones-03#chunk-0`. Every document ID starts
+`policy-return-electronics#chunk-0` or `product-electronics-b07zj7qg33#chunk-1`. Every document ID starts
 with `policy-` or `product-`, so the ID alone says what kind of document a chunk comes from.
 
 **The retrieval tells us which evidence a question needs, whatever its wording.** The return question
@@ -147,8 +151,8 @@ flowchart LR
     Q["POST /ask<br/>question, optional product_id"] --> T1{"Tier 1<br/>same words, same product?"}
     T1 -- yes --> A1(["answer from Tier 1<br/>under 1 ms"])
     T1 -- no --> T2{"Tier 2<br/>same meaning, same namespace,<br/>answer supported?"}
-    T2 -- yes --> A2(["answer from Tier 2<br/>about 50 ms"])
-    T2 -- no --> G["generate with the model<br/>3 to 9 s"]
+    T2 -- yes --> A2(["answer from Tier 2<br/>under 100 ms"])
+    T2 -- no --> G["generate with the model<br/>1 to 8 s"]
     G --> W["store the answer<br/>in Tier 1 and Tier 2"]
     W --> A3(["answer from the model"])
 
@@ -158,8 +162,8 @@ flowchart LR
     class G slow
 ```
 
-The times are from the demo of §9: a Tier-1 hit showed as 0 ms, a Tier-2 hit took 52 ms, and a
-generation took 3.0 to 9.4 seconds. (If the model is busy and too many questions are waiting, the
+The times are from the run of Part 3 (7 Nov 2026, not measurements): a Tier-1 hit took 1 ms, a Tier-2
+hit 69 to 86 ms, and a generation 1.3 to 8.1 seconds. (If the model is busy and too many questions are waiting, the
 gateway answers `503 busy, retry` instead of queueing without limit. That is a separate part of the
 system and is not covered here.)
 
@@ -198,8 +202,16 @@ both at once:
   was trained with this prefix (the documents were stored with `search_document: `), and without it
   every similarity would be quietly worse.
 - **The top five chunks**, from the RAG service, each with its ID and its text. If the request names
-  the product the user is looking at (`product_id`), the retriever drops chunks of **other** products
-  and makes sure this product's own chunk is included, so it may return fewer than five.
+  the product the user is looking at (`product_id`), the retriever changes the top five in three ways
+  (`rag/src/rag/retrieve.py`):
+  - **Other products' chunks are dropped.** When no policy chunk ranked, their places are filled with
+    this product's own best chunks (ADR-021).
+  - **This product's own chunk is always included.** If it did not rank, it is put at the top of the
+    list. If the list is already full, the last chunk falls off.
+  - **A policy chunk of another category is swapped** for the best unused policy chunk of this product's
+    category (ADR-020). The number of policy chunks stays the same, so the lane cannot move.
+
+  So it may return fewer than five. Examples A, B, D and E (Part 3) show each case.
 
 This step costs the **slower** of the two calls, not their sum. If either call fails, Tier 2 is skipped
 and the request continues as a normal miss. A Tier-2 problem costs speed. It never becomes an error
@@ -240,7 +252,11 @@ is the warranty on the EarBuds Pop 3, and what is its battery life?").
   swept. Any other band stops the gateway at start.
 - **Off is the default:** `LANE_SIGMA` = `LANE_SIGMA_HI` = 0.20, an empty band. The counts above are the
   off arm.
+- **`make dev` turns it on for demos** (since 7 Nov 2026). With no `RUN_ID` and neither variable set, it
+  starts the gateway with `LANE_SIGMA_HI=0.60`. A measured run, which has a `RUN_ID`, keeps the
+  gateway's default: off.
 - **On** (`LANE_SIGMA_HI=0.60`), the `v1` validation split reads 12 of its 33 stratum-D questions as MIXED.
+  Example E (§11b) shows both arms live.
 
 Every log record names the arm in the field `mixed_lane`. `v1` has 69 stratum-D questions in all.
 
@@ -250,26 +266,26 @@ The namespace is the group of the cache that this question may reuse from. It de
 
 | Lane | When | Namespace | Example from the corpus |
 | :--- | :--- | :--- | :--- |
-| SPEC | no policy chunk retrieved | the product the user is looking at (`product_id`); if none, the document of the **top-ranked** product chunk | "How much RAM does the UltraBook Pro 14 have?" → `product-laptops-01` |
-| POLICY | at least one policy chunk | the document of the **top-ranked** policy chunk | "How long do I have to return a laptop for a full refund?" → `policy-returns-electronics` |
-| MIXED (off) | both kinds, inside a set band | the pair `{product}\|{policy}`; both halves are required | `product-headphones-03\|policy-warranty` |
+| SPEC | no policy chunk retrieved | the product the user is looking at (`product_id`); if none, the document of the **top-ranked** product chunk | "Which graphics card does this laptop have?" on a laptop's page → `product-laptops-b07qvm5x8w` (Example D) |
+| POLICY | at least one policy chunk | the document of the **top-ranked** policy chunk | "How long is the warranty on these headphones?" → `policy-warranty-electronics` (Example B) |
+| MIXED (on arm only) | both kinds, inside a set band | the pair `{product}\|{policy}`; both halves are required | `product-electronics-b07zj7qg33\|policy-warranty-electronics` (Example E) |
 
 Four details make this work:
 
-- **A namespace is a document, not a chunk.** `policy-returns-electronics#chunk-2` belongs to
-  `policy-returns-electronics`.
-- **The top rank decides, not the list of documents.** The headphones and the sofa refund questions
-  both retrieve **both** return policies. But the retriever ranks the electronics policy first for
-  headphones and the furniture policy first for the sofa. The rank separates them. The list alone
-  would not.
-- **The product the user is viewing beats the top-ranked product.** Asked with no `product_id`, "what
-  is the battery life of the EarBuds Pop 3" retrieved `product-headphones-04` first. That is the
-  EarBuds Pop 3 **Pro**, a different product. Paraphrases can rank near-identical products in a
-  different order. The page the user is on does not change.
+- **A namespace is a document, not a chunk.** `policy-return-electronics#chunk-2` belongs to
+  `policy-return-electronics`.
+- **The top rank decides, not the list of documents.** The return and the warranty questions of
+  Example B both retrieve **both** electronics policies. But the retriever ranks the return policy
+  first for one and the warranty first for the other. The rank separates them. The list alone would
+  not.
+- **The product the user is viewing beats the top-ranked product.** Asked with no `product_id`,
+  Example D's graphics-card question ranks three other laptops above the one the user is looking at.
+  Paraphrases can rank similar products in a different order. The page the user is on does not change.
 - **An empty namespace matches nothing.** It is never treated as "match everything".
 
 **Why are policy answers not split by product?** A policy answer is the same for every product the
-policy covers. One entry per policy uses less cache space than one entry per product.
+policy covers. One entry per policy uses less cache space than one entry per product. The cost is shown
+in Example B (e): an answer that names one product's brand can reach another product.
 
 ### Step 5 — Search inside the namespace only
 
@@ -278,7 +294,7 @@ It asks for one result only (`k = 1`), because inside one namespace the most sim
 candidate.
 
 ```
-FT.SEARCH idx:cache "(@namespace:{policy\-returns\-electronics})=>[KNN 1 @embedding $vec AS dist]"
+FT.SEARCH idx:cache "(@namespace:{policy\-return\-electronics})=>[KNN 1 @embedding $vec AS dist]"
 ```
 
 - The vector index is **exact** (`FLAT`), not approximate. An approximate index could return a
@@ -378,17 +394,17 @@ Each entry is one Redis hash. This is the entry that the first question of Examp
 ```
 t2:<entry_id>                                     a Redis hash, indexed by idx:cache
 ├── embedding          768 × float32              the vector of the question that caused the miss
-├── query_text         "Am I entitled to a full refund on my headphones 30 days after delivery?"
-├── answer             "…"                        the answer the model wrote
-├── source_chunk_ids   policy-returns-electronics#chunk-0
-│                      policy-returns-furniture#chunk-0
-│                      policy-warranty#chunk-0
-│                      product-headphones-03#chunk-0
-│                      product-headphones-04#chunk-0    (the evidence behind the answer)
-├── lane               POLICY                     3 of 5 chunks are policy chunks
-├── namespace          policy-returns-electronics the top-ranked policy document
+├── query_text         "Can I get a full refund on these headphones 30 days after delivery?"
+├── answer             "Yes, you can get a full refund …"   the answer the model wrote
+├── source_chunk_ids   product-electronics-b07zj7qg33#chunk-1
+│                      policy-return-electronics#chunk-0
+│                      policy-return-electronics#chunk-1
+│                      policy-return-electronics#chunk-2
+│                      policy-warranty-electronics#chunk-2   (the evidence behind the answer)
+├── lane               POLICY                     4 of 5 chunks are policy chunks
+├── namespace          policy-return-electronics  the top-ranked policy document
 ├── t1_key             t1:<sha256>                the Tier-1 copy written by the same miss
-├── dataset_epoch      1                          corpus version: the epoch file's value, ≥ 1 (item 4.2)
+├── dataset_epoch      2                          corpus version: the epoch file's value, ≥ 1 (item 4.2)
 └── hit_count, created_at, source_overlap
 ```
 
@@ -419,8 +435,8 @@ records this decision. It settles what the plan called finding F-K.
 **The reason.** When a request carries a `product_id`, retrieval is limited to that product. A product
 has about 3.2 chunks in `v1` (491 product chunks over 152 products), and the retriever returns up to
 five. So two questions about the same product mostly retrieve the same chunks, and their containment is
-close to 1 whatever they ask. (A long product, like the one in Example D with eight chunks, is an
-exception.)
+close to 1 whatever they ask. (A long product, with more than five chunks, is an exception. The laptop
+in Example D has three, so every question about it retrieves all three.)
 
 **The measurement** (`v1` validation split, 416 pairs, not citable;
 `docs/work/2026-10-30-adr-019-theta-overlap/`). Each question was retrieved with its own `product_id`,
@@ -434,9 +450,10 @@ and the containment was computed as `rule.go` computes it:
 
 **No θ separates the first two rows.** At θ = 0.6, containment would reuse 86 % of the paraphrases and
 85 % of the same-product traps. At θ = 1.0, it would reuse 75 % and 47 %. The third row is already
-separated by the namespace, because the two questions are about different products. Example B (§10)
-shows the same thing on `dev-v0`: two questions that need opposite verdicts get exactly the same
-containment. With five chunks, the score can also only take six values (0, 0.2, …, 1.0).
+separated by the namespace, because the two questions are about different products. Example D (§11a)
+shows the same thing live: a GPU paraphrase and a RAM question about one laptop both have containment
+1.00, and only one of them may reuse the GPU answer. With five chunks, the score can also only take six
+values (0, 0.2, …, 1.0).
 
 **What this means for the thesis.** On traps across products, the namespace does the work. On traps
 inside one product, only the support gate can refuse. The claim is restated around this served rule
@@ -447,122 +464,183 @@ decision, and the write-up reports its distribution.
 
 # Part 3 — Worked examples
 
-## 9. Example A — the live demo, end to end
+Examples A, B and D come from one live run, and Example E from a second run the same day. Example C and
+the unit-test case in §10 are older and use `dev-v0`.
 
-**Setting.** 15 Oct 2026, development corpus, cold cache, gate on, τ = 0.85, θ = 0.60. No `product_id`
-was sent. The demo was run twice, each time from an empty cache. The latencies are not measurements.
+**Setting of the live run.** 7 Nov 2026, corpus `v1`, code at `d642c45`, gate on, τ = 0.85, MIXED off.
+The cache was emptied first (`make cache-reset`), then `make dev` was started, and the questions were
+sent in the order of this part. **Every request carried a `product_id`**, as the `v1` workload does.
+Memory pressure was yellow, so the latencies are not measurements. The questions are written for this
+document. Four products are used:
 
-**Question 1:** "Am I entitled to a full refund on my headphones 30 days after delivery?"
+| Short name | `product_id` | What it is |
+| :--- | :--- | :--- |
+| H1 | `product-electronics-b07zj7qg33` | headphones (Anker Soundcore) |
+| H2 | `product-electronics-b079jfb616` | headphones (Mpow) |
+| Sofa | `product-furniture-b019x98zxm` | a recliner sofa chair |
+| Laptop | `product-laptops-b07qvm5x8w` | a gaming laptop, 3 chunks |
+
+The raw log, the answers and the scripts are in `docs/work/2026-11-07-tier2-doc-examples/`.
+
+## 9. Example A — a policy question, end to end
+
+**Question 1:** "Can I get a full refund on these headphones 30 days after delivery?" (H1)
 
 1. Tier 1 misses: nothing is stored yet.
-2. Retrieval returns five chunks, ranked: `policy-returns-electronics`, `policy-returns-furniture`,
-   `policy-warranty`, `product-headphones-03`, `product-headphones-04` (each `#chunk-0`).
-3. Three of five are policy chunks, so the lane is **POLICY**.
-4. The top-ranked policy document is `policy-returns-electronics`. That is the namespace.
+2. Retrieval. The `product_id` changes the top five (Step 1):
+
+   ```
+   without product_id                        with product_id = H1 (what the gateway got)
+     1. policy-return-electronics#chunk-0      1. product-electronics-b07zj7qg33#chunk-1  ◄ H1's own chunk, put first
+     2. policy-return-electronics#chunk-1      2. policy-return-electronics#chunk-0
+     3. policy-return-electronics#chunk-2      3. policy-return-electronics#chunk-1
+     4. policy-return-laptops-new#chunk-0      4. policy-return-electronics#chunk-2
+     5. policy-return-phones-opened#chunk-0    5. policy-warranty-electronics#chunk-2     ◄ swapped in: same category
+   ```
+
+   H1's own chunk did not rank, so it is put first, and the phone policy falls off the end. The laptop
+   policy is another category, so it is swapped for the best unused electronics policy chunk (ADR-020).
+3. Four of five chunks are policy chunks, so the lane is **POLICY**.
+4. The top-ranked **policy** document is `policy-return-electronics`. That is the namespace. H1's chunk
+   is first in the list, but it is a product chunk, so it does not decide a POLICY namespace.
 5. The namespace is empty, so nothing is judged: **MISS**.
-6. The model writes an answer (3,001 ms in run 2), and a new entry is stored in
-   `policy-returns-electronics`, with the five chunks above as its sources (§7).
+6. The model writes an answer (8,095 ms, the first request after start), and a new entry is stored in
+   `policy-return-electronics`, with the five chunks above as its sources (§7):
 
-**Question 2:** the same words again. **Tier 1 hit**, shown as 0 ms. Tier 2 does not run.
+   > "Yes, you can get a full refund on these headphones within 30 days of receiving them. According to
+   > the policy, TVs and headphones bought from the store are coverable within 30 days of receipt for a
+   > full refund or an exchange. The items also require specific packaging (like charging cases for
+   > headphones) when returned via mail."
 
-**Question 3:** "Is a full refund possible for my headphones 30 days after delivery?"
+**Question 2:** the same words, from the same product page. **Tier-1 hit** in 1 ms. Tier 2 does not run.
+
+**Question 3:** "Is a full refund possible for these headphones 30 days after delivery?" (H1)
 
 1. Tier 1 misses: the words are different.
 2. Retrieval returns **the same five chunks** as Question 1.
-3. Lane POLICY, namespace `policy-returns-electronics`, the same as the entry.
-4. The search finds Question 1's entry, at similarity **0.9750**.
-5. Namespace equal, and 0.9750 ≥ 0.85. The gate runs. (Containment is 5/5 = 1.00, logged only.)
+3. Lane POLICY, namespace `policy-return-electronics`: the same as the entry.
+4. The search finds Question 1's entry at similarity **0.9932**.
+5. Namespace equal, and 0.9932 ≥ 0.85, so the gate runs. (Containment is 5/5 = 1.00, logged only.)
+6. The gate refuses: **MISS**, cause `SUPPORT`. The model answers again (4,639 ms).
 
-Here the two runs differ, and only because of the stored answer. The model words its answer
-differently each time:
+| Gate arm | Result |
+| :--- | :--- |
+| Lexical | 32 content words in the cached answer, 18 of them in the new evidence: 18/32 = **0.5625**, below 0.6 |
+| Numeric | pass: *30 days* is in the return policy chunk |
 
-| | Run 1 | Run 2 |
-| :--- | :--- | :--- |
-| Content words in the cached answer | 66 | 25 |
-| … of them found in the new evidence | 29 | 22 |
-| `S_lex` | 29/66 = **0.4394**, below 0.6 | 22/25 = **0.88** |
-| Numeric arm | pass | pass |
-| Result | **MISS**, cause `SUPPORT`, the model answers again (3,757 ms) | **TIER2_HIT** in **52 ms** |
+The 14 words not found are the model's own wording: *according, cases, coverable, get, like, mail,
+packaging, receipt, receiving, require, returned, specific, via, yes.* The policy says "received", and
+the gate does no stemming, so "receiving" and "receipt" do not count.
 
-**What this shows.** The same question, with the same evidence, got opposite verdicts. In run 1 the
-cached answer was long, and many of its words were the model's own phrasing, not the policy's. The
-gate refused a paraphrase that was safe to reuse. That refusal is safe, but it costs a generation.
-In run 2 the answer was short and close to the policy text, and Tier 2 served it about 60 times
-faster than a generation.
+**What this shows.** A safe paraphrase, with the same evidence and a similarity of 0.9932, was refused
+because the cached answer used words that the policy does not use. The refusal is safe, but it costs a
+generation (false miss 4 in §12a).
 
-**Question 4:** "Am I entitled to a full refund on my sofa 30 days after delivery?"
+**Question 4:** "Can I get a full refund on this sofa 30 days after delivery?" (Sofa)
 
 ```
-cached entry (Question 1, headphones)       retrieved now (Question 4, sofa)
-  1. policy-returns-electronics   ◄── top     1. policy-returns-furniture     ◄── top
-  2. policy-returns-furniture                 2. policy-returns-electronics
-  3. policy-warranty                          3. policy-shipping
-  4. product-headphones-03                    4. product-furniture-04
-  5. product-headphones-04                    5. product-furniture-08
+cached entry (Question 1, headphones)                retrieved now (Question 4, sofa)
+  1. product-electronics-b07zj7qg33#chunk-1            1. product-furniture-b019x98zxm#chunk-0
+  2. policy-return-electronics#chunk-0   ◄ top policy  2. policy-return-furniture-opened#chunk-0    ◄ top policy
+  3. policy-return-electronics#chunk-1                 3. policy-return-furniture-unopened#chunk-0
+  4. policy-return-electronics#chunk-2                 4. policy-return-furniture-opened#chunk-2
+  5. policy-warranty-electronics#chunk-2               5. policy-return-furniture-unopened#chunk-2
 ```
 
-Both lists contain both return policies. But the top-ranked policy differs, so Question 4's namespace
-is `policy-returns-furniture`. That namespace is empty, so the headphones answer is **never even a
-candidate**. Result: MISS, nothing judged, and the model writes a new answer from the furniture
-evidence.
+The two lists share no chunk. The namespace is `policy-return-furniture-opened`. It is empty, so the
+headphones answer is **never a candidate**: MISS, nothing judged. (The two questions differ in one word.
+Their similarity is 0.8469, just below τ.)
 
-## 10. Example B — return or warranty: why the namespace, and not the overlap score
+Two things in this result are not the cache's work:
+- **The condition was chosen by a small margin.** The question does not say whether the sofa was
+  opened. The opened policy scored 0.7448 and the unopened one 0.7325, so the namespace is "opened" by
+  0.012. This is the routing limit of §12a, rows 5 and 9.
+- **The model's answer is wrong.** It says that a full refund is not possible, but both policies allow
+  30 days (180 days opened, 365 days unopened). That is a generation error. The cache stores it like
+  any other answer, and a later paraphrase could reuse it.
 
-**What is real and what is not.** The chunk IDs and the two similarities were measured on 6 Sep 2026.
-No answer text was recorded at that time, so the tests use an **authored** cached answer, built only
-from facts in the real documents. The numbers in this section are what the tests check.
+**Question 5:** Question 1's words again, but from H2's page.
 
-**The three chunk lists** (all `#chunk-0`, in rank order):
+1. Tier 1 misses: the Tier-1 key includes the `product_id` (ADR-018).
+2. Retrieval returns H2's own chunk and the same four policy chunks as Question 1.
+3. Lane POLICY, namespace `policy-return-electronics`. A policy namespace is shared by every product the
+   policy covers (Step 4).
+4. The search finds Question 1's entry at similarity **1.0000**, because the text is the same.
+   Containment is 4/5 = 0.80, because the product chunk differs.
+5. The gate gives 18/32 = 0.5625 again, because the cached answer has no word that only H1's chunk
+   contains. **MISS**, cause `SUPPORT`. A second entry with the same question text is stored beside the
+   first.
 
-```
-cached entry:          product-headphones-04  product-headphones-03  policy-returns-electronics  product-headphones-09  product-headphones-01
-paraphrase  (0.9382):  product-headphones-04  product-headphones-03  policy-returns-electronics  product-headphones-09  product-headphones-02
-warranty    (0.9208):  product-headphones-04  product-headphones-03  product-headphones-09       policy-warranty        product-headphones-01
-```
+**What Questions 4 and 5 show.** The namespace follows the policy, not the product. A sofa question goes
+to a furniture policy and never meets a headphones answer. A question from another pair of headphones
+goes to the same electronics policy and does meet it. There, only the gate decides.
 
-**(a) The overlap score cannot separate them.** The paraphrase retrieves 4 of the entry's 5 chunks
-(it lacks `product-headphones-01`): 0.80. The warranty question also retrieves 4 of 5 (it lacks
-`policy-returns-electronics`): 0.80. The same score, and opposite correct answers. No θ can reuse the
-first and refuse the second.
+## 10. Example B — return or warranty, on the same headphones
 
-**(b) Similarity cannot separate them at τ = 0.85.** 0.9382 and 0.9208 are both above it.
+The same run continues. Questions 1 to 3 are asked from H1's page, and Question 4 from H2's.
 
-**(c) The namespace separates them.** Each list has one policy chunk out of five, so all three are
-POLICY. The entry and the paraphrase both have `policy-returns-electronics` as their only policy
-document. The warranty question has `policy-warranty`. So the warranty question searches a different
-namespace and **never sees the return answer**. With the MIXED lane switched on, the namespaces are
-pairs (`product-headphones-03|policy-returns-electronics` against
-`product-headphones-03|policy-warranty`), and they still differ.
+| | Question | Retrieved, in rank order | Namespace | Result |
+| :---: | :--- | :--- | :--- | :--- |
+| 1 | "How long do I have to return these headphones?" | H1 #1 · return-electronics #0, #1, #2 · warranty-electronics #2 | `policy-return-electronics` | MISS, `SIMILARITY` (0.8240) |
+| 2 | "How long is the warranty on these headphones?" | H1 #1 · warranty-electronics #0 · return-electronics #0 · warranty-electronics #1 | `policy-warranty-electronics` | MISS, nothing judged |
+| 3 | "What warranty period do these headphones come with?" | the same four as Question 2, in another order | `policy-warranty-electronics` | **TIER2_HIT**, 86 ms |
+| 4 | Question 2's words, from H2 | H2 #1 · the same three policy chunks | `policy-warranty-electronics` | **TIER2_HIT**, 85 ms |
 
-**(d) The gate, as a second line of defence.** The namespace already stops the warranty question in the
-real request path. The tests still check what the gate would do if the warranty question had reached
-the entry. The authored cached answer is:
+In the table, `#1` stands for `chunk-1`, and the `policy-` prefix is left out.
 
-> "The EarBuds Pop 3 has 6 hours of battery life, 24 hours with the case. Return it within the
-> 30-day return window for a full refund if unused and in original packaging."
+**(a) The namespace separates return from warranty.** Both questions retrieve the electronics return
+policy and the electronics warranty. The rank decides: the return question ranks the return policy
+first, and the warranty question ranks the warranty first. So the warranty question searches a
+namespace that holds only warranty answers, and it never sees a return answer.
 
-Its **16 content words** are: *earbuds, pop, has, hours, battery, life, case, return, within, day,
-window, full, refund, unused, original, packaging.* The removed words are the common words (*the, of,
-with, it, for, if, and, in*) and the short ones (*3, 6, 24, 30*).
+Question 2 has four chunks, not five. Without the `product_id`, its top five would also hold two other
+headphones' chunks and the phone and laptop warranties. The retriever dropped the two other products,
+put H1's chunk first, and swapped the two warranties for electronics policy chunks (Step 1).
 
-- **Against the paraphrase's evidence** (four product chunks and the electronics return policy), only
-  *has* and *life* are missing: 14/16 = **0.875**. Pass.
-- **Against the warranty question's evidence** (four product chunks and the warranty policy), only
-  *earbuds, pop, hours, battery, case* are found, and all five also appear in the product chunks:
-  5/16 = **0.3125**. Refuse.
+**(b) Similarity separates this pair, but only just.** The return and warranty questions score 0.8043,
+below τ = 0.85. But Question 1 was refused too. Its nearest stored answer says 30 days, which is right,
+and it scored only 0.8240. The safe reuse and the trap are 0.02 apart. This is the problem of §3: a
+similarity-only cache would need its τ inside that gap.
 
-The numeric arm reads four items in the answer: *3* (no unit, from "Pop 3"), *6 hours*, *24 hours*
-and *30 days*. With the paraphrase's evidence all four are supported: the EarBuds Pop 3 chunk has 3, 6
-and 24 together with hours, and the return policy has 30 days. With the warranty evidence, **no
-chunk contains 30**, so the arm refuses. (One looseness, kept on purpose and documented: the unit must
-appear with *some* number in the same chunk, not necessarily with this one. The chunk says "6 hours
-(24 with case)", and that is enough for *24 hours*.)
+**(c) Containment would separate this pair too.** Against the entry of Example A, Question 1, it is 1.00
+for the return question (the same five chunks) and 2/5 = 0.40 for the warranty question. It is still
+not used, because on the `v1` validation pairs it does not separate paraphrases from same-product traps
+(§8).
+
+**(d) A paraphrase is served when the answer stays close to the policy.** Question 3 found Question 2's
+entry at similarity 0.9256, with containment 4/4 = 1.00. The gate found 33 of the answer's 38 content
+words (0.8684). The five missing words are *automatically, failing, like, specifically, though*. The
+numeric arm found *1 year* in the warranty chunk. Result: TIER2_HIT in 86 ms.
+
+**(e) A shared policy answer can carry another product's name.** Question 2's answer, written on H1's
+page, says: "…whether the item was bought online or in person at the Soundcore store." Soundcore is
+H1's brand.
+- Question 4, from H2's page, found that entry at similarity 1.0000 (containment 3/4 = 0.75).
+- The word *soundcore* is only in H1's chunk, so the gate found one word fewer: 32/38 = 0.8421, still a
+  pass.
+- H2's customer was served an answer that names another brand, in 85 ms. The 1-year term is right for
+  H2, so the error is one phrase.
+
+This is trap 13 of §12a, and no part of the rule can see it. Note also that the HTTP response of a
+Tier-2 hit lists the **entry's** sources, so Question 4's response shows H1's chunk, not H2's.
+
+**The same case in the unit tests (`dev-v0`).** The namespace was designed for a pair measured on
+6 Sep 2026 on `dev-v0`, and the unit tests still pin it. There, a return paraphrase and a warranty
+question about the EarBuds Pop 3 scored 0.9382 and 0.9208 against a cached return answer, both above τ.
+Both also had containment 4/5 = 0.80. Only the namespace told them apart. The tests also check the gate
+as a second line of defence, with an authored cached answer of 16 content words:
+- it scores 14/16 = 0.875 against the paraphrase's evidence, and 5/16 = 0.3125 against the warranty
+  evidence;
+- the numeric arm refuses the warranty case, because no chunk contains 30.
+
+(The numeric arm has one looseness, kept on purpose: a unit must appear with *some* number in the same
+chunk, not necessarily with this one.) The tests are listed in §14.
 
 ## 11. Example C — the gate on answers the model really wrote
 
-**Setting.** On 14 Oct 2026, 27 answers that the model really generated were collected, and the gate
-was run on pairs of (cached answer, evidence). The gate was called **directly**, not through the full
-request path, so these pairs test the gate on its own.
+**Setting.** On 14 Oct 2026, on `dev-v0`, 27 answers that the model really generated were collected,
+and the gate was run on pairs of (cached answer, evidence). The gate was called **directly**, not
+through the full request path, so these pairs test the gate on its own.
 
 **It catches a wrong number that the words miss.** The cached answer: *"The battery life of the
 SoundMax ANC Pro is 40 hours."* The evidence: the chunk of a **different** product, the SoundMax ANC
@@ -595,49 +673,140 @@ The answer is right. The gate refuses it because the model used words the spec s
 Nothing was tuned after the sample. A strict gate costs hit rate, not safety, and whether to change the
 lexical score is a decision for the final study, made before its data is seen.
 
+**The live run of 7 Nov 2026 adds five gate decisions on `v1`.** Two were refusals of a correct
+answer at 0.5625 (Example A, Questions 3 and 5, the same cached answer). Three were passes at 0.8421 to
+0.9091 (Example B, Questions 3 and 4; Example D, Question 2). The numeric arm passed all five.
+
 ## 11a. Example D — a product question that carries a `product_id`
 
-**Setting.** Corpus `v1`, cold cache, gate on, τ = 0.85. The product is a laptop whose record is cut
-into 8 chunks (checked on 26 Oct 2026 by running the ingest splitter on its file). The product texts
-and questions of `v1` come from Amazon-PQA, which this repository may not redistribute, so the two
-questions below are written for this example. **This example follows the code. It is not a recorded
-run:** Redis held `dev-v0` when it was written, so it shows no similarity and no `S_lex` value.
-
-Both requests carry the same `product_id`, written here as `product-laptops-X`.
+The same run continues, on the laptop's page. The laptop's record is cut into three chunks.
 
 **Question 1:** "Which graphics card does this laptop have?"
 
-1. Tier 1 misses: nothing is stored yet.
-2. Retrieval takes the top five chunks over the whole corpus, then drops every chunk of another
-   product (§6, Step 1). What is left is chunks of this laptop, and a policy chunk only if it ranked in
-   the top five.
-3. If no policy chunk is left, the policy fraction is 0 and the lane is **SPEC**.
-4. The namespace is `product-laptops-X`. It comes from the `product_id` in the request, **not** from
-   the retrieved chunks.
-5. The namespace is empty, so nothing is judged: **MISS**. The model answers from the retrieved chunks,
-   and the new entry is stored with lane SPEC and namespace `product-laptops-X`.
+1. Tier 1 misses: nothing is stored for this product yet.
+2. Retrieval. Without the `product_id`, four of the top five chunks belong to other laptops, and this
+   laptop's chunk ranks fourth. With it, the four are dropped. No policy chunk ranked, so their places
+   are filled with this laptop's other chunks (ADR-021). The laptop has only three, so three are
+   returned: the whole record.
+
+   ```
+   without product_id                               with product_id (what the gateway got)
+     1. product-laptops-b01ld4mgoy#chunk-0  0.7710    1. product-laptops-b07qvm5x8w#chunk-0  0.7504
+     2. product-laptops-b00ep09b4m#chunk-0  0.7659    2. product-laptops-b07qvm5x8w#chunk-1  0.6400
+     3. product-laptops-b01bm8g3uy#chunk-0  0.7617    3. product-laptops-b07qvm5x8w#chunk-2  0.6377
+     4. product-laptops-b07qvm5x8w#chunk-0  0.7504
+     5. product-laptops-b07bp9b1nt#chunk-0  0.7473
+   ```
+3. No policy chunk, so the lane is **SPEC**.
+4. The namespace is `product-laptops-b07qvm5x8w`. It comes from the `product_id` in the request, **not**
+   from the retrieved chunks.
+5. The namespace is empty, so nothing is judged: **MISS**. The model answers in 1,791 ms: "The graphics
+   card in this laptop is an NVIDIA GeForce GTX 1660 Ti with 6GB of dedicated GDDR6 VRAM."
 
 **Question 2:** "What GPU is in this laptop?"
 
-1. Tier 1 misses: the words are different.
-2. The lane and the namespace are the same as for Question 1.
-3. The search inside the namespace finds Question 1's entry.
-4. The judge runs the checks of Step 6: similarity ≥ τ, then the support gate. If the cached answer
-   holds a number with a unit (a memory size, for example), the same number and unit must appear in one
-   of the new chunks.
-5. If every check passes, the result is **TIER2_HIT**. If one fails, it is a **MISS** with cause
-   `SIMILARITY` or `SUPPORT`, and the model answers again.
+1. Tier 1 misses. Retrieval returns the same three chunks in another order, and the lane and the
+   namespace are the same as for Question 1.
+2. The search finds Question 1's entry at similarity **0.9105**. Containment is 3/3 = 1.00.
+3. The gate finds 10 of the answer's 11 content words in the evidence (only *card* is missing):
+   **0.9091**. The numeric arm passes. (The log reports one number read without a unit, which is checked
+   by its value only.)
+4. **TIER2_HIT** in 69 ms.
+
+**Question 3:** "How much RAM does this laptop have?"
+
+1. The same namespace, and the same three chunks again.
+2. The search finds Question 1's entry at similarity **0.7821**, below τ: **MISS**, cause `SIMILARITY`.
+   The model answers in 1,258 ms: "The laptop has 16GB of RAM."
 
 **What this shows.**
 
-- The namespace is the product named in the request. A different laptop with almost the same wording
-  can never be a candidate, whatever retrieval returns.
-- Containment (§8) would add nothing here. Both questions are limited to the same product, so they
-  mostly retrieve the same chunks. This laptop has eight chunks, so the top five of two questions can
-  differ. That is the exception, not the usual case.
-- For a product question with a `product_id`, the namespace comes from the request, not from the
-  evidence. Retrieval still decides the lane and the support gate. Without a `product_id`, the
-  namespace falls back to the top-ranked product chunk, as in Step 4.
+- **The namespace is the product named in the request.** Another laptop with almost the same wording can
+  never be a candidate, whatever retrieval returns.
+- **Containment adds nothing here.** Question 3 retrieves exactly Question 1's three chunks, so its
+  containment would be 1.00, the same as for the true paraphrase. (The gateway computes containment
+  only for a candidate that clears τ, so this value is computed by hand.)
+- **Only similarity stopped Question 3.** If a RAM question had cleared τ, the gate would have checked
+  the GPU answer against the same three chunks as in Question 2. It would have given the same 0.9091
+  and passed, because the laptop's record contains the GPU. This is trap 4 of §12a: the product's chunks
+  contain both facts.
+
+## 11b. Example E — one question about a product and a policy (the MIXED lane)
+
+**Setting.** 7 Nov 2026, a second run that started from an empty cache. The gateway first ran with
+**MIXED on**: `make dev` with nothing set, which logs `lane_band=[0.20,0.60) mixed_lane=on` (Step 3).
+Then it ran with MIXED off, for comparison. Memory pressure was green at the start and yellow after, so
+the latencies are not measurements.
+
+**Question 1:** "How long does the battery of these headphones last, and how long is the warranty?" (H1)
+
+1. Retrieval returns only **two** chunks: H1's own chunk and `policy-warranty-electronics#chunk-0`. The
+   other chunks of the top five belonged to other products, and they were dropped. A policy chunk
+   ranked, so their places are not refilled (Step 1).
+2. One of the two chunks is a policy chunk, so the fraction is 0.50. That is inside the band
+   [0.20, 0.60), so the lane is **MIXED**.
+3. The namespace is the pair `product-electronics-b07zj7qg33|policy-warranty-electronics`: the product
+   from the request, and the top-ranked policy document.
+4. The namespace is empty: **MISS**, nothing judged. The model answers (7,674 ms) with the battery hours
+   from H1's chunk (40, 60 and 4 hours) and the 1-year warranty.
+
+Four more questions followed:
+
+| | Question (page) | Lane, namespace | Candidate | Result |
+| :---: | :--- | :--- | :--- | :--- |
+| 2 | "What is the battery life of these headphones, and what warranty do they come with?" (H1) | MIXED, H1 \| warranty | Question 1, similarity 0.9308 | **TIER2_HIT**, 588 ms |
+| 3 | Question 1's words (H2) | MIXED, H2 \| warranty | none: the namespace is empty | MISS, nothing judged |
+| 4 | "Do these headphones have noise cancelling, and how long is the warranty?" (H1) | MIXED, H1 \| warranty | Question 1, similarity 0.8660 | **TIER2_HIT**, 41 ms |
+| 5 | "What colours do these headphones come in, and what does the warranty cover?" (H1) | **POLICY**, `policy-warranty-electronics` | none | MISS, nothing judged |
+
+**Question 2, a safe hit.** It retrieves the same two chunks, so containment is 1.00. The first check of
+the judge is the composite rule: the candidate must be MIXED too, and both halves of the pair must be
+equal (the log says `rule=composite lane_match=true`). The gate found 30 of the answer's 43 content words
+(0.6977) and every number in it. The answer was served. (Of the 588 ms, the embedding call alone took
+542 ms, against 25 to 40 ms in the other requests.)
+
+**Question 3, the reason MIXED exists.** The words are Question 1's, so the similarity is 1.0000. But the
+product half of the namespace is H2, so Question 1's entry is never a candidate. This matters: H1's answer
+says 40 and 60 hours, and H2's chunk says 30 hours. H2 gets its own answer.
+
+**Question 4, a hit that answers the wrong half.** It retrieves the same two chunks, at similarity
+0.8660. The gate gives the same 0.6977, because the answer and the evidence are the same. The answer was
+served in 41 ms. It gets the warranty right and mentions "active noise cancellation mode" only in
+passing, but most of it is about the battery, which this question did not ask. This is trap 4 of §12a
+inside the MIXED lane: the evidence holds both facts, so the gate cannot tell them apart, and only τ was
+in the way.
+
+**Question 5, MIXED does not catch every mixed question.** This question retrieved H1's other chunk and
+three warranty chunks. The fraction is 3/4 = 0.75, above the band, so the lane is POLICY and the colour
+half drops out of the key. ADR-016 counts this case: 15 of 33 stratum-D questions stay POLICY with the
+band on. A read-only probe found the other two cases as well:
+- a GPU and return question on the laptop retrieves 4 policy chunks of 5 (POLICY);
+- "How long is the warranty on these headphones, and do they support Bluetooth 5.0?" retrieves no policy
+  chunk (SPEC), so its warranty half has no evidence.
+
+**The same pair with MIXED off.** The gateway was restarted with `LANE_SIGMA_HI=0.20` on an empty cache,
+and Questions 1 and 3 were sent again. The model wrote new answers.
+
+| | MIXED on | MIXED off |
+| :--- | :--- | :--- |
+| Question 1 (H1): lane, namespace | MIXED, `…b07zj7qg33\|policy-warranty-electronics` | POLICY, `policy-warranty-electronics` |
+| Question 3 (H2): lane, namespace | MIXED, `…b079jfb616\|policy-warranty-electronics` | POLICY, `policy-warranty-electronics` |
+| Does Question 3 meet H1's answer? | no | yes, at similarity 1.0000 (containment 0.50) |
+| The gate on H1's answer | not run | lexical 10/15 = 0.6667, **pass**; numeric **fail** |
+| Result for Question 3 | MISS, nothing judged | MISS, cause `SUPPORT` |
+
+With MIXED off, the product drops out of the key, so H2's question meets H1's answer. The words pass the
+gate, and only the numbers stop it: H1's answer said "4 hours" and "60 hours", and neither is in H2's
+chunk. If the answer had held no number, or only numbers that both products share, it would have been
+served to H2.
+
+**What this shows.**
+- **MIXED keeps the product in the key** for a question that needs both a product and a policy. A second
+  product never meets the first product's answer (Question 3).
+- **With MIXED off, the numeric arm is the only defence** in this case. ADR-016 expected that it "may
+  already refuse part of these false hits", and here it did, because the answer held battery numbers.
+- **MIXED does not help inside one product** (Question 4), and **it does not reach every mixed
+  question** (Question 5).
 
 ---
 
@@ -660,23 +829,23 @@ decision:
 | `support_gate` | `on` or `off`: which version of the rule this process ran |
 | `mixed_lane` | `on` or `off`: which MIXED arm this process ran (ADR-016) |
 
-For example, the refusal in run 1 of Example A would be written like this. (The evaluation log was
-switched off during the demo, so this record is built from the gateway's log line for that request,
+For example, the refusal of Question 3 in Example A would be written like this. (The evaluation log was
+switched off during that run, so this record is built from the gateway's log line for that request,
 and only the Tier-2 fields are shown.)
 
 ```json
 {
   "cache": "MISS",
   "support_gate": "on",
-  "similarity": 0.975,
+  "similarity": 0.9932,
   "entered_band": true,
   "source_overlap": 1.0,
   "refusal_cause": "SUPPORT",
-  "support_lex": 0.4394,
+  "support_lex": 0.5625,
   "support_numeric_ok": true,
-  "retrieved_chunk_ids": ["policy-returns-electronics#chunk-0", "policy-returns-furniture#chunk-0",
-                          "policy-warranty#chunk-0", "product-headphones-03#chunk-0",
-                          "product-headphones-04#chunk-0"],
+  "retrieved_chunk_ids": ["product-electronics-b07zj7qg33#chunk-1", "policy-return-electronics#chunk-0",
+                          "policy-return-electronics#chunk-1", "policy-return-electronics#chunk-2",
+                          "policy-warranty-electronics#chunk-2"],
   "candidate_entry_id": "<Question 1's entry>",
   "candidate_sources": ["…the same five chunks…"]
 }
@@ -715,8 +884,9 @@ validation and test splits.
 | 8 | **B-within, condition by department** | opened phone against opened chair | the namespace | as row 7 | yes: 16 (validation) |
 | 9 | **The condition said in other words** | "still sealed" for unopened, "used" for opened | only retrieval | retrieval is right only 56 % of the time (see below) | almost none: 13 of 134 |
 | 10 | **Same evidence, opposite condition or negation** | "Is the battery removable?" against "…**not** removable?" | **no check can see it** | always | yes; reported as RQ2a (item 6.4) |
-| 11 | **Product and policy in one question** (stratum D) | "If this laptop is new, how many days do I have to return it, and how much does it weigh?" | the MIXED lane, on its on arm (ADR-016) | the arm is off: the product half is ignored | yes: 33 + 36 |
+| 11 | **Product and policy in one question** (stratum D) | "If this laptop is new, how many days do I have to return it, and how much does it weigh?" | the MIXED lane, on its on arm (ADR-016) | the arm is off: the product half is ignored; or the policy fraction falls outside the band (Example E, Question 5) | yes: 33 + 36. Both arms live in Example E |
 | 12 | **A stale answer after a source edit** | a return window changed from 30 to 14 days | dependency purge and the epoch guard (Phase 4) | a purge misses an entry (completeness below 1) | in `mutation: on` runs (item 6.5) |
+| 13 | **A shared policy answer names another product** (found 7 Nov 2026) | asked about a Nokia Lumia 830, served "…no restocking fee for returning an unopened iPhone 8 Plus Gold" | **nothing** in the rule; the judge marks it `INCORRECT` | the model writes the product name into a POLICY answer, and the gate passes on the policy words | yes: 3 of 94 Tier-2 hits in the 1 Nov cost run (not citable); super-plan item 5.6. Seen live in Example B (e) |
 
 When retrieval picks the wrong document, the answer is wrong **even with no cache**: the model writes
 from the wrong evidence. The cache inherits that error, and so does the reference answer the judge
@@ -726,10 +896,10 @@ compares against. Item 5.2's labelling ablation exists to measure this.
 
 | # | Cause | Example | Where it shows |
 | :---: | :--- | :--- | :--- |
-| 1 | **Similarity below τ** (stratum C, very different words) | "How do I send back X?" against "What is the return process for X?" | refusal cause `SIMILARITY` |
+| 1 | **Similarity below τ** (stratum C, very different words) | "How do I send back X?" against "What is the return process for X?" (Example B, Question 1: 0.8240) | refusal cause `SIMILARITY` |
 | 2 | **The namespace differs on a safe reuse** | one paraphrase is routed to the other condition's document; no `product_id` | `NAMESPACE`, or the search finds no candidate at all |
 | 3 | **The MIXED arm moves a question to another namespace** | 9 policy and 3 product-only questions lose their reuse (ADR-016) | per arm, `mixed_lane` |
-| 4 | **The support gate refuses a right answer** | the model used its own words, not the evidence's (Example A run 1: `S_lex` 0.4394; Example C: 0.556) | `SUPPORT`; GroundedCache reports that this gate cut its speed-up from 1.48× to 1.04× |
+| 4 | **The support gate refuses a right answer** | the model used its own words, not the evidence's (Example A, Question 3: `S_lex` 0.5625; Example C: 0.556) | `SUPPORT`; GroundedCache reports that this gate cut its speed-up from 1.48× to 1.04× |
 | 5 | **Only the nearest entry is judged** (k = 1) | the nearest entry is wrong, and a right one sits second | ADR-009: the same `candidate_entry_id` refused again and again |
 | 6 | **Same question, another `product_id`** | one policy question asked on many product pages gets one entry per page | ADR-018; zero on `v1`, where no question is shared across products |
 | 7 | **Evicted by the LRU limit** | the cache holds only 0.25 × K entries | tier mix, item 7.1 |
@@ -778,6 +948,8 @@ away from an "unopened" question.
 - **The MIXED lane** is one pinned band, run as an on/off arm (ADR-016; Step 3).
 - **Removing answers when a source changes is built** (Phase 4): dependency purge, the epoch guard, and
   tracking of every Tier-1 key.
+- **`product_id` will join the POLICY namespace** (ADR-024, 7 Nov 2026, **not built yet**). It closes trap 13.
+  Example A, Question 5, and Example B (e) show the rule as it runs today, before the change.
 
 **Open in the design:**
 
@@ -822,15 +994,27 @@ the reuse decision can be tested on its own, with no Redis, no network and no mo
 
 **Tests that pin the examples** (all in `gateway/internal/reuse/`):
 
-- `TestNoThetaSeparatesTheMeasuredPair` (`lane_test.go`) — Example B, (a) to (c).
-- `TestSupportLexicalSeparatesTheMeasuredPair` (`support_test.go`) — Example B, the 14/16 and 5/16.
-- `TestNumericMeasuredPair` (`support_numeric_test.go`) — Example B, the numeric arm.
+- `TestNoThetaSeparatesTheMeasuredPair` (`lane_test.go`) — §10's `dev-v0` pair: equal containment,
+  different namespaces.
+- `TestSupportLexicalSeparatesTheMeasuredPair` (`support_test.go`) — the same pair, the 14/16 and 5/16.
+- `TestNumericMeasuredPair` (`support_numeric_test.go`) — the same pair, the numeric arm.
 - `TestJudgeAgreesWithDecideLane` (`cause_test.go`) — the order of checks agrees with the namespace
   rule on every input.
 
-Run them with `cd gateway && go test ./internal/reuse/`. **Example A cannot be replayed now.** It needs
-`dev-v0` in Redis, and `make demo-reset` refuses to run while Redis holds `v1` (a guard added on
-29 Oct 2026, because it would wipe `v1`). `make demo` moves to `v1` in Phase 8.
+Run them with `cd gateway && go test ./internal/reuse/`.
+
+**Replaying Examples A, B, D and E.**
+1. Stop any gateway, then run `make cache-reset`. It deletes the `t1:`, `t2:`, `lru:`, `dep:` and
+   `entry:` keys and keeps the corpus. Never use FLUSHDB: it drops every search index.
+2. Start `make dev`. It starts with MIXED on (Step 3). For Example E's off arm, start
+   `LANE_SIGMA_HI=0.20 make dev` after a new `make cache-reset`.
+3. Send each question, with its `product_id`, to `POST /ask` in the order of Part 3. `make ask` sends no
+   `product_id`, so use `ask.sh` in `docs/work/2026-11-07-tier2-doc-examples/`.
+
+The model words its answers differently on each run, so the answers and the `S_lex` values change.
+Retrieval, lanes and namespaces should not. Examples A, B and D ran with MIXED off, but their lanes are
+the same either way, because their policy fractions are 0, 0.75 or 0.80. `make demo` and
+`make demo-reset` still use `dev-v0`, and they refuse while Redis holds `v1`.
 
 **Decisions and contracts behind the rules:**
 
@@ -840,11 +1024,15 @@ Run them with `cd gateway && go test ./internal/reuse/`. **Example A cannot be r
   - **ADR-010**: the gate's on/off switch;
   - **ADR-016**: the MIXED band and its arm;
   - **ADR-018**: `product_id` in the Tier-1 key;
-  - **ADR-019**: the served rule, and containment as a logged counterfactual.
+  - **ADR-019**: the served rule, and containment as a logged counterfactual;
+  - **ADR-020** and **ADR-021**: retrieval with a `product_id` keeps this product's category of
+    policy, and fills other products' places with this product's own chunks.
 - `docs/contracts/interfaces.md`: §A (the HTTP response), §D (the cache records), §H (the evaluation
   log).
 - `docs/work/2026-10-14-real-answer-sample/`: the full data behind Example C.
 - `docs/work/2026-10-30-adr-019-theta-overlap/` and `docs/work/2026-10-30-condition-routing-probe/`: the
   `v1` measurements in §8 and §12a.
-- `docs/0. progress 16-10.md` §1.5: the full demo output behind Example A.
+- `docs/work/2026-11-07-tier2-doc-examples/`: the gateway logs, the answers and the scripts behind
+  Examples A, B, D and E.
+- `docs/0. progress 16-10.md` §1.5: the old `dev-v0` demo of 15 Oct 2026, which Example A replaced.
 - `docs/1-System Docs/Redis-Data Structure.md` §5: the Tier-2 record field by field.

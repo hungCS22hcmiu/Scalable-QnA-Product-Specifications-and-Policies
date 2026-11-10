@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -205,7 +206,15 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 
 	var req askRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Question == "" {
-		http.Error(w, "invalid request: expected {\"question\": \"...\"}", http.StatusBadRequest)
+		http.Error(w, "invalid request: expected {\"question\": \"...\", \"product_id\": \"...\"}", http.StatusBadRequest)
+		return
+	}
+	// ADR-025: every request names its product. Refused here, on the malformed-request path and
+	// before any record exists, so no new outcome enters the evaluation log (§H). Only an empty or
+	// blank id is refused: whether the id names a real product is not checked, because that needs
+	// the corpus on this path, and catalog/ is deliberately off it.
+	if strings.TrimSpace(req.ProductID) == "" {
+		http.Error(w, "invalid request: product_id is required", http.StatusBadRequest)
 		return
 	}
 

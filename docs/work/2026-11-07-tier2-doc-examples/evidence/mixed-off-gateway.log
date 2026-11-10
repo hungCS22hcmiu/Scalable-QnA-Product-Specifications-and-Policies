@@ -1,0 +1,32 @@
+maxmemory-policy=noeviction  maxmemory=0
+  OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FUNCTIONAL RUN — latencies printed here are NOT citable.    │
+  │  For a number that reaches the thesis, use: make measure     │
+  └─────────────────────────────────────────────────────────────┘
+  memory available: 36% (floor 25%; models need ~2.1 GB of 16 GB)
+  rag.server pid 68280 listening on :50051
+2026/11/07 18:36:26 gateway: dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2 (ADR-008)
+2026/11/07 18:36:26 gateway: tau=0.850 theta=0.60 dim=768 index=idx:cache  (all DEMO values, swept later)
+2026/11/07 18:36:26 gateway: lane_band=[0.20,0.20) mixed_lane=off (pinned, ADR-016)
+2026/11/07 18:36:26 gateway: admission permits=1 queue_budget=2  (permits = the frozen served slot count,
+         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)
+2026/11/07 18:36:26 gateway: cache_capacity=0  UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen
+2026/11/07 18:36:26 gateway: evaluation log DISABLED (RUN_ID unset) -- functional run, produces no measurement
+2026/11/07 18:36:26 gateway: support_gate=on  (default: a candidate that clears tau and the namespace is refused
+         when the cached answer is not supported by this request's evidence)
+2026/11/07 18:36:26 gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first
+         (interfaces.md rule 11). Records carry support_gate so a log names its arm.
+2026/11/07 18:36:26 gateway: serving demo UI from /Users/hung/Desktop/Sem1/thesis/ui/dist
+2026/11/07 18:36:26 gateway listening on :8080 (redis=localhost:6379 rag=localhost:50051)
+rag.server listening on 0.0.0.0:50051 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+2026/11/07 18:36:33 gateway: request_id=06GVBJXZYKT2JKAN6CW03QSX04 cache=MISS t_tier1=307.875µs t_embed=39.120166ms t_search=514.916µs t_overlap=416.374375ms
+2026/11/07 18:36:34 gateway: cascade lane=POLICY ns=policy-warranty-electronics entry_lane=POLICY entry_ns=policy-warranty-electronics sim=1.0000
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=false (overlap=0.50)
+          cause=SUPPORT gate=on support=lex=0.6667 (of 15) numeric_ok=false (unsupported=2 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b079jfb616#chunk-1 policy-warranty-electronics#chunk-0]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0]
+2026/11/07 18:36:39 gateway: request_id=06GVBJYDC2TGBHX7GJY81PV8Y8 cache=MISS t_tier1=198.417µs t_embed=27.5365ms t_search=268.458µs t_overlap=61.046791ms
+2026/11/07 18:36:56 gateway: shutting down, flushing the evaluation log
+Terminated: 15
+make: *** [dev] Error 143

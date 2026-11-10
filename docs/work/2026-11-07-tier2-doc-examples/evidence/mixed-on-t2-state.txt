@@ -1,0 +1,3 @@
+POLICY | policy-warranty-electronics | What colours do these headphones come in, and what does the warranty cover? | hits=0
+MIXED | product-electronics-b079jfb616|policy-warranty-electronics | How long does the battery of these headphones last, and how long is the warranty? | hits=0
+MIXED | product-electronics-b07zj7qg33|policy-warranty-electronics | How long does the battery of these headphones last, and how long is the warranty? | hits=2

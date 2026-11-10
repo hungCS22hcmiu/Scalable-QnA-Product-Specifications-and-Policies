@@ -4,7 +4,11 @@ package httpapi
 type askRequest struct {
 	Question string `json:"question"`
 
-	// ProductID is the two-lane experiment's only request-side addition
+	// ProductID is REQUIRED since ADR-025 (interfaces.md §A v0.30): Ask refuses an empty or blank
+	// one with 400. The lane code below still handles "" (its unit tests build namespaces with no
+	// product), but no request reaches it that way.
+	//
+	// History: the two-lane experiment's only request-side addition
 	//. Optional, and only the SPEC lane reads it: a question
 	// grounded in product chunks is answerable for one product, and the page the question was
 	// asked on already knows which -- that is how production assistants are actually invoked.
