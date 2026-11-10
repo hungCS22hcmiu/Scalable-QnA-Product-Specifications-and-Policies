@@ -1,0 +1,60 @@
+cd gateway && go vet ./...
+All checks passed!
+cd gateway && go build ./...
+?   	github.com/hung/thesis/gateway/cmd/gateprobe	[no test files]
+ok  	github.com/hung/thesis/gateway/cmd/gateway	(cached)
+ok  	github.com/hung/thesis/gateway/internal/admission	(cached)
+ok  	github.com/hung/thesis/gateway/internal/cache	(cached)
+?   	github.com/hung/thesis/gateway/internal/catalog	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/coalesce	(cached)
+ok  	github.com/hung/thesis/gateway/internal/deps	(cached)
+?   	github.com/hung/thesis/gateway/internal/embed	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/httpapi	(cached)
+ok  	github.com/hung/thesis/gateway/internal/ragclient	(cached)
+?   	github.com/hung/thesis/gateway/internal/ragpb	[no test files]
+ok  	github.com/hung/thesis/gateway/internal/reuse	(cached)
+ok  	github.com/hung/thesis/gateway/internal/telemetry	(cached)
+ok  	github.com/hung/thesis/gateway/internal/testredis	(cached)
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hung/Desktop/Sem1/thesis/rag
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2
+collected 94 items
+
+tests/test_chunkid.py .....                                              [  5%]
+tests/test_dataset_version.py ...                                        [  8%]
+tests/test_edit_failures.py ......                                       [ 14%]
+tests/test_edit_order.py ....                                            [ 19%]
+tests/test_epoch.py .....................                                [ 41%]
+tests/test_ingest_nodes.py .....                                         [ 46%]
+tests/test_retrieve_category.py ..........                               [ 57%]
+tests/test_retrieve_own_chunks.py ...........                            [ 69%]
+tests/test_retrieve_scoping.py .....                                     [ 74%]
+tests/test_retrieve_texts.py ...                                         [ 77%]
+tests/test_server_bind.py ..                                             [ 79%]
+tests/test_server_cancel.py ......                                       [ 86%]
+tests/test_server_epoch.py ......                                        [ 92%]
+tests/test_server_shutdown.py .....                                      [ 97%]
+tests/test_store_index_ready.py .                                        [ 98%]
+tests/test_store_index_timeout.py .                                      [100%]
+
+============================= 94 passed in 16.37s ==============================
+........................................................................ [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 19%]
+........................................................................ [ 25%]
+........................................................................ [ 32%]
+........................................................................ [ 38%]
+........................................................................ [ 45%]
+........................................................................ [ 51%]
+........................................................................ [ 58%]
+........................................................................ [ 64%]
+........................................................................ [ 70%]
+........................................................................ [ 77%]
+........................................................................ [ 83%]
+........................................................................ [ 90%]
+........................................................................ [ 96%]
+.....................................                                    [100%]
+1117 passed in 49.15s

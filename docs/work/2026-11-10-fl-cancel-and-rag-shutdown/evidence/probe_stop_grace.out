@@ -1,0 +1,6 @@
+P4 new RPC during grace: UNAVAILABLE
+P4 grace 0.5 s: callback fired at +501 ms
+P4 running RPC ended with UNAVAILABLE
+P4 new RPC during grace: UNAVAILABLE
+P4 grace 0.5 s: callback fired at +506 ms
+P4 running RPC ended with UNAVAILABLE

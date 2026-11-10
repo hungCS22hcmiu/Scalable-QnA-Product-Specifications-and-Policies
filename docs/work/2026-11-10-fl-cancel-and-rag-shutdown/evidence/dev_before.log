@@ -1,0 +1,36 @@
+maxmemory-policy=noeviction  maxmemory=0
+  OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FUNCTIONAL RUN — latencies printed here are NOT citable.    │
+  │  For a number that reaches the thesis, use: make measure     │
+  └─────────────────────────────────────────────────────────────┘
+  memory available: 39% (floor 25%; models need ~2.1 GB of 16 GB)
+  rag.server pid 28573 listening on :50051
+  MIXED lane ON for this demo run (LANE_SIGMA_HI=0.60, the ADR-016 on arm). A run with RUN_ID,
+  or with LANE_SIGMA / LANE_SIGMA_HI set, keeps the gateway's own default (off). 2026-11-07, author's demo.
+2026/11/10 14:16:04 gateway: dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2 (ADR-008)
+2026/11/10 14:16:04 gateway: tau=0.850 theta=0.60 dim=768 index=idx:cache  (all DEMO values, swept later)
+2026/11/10 14:16:04 gateway: lane_band=[0.20,0.60) mixed_lane=on (pinned, ADR-016)
+2026/11/10 14:16:04 gateway: admission permits=1 queue_budget=2  (permits = the frozen served slot count,
+         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)
+2026/11/10 14:16:04 gateway: cache_capacity=0  UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen
+2026/11/10 14:16:04 gateway: evaluation log DISABLED (RUN_ID unset) -- functional run, produces no measurement
+2026/11/10 14:16:04 gateway: support_gate=on  (default: a candidate that clears tau and the namespace is refused
+         when the cached answer is not supported by this request's evidence)
+2026/11/10 14:16:04 gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first
+         (interfaces.md rule 11). Records carry support_gate so a log names its arm.
+2026/11/10 14:16:04 gateway: serving demo UI from /Users/hung/Desktop/Sem1/thesis/ui/dist
+2026/11/10 14:16:04 gateway listening on :8080 (redis=localhost:6379 rag=localhost:50051)
+rag.server listening on 0.0.0.0:50051 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+14:16:05 redisvl.index.index INFO   Index already exists, not overwriting.
+14:16:53 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 14:16:54 gateway: request_id=06GW8M91XHX1MSDNP1WWVBCHQG abandoned while generating: rpc error: code = Canceled desc = context canceled
+14:17:29 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 14:17:30 gateway: request_id=06GW8MDE2DMJZA7S4KRVCM1DCM abandoned while generating: rpc error: code = Canceled desc = context canceled
+14:18:04 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 14:18:05 gateway: request_id=06GW8MHQ5ANNF06BAY8YAC1HSM abandoned while generating: rpc error: code = Canceled desc = context canceled
+14:18:48 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 14:18:49 gateway: request_id=06GW8MQ1QZJJM6B3VQHRXVV814 abandoned while generating: rpc error: code = Canceled desc = context canceled
+14:19:21 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 14:19:22 gateway: request_id=06GW8MV46BG8GTFH51A515BG5C abandoned while generating: rpc error: code = Canceled desc = context canceled
+2026/11/10 14:20:01 gateway: shutting down: no new requests; waiting up to 1m0s for in-flight ones (Ctrl-C again to force)

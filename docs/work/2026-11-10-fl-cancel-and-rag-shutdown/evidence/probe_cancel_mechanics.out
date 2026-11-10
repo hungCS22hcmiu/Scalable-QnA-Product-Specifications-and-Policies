@@ -1,0 +1,18 @@
+I1110 13:53:47.339125 49398288 chttp2_transport.cc:1393] ipv4:127.0.0.1:55193: Got goaway [2] err=UNAVAILABLE:GOAWAY received; Error code: 2; Debug Text: Cancelling all calls {http2_error:2}
+grpcio 1.83.0, httpx 0.28.1
+P1 add_callback fired 0.8 ms after client cancel
+P2 server saw close 0.6 ms after task.cancel()
+P3 result=stopped thread_alive=False server saw close: 44.1 ms
+
+I1110 13:53:49.498431 49398327 chttp2_transport.cc:1393] ipv4:127.0.0.1:55200: Got goaway [2] err=UNAVAILABLE:GOAWAY received; Error code: 2; Debug Text: Cancelling all calls {http2_error:2}
+grpcio 1.83.0, httpx 0.28.1
+P1 add_callback fired 0.6 ms after client cancel
+P2 server saw close 1.3 ms after task.cancel()
+P3 result=stopped thread_alive=False server saw close: 46.8 ms
+
+I1110 13:53:51.642171 49398372 chttp2_transport.cc:1393] ipv4:127.0.0.1:55207: Got goaway [2] err=UNAVAILABLE:GOAWAY received; Error code: 2; Debug Text: Cancelling all calls {http2_error:2}
+grpcio 1.83.0, httpx 0.28.1
+P1 add_callback fired 0.7 ms after client cancel
+P2 server saw close 1.3 ms after task.cancel()
+P3 result=stopped thread_alive=False server saw close: 40.3 ms
+

@@ -1,0 +1,119 @@
+rca_prefill.sh, 2026-11-10 14:32:49, citable: no
+runner: 
+== 0. A's prompt, built as rag.server builds it
+  [pressure before retrieval (embeds the query): 1]
+14:32:50 redisvl.index.index INFO   Index already exists, not overwriting.
+  chunks (5): ['product-laptops-b07qvm5x8w#chunk-0', 'policy-warranty-laptops#chunk-0', 'policy-return-laptops-renewed#chunk-0', 'policy-warranty-laptops#chunk-3', 'policy-return-laptops-new#chunk-0']
+  epoch 0; prompt 4165 chars, sha256 be571e4aa7026358568fdc5640e228811fb779781aaf6722cbcfa54bf0413d99
+  body == generate._request_body(query, chunks): True
+== 1. A once, uncut, straight to Ollama
+  [pressure before A uncut: 1]
+  curl time_total 45.510774 s
+  prompt_eval_count 987, prompt_eval_duration 1.952 s (506 tok/s)
+  eval_count 1438, eval_duration 40.672 s (35.4 tok/s)
+  total_duration 45.504 s, load_duration 2.874 s
+  prefill ends at about 4.831 s after the request starts (total_duration - eval_duration)
+== 2. B alone
+  [pressure before B alone #1: 1]
+  B alone #1: 0.113325 s
+  [pressure before B alone #2: 1]
+  B alone #2: 0.113178 s
+  [pressure before B alone #3: 1]
+  B alone #3: 0.113683 s
+== 3(a). T = 1.0 s: A cut at T, then B at once; predicted gap = max(0, 4.831 - T)
+  [pressure before cut a #1: 1]
+  #1: A held 1.004762 s, B after 1.075305 s
+    log: operator(): id  0 | task 1448 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:33:38 | 500 |  1.004551375s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1448
+    log: release: id  0 | task 1448 | stop processing: n_tokens = 987, truncated = 0
+    log: operator(): id  0 | task 1451 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1451 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:33:39 | 200 |  1.074216125s |       127.0.0.1 | POST     "/api/generate"
+  [pressure before cut a #2: 1]
+  #2: A held 1.005552 s, B after 1.056865 s
+    log: operator(): id  0 | task 1454 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:33:40 | 500 |  1.005586375s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1454
+    log: release: id  0 | task 1454 | stop processing: n_tokens = 987, truncated = 0
+    log: operator(): id  0 | task 1457 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1457 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:33:41 | 200 |  1.055298417s |       127.0.0.1 | POST     "/api/generate"
+  [pressure before cut a #3: 1]
+  #3: A held 1.003676 s, B after 1.096323 s
+    log: operator(): id  0 | task 1460 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:33:43 | 500 |  1.003525167s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1460
+    log: release: id  0 | task 1460 | stop processing: n_tokens = 987, truncated = 0
+    log: operator(): id  0 | task 1463 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1463 | stop processing: n_tokens = 22, truncated = 0
+    log: [GIN] 2026/11/10 - 14:33:44 | 200 |  1.095363083s |       127.0.0.1 | POST     "/api/generate"
+== 3(c). T = 2.92 s: A cut at T, then B at once; predicted gap = max(0, 4.831 - T)
+  [pressure before cut c #1: 1]
+  #1: A held 2.926723 s, B after 0.134018 s
+    log: operator(): id  0 | task 1467 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:33:47 | 500 |  2.926459125s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1467
+    log: release: id  0 | task 1467 | stop processing: n_tokens = 1023, truncated = 0
+    log: operator(): id  0 | task 1506 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1506 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:33:47 | 200 |   133.14025ms |       127.0.0.1 | POST     "/api/generate"
+  [pressure before cut c #2: 1]
+  #2: A held 2.923522 s, B after 0.145067 s
+    log: operator(): id  0 | task 1509 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:33:51 | 500 |    2.9232125s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1509
+    log: release: id  0 | task 1509 | stop processing: n_tokens = 1023, truncated = 0
+    log: operator(): id  0 | task 1546 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1546 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:33:51 | 200 |  144.031958ms |       127.0.0.1 | POST     "/api/generate"
+  [pressure before cut c #3: 1]
+  #3: A held 2.923811 s, B after 0.146805 s
+    log: operator(): id  0 | task 1551 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:33:54 | 500 |   2.92344525s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1551
+    log: release: id  0 | task 1551 | stop processing: n_tokens = 1023, truncated = 0
+    log: operator(): id  0 | task 1588 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1588 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:33:54 | 200 |  145.877417ms |       127.0.0.1 | POST     "/api/generate"
+== 3(b). T = 5.83 s: A cut at T, then B at once; predicted gap = max(0, 4.831 - T)
+  [pressure before cut b #1: 1]
+  #1: A held 5.833085 s, B after 0.149389 s
+    log: operator(): id  0 | task 1593 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:34:01 | 500 |  5.832789834s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1593
+    log: release: id  0 | task 1593 | stop processing: n_tokens = 1127, truncated = 0
+    log: operator(): id  0 | task 1734 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1734 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:34:01 | 200 |  148.390083ms |       127.0.0.1 | POST     "/api/generate"
+  [pressure before cut b #2: 1]
+  #2: A held 5.834371 s, B after 0.122879 s
+    log: operator(): id  0 | task 1739 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:34:07 | 500 |   5.83412525s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1739
+    log: release: id  0 | task 1739 | stop processing: n_tokens = 1126, truncated = 0
+    log: operator(): id  0 | task 1881 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 1881 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:34:07 | 200 |  121.999875ms |       127.0.0.1 | POST     "/api/generate"
+  [pressure before cut b #3: 1]
+  #3: A held 5.832233 s, B after 0.141744 s
+    log: operator(): id  0 | task 1884 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 987
+    log: [GIN] 2026/11/10 - 14:34:14 | 500 |  5.831968416s |       127.0.0.1 | POST     "/api/generate"
+    log: stop: cancel task, id_task = 1884
+    log: release: id  0 | task 1884 | stop processing: n_tokens = 1127, truncated = 0
+    log: operator(): id  0 | task 2027 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    log: release: id  0 | task 2027 | stop processing: n_tokens = 21, truncated = 0
+    log: [GIN] 2026/11/10 - 14:34:14 | 200 |  141.081333ms |       127.0.0.1 | POST     "/api/generate"
+== 2'. B alone, again
+  [pressure before B alone (end) #1: 1]
+  B alone (end) #1: 0.126958 s
+  [pressure before B alone (end) #2: 1]
+  B alone (end) #2: 0.141751 s
+  [pressure before B alone (end) #3: 1]
+  B alone (end) #3: 0.112955 s
+== Result (citable: no)
+  B alone, median of 6: 0.114 s
+  (a) T = 1.0 s: B after, median of 3: 1.075 s; gap 0.961 s; predicted 3.831 s
+  (c) T = 2.92 s: B after, median of 3: 0.145 s; gap 0.031 s; predicted 1.911 s
+  (b) T = 5.83 s: B after, median of 3: 0.142 s; gap 0.028 s; predicted 0.000 s
+  pressure at end: 1

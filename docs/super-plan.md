@@ -179,7 +179,12 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
     not show an upstream fault while F-D stands;
   - it is at most k6's status-0 count, and only an **upper bound** on orphaned generations (F-L).
     F-H (below, resolved) **tightens** that bound without turning it into a count.
-- **F-L (new, found by F-A's impact analysis): `rag.server` keeps generating after its RPC is
+- ✅ **F-L, closed 2026-11-10, with a residual** (trail
+  `docs/work/2026-11-10-fl-cancel-and-rag-shutdown/`; DC 5's probes are in its `evidence/`). `rag.server`
+  now closes its Ollama request when the RPC ends, but Ollama frees its one slot only after it has read
+  the whole prompt, so an abandoned request can still hold the slot for up to one prefill (1.94 s for a
+  987-token prompt; design.md §4), out of the gateway's sight. Found by F-A's impact analysis:
+  **`rag.server` keeps generating after its RPC is
   cancelled.** Probed with a stubbed `generate` (no Ollama): the client cancelled at +0.20 s and the
   stub ran on to +1.50 s. Nothing in `server.py` checks `is_active` or `add_callback`, and
   `generate.py` blocks on `httpx` for up to 120 s. The gateway therefore releases its one permit
@@ -226,8 +231,8 @@ F-K in `docs/work/2026-10-04-httpapi-tests/spec.md`; order in that trail's `appr
     precedent for P1. `ABANDONED` was **not observed** (k6's `error_rate` was 0 in every kept row) but is
     **vacuous** for the all-hit rows and **not settled** for the mixed ones. **Whether a k6 timeout closes the
     connection is still not settled** (no k6 timeout occurred; its limit is 120 s). The ADR-006 1 ms
-    threshold is still ⟦PENDING⟧. **F-L was not fixed before 1.6** (the author's decision) and **still gates
-    Phase 7** (7.1, 7.5).
+    threshold is still ⟦PENDING⟧. **F-L was not fixed before 1.6** (the author's decision); it was closed
+    on 2026-11-10, before Phase 7, with the prefill residual above.
 - **F-F: the eval log closes while shutdown is still draining.** Requests in flight at SIGTERM
   vanish from `requests.jsonl` with `Dropped()` at 0. It is avoided by stopping the load before
   SIGTERM, and the fix is cheap. Fix it before Phase 7. *The mechanism, sharpened by 1.5's review:*

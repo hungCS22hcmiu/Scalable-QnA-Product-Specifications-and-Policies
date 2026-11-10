@@ -1,0 +1,6 @@
+calls: 100 each, against an instant fake Ollama (citable: no)
+old path (one shared httpx.Client), median: 0.547 ms
+new path (AsyncClient + asyncio.run per call), median: 16.432 ms
+difference (new - old): +15.885 ms
+caveat: the fake closes every connection, so the old path also opens a new local
+connection per call; the difference is the event loop and client, not the connection.

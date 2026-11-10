@@ -48,3 +48,7 @@ LLM_NUM_CTX = 8192
 
 # --- gRPC server (this service) ---
 GRPC_ADDR = os.environ.get("RAG_GRPC_ADDR", "0.0.0.0:50051")
+# How long a SIGTERM (or SIGINT) waits for the Answer calls in flight before gRPC cancels them.
+# 60 s, like the gateway's shutdownGrace. Not a frozen value. A bad value fails at import, so the
+# server does not start.
+SHUTDOWN_GRACE_S = float(os.environ.get("RAG_SHUTDOWN_GRACE_S", "60"))

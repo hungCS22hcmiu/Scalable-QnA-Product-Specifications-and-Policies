@@ -1,0 +1,42 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0 -- /Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13
+cachedir: .pytest_cache
+rootdir: /Users/hung/Desktop/Sem1/thesis/rag
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collecting ... collected 6 items / 3 deselected / 3 selected
+
+tests/test_server_cancel.py::test_cancel_closes_the_ollama_request FAILED [ 33%]
+tests/test_server_cancel.py::test_request_body_is_unchanged PASSED       [ 66%]
+tests/test_server_cancel.py::test_prompt_is_unchanged PASSED             [100%]
+
+=================================== FAILURES ===================================
+____________________ test_cancel_closes_the_ollama_request _____________________
+
+stack = <function stack.<locals>.start at 0x115d74860>
+served = <function served.<locals>.start at 0x115d74900>
+
+    def test_cancel_closes_the_ollama_request(stack, served):
+        """DC 1a. The client cancels Answer at +0.2 s; the fake must see its connection closed within
+        0.5 s. Before the fix the fake's request ran to its end (5 s)."""
+        fake = stack(5)
+        stub = served()
+    
+        call = stub.Answer(_request())
+        assert _wait_for(lambda: len(fake.bodies) == 1, 2.0), "Answer never reached the fake Ollama"
+        time.sleep(0.2)
+        call.cancel()
+        cancelled_at = time.monotonic()
+        _wait_for(lambda: fake.closed_at, 1.0)
+    
+>       assert fake.closed_at and fake.closed_at[0] - cancelled_at <= 0.5, (
+            "F-L: the Ollama request was not closed within 0.5 s of the cancel"
+        )
+E       AssertionError: F-L: the Ollama request was not closed within 0.5 s of the cancel
+E       assert ([])
+E        +  where [] = <conftest.FakeOllama object at 0x115d406e0>.closed_at
+
+tests/test_server_cancel.py:123: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_server_cancel.py::test_cancel_closes_the_ollama_request - A...
+================== 1 failed, 2 passed, 3 deselected in 2.39s ===================

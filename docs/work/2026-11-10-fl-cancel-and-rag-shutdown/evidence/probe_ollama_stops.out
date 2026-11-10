@@ -1,0 +1,11 @@
+pressure before: 1 (1 = green)
+warm-up B: 3.540737 s
+pressure with the model loaded: 2
+B alone #1: 0.138652 s
+B alone #2: 0.110032 s
+B alone #3: 0.110004 s
+A cut at 1 s, then B #1: 0.138006 s
+A cut at 1 s, then B #2: 0.134063 s
+A cut at 1 s, then B #3: 0.152799 s
+control: A run to the end takes 26.086070 s
+pressure after: 2

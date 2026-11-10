@@ -1,0 +1,19 @@
+pressure at start: 2 (1 = green, 2 = yellow, 4 = red)
+pilot candidate: 47.399 s for: Explain in full detail every specification of this laptop, one by one, and what each means for a buyer, then its return and warranty policy.
+B alone #1: 0.123897 s
+B alone #2: 0.113956 s
+B alone #3: 0.113356 s
+B alone #4: 0.116168 s
+B alone #5: 0.111673 s
+round 1: B after a drop 34.829377 s (valid: log +1)
+round 2: B after a drop 34.042628 s (valid: log +1)
+round 3: B after a drop 42.619173 s (valid: log +1)
+round 4: B after a drop 32.355555 s (valid: log +1)
+round 5: B after a drop 38.315330 s (valid: log +1)
+pilot A: 47.399 s straight to rag.server, for: Explain in full detail every specification of this laptop, one by one, and what each means for a buyer, then its return and warranty policy.
+B alone, median of 5: 0.113956 s
+B after a drop, median of 5 valid rounds: 34.829377 s
+gap = 34.715 s (limit 0.5 s)
+valid rounds: 5 of 5
+RESULT: GAP
+pressure at end: 1

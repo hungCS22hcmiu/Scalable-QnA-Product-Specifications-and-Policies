@@ -1,0 +1,43 @@
+maxmemory-policy=noeviction  maxmemory=0
+  OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FUNCTIONAL RUN — latencies printed here are NOT citable.    │
+  │  For a number that reaches the thesis, use: make measure     │
+  └─────────────────────────────────────────────────────────────┘
+  memory available: 62% (floor 25%; models need ~2.1 GB of 16 GB)
+rag.server listening on 0.0.0.0:50051 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+  rag.server pid 49813 listening on :50051
+  MIXED lane ON for this demo run (LANE_SIGMA_HI=0.60, the ADR-016 on arm). A run with RUN_ID,
+  or with LANE_SIGMA / LANE_SIGMA_HI set, keeps the gateway's own default (off). 2026-11-07, author's demo.
+2026/11/10 17:58:06 gateway: dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2 (ADR-008)
+2026/11/10 17:58:06 gateway: tau=0.850 theta=0.60 dim=768 index=idx:cache  (all DEMO values, swept later)
+2026/11/10 17:58:06 gateway: lane_band=[0.20,0.60) mixed_lane=on (pinned, ADR-016)
+2026/11/10 17:58:06 gateway: admission permits=1 queue_budget=2  (permits = the frozen served slot count,
+         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)
+2026/11/10 17:58:06 gateway: cache_capacity=0  UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen
+2026/11/10 17:58:06 gateway: evaluation log DISABLED (RUN_ID unset) -- functional run, produces no measurement
+2026/11/10 17:58:06 gateway: support_gate=on  (default: a candidate that clears tau and the namespace is refused
+         when the cached answer is not supported by this request's evidence)
+2026/11/10 17:58:06 gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first
+         (interfaces.md rule 11). Records carry support_gate so a log names its arm.
+2026/11/10 17:58:06 gateway: serving demo UI from /Users/hung/Desktop/Sem1/thesis/ui/dist
+2026/11/10 17:58:06 gateway listening on :8080 (redis=localhost:6379 rag=localhost:50051)
+17:58:07 redisvl.index.index INFO   Index already exists, not overwriting.
+17:58:40 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 17:58:44 gateway: request_id=06GWA71C7FTJPFDRFWMF1EFC10 abandoned while generating: rpc error: code = Canceled desc = context canceled
+rag.server: Answer stopped after 3.82 s: the RPC ended, the Ollama request was closed
+17:58:44 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 17:58:48 gateway: request_id=06GWA71WKMF3FAT9BRSRD7ES1G abandoned while generating: rpc error: code = Canceled desc = context canceled
+rag.server: Answer stopped after 3.96 s: the RPC ended, the Ollama request was closed
+17:58:48 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 17:58:52 gateway: request_id=06GWA72D165G1EN6H8108KVSQW abandoned while generating: rpc error: code = Canceled desc = context canceled
+rag.server: Answer stopped after 3.95 s: the RPC ended, the Ollama request was closed
+17:58:52 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 17:58:56 gateway: request_id=06GWA72XF02S31PVHH9K9TAR90 abandoned while generating: rpc error: code = Canceled desc = context canceled
+rag.server: Answer stopped after 3.96 s: the RPC ended, the Ollama request was closed
+17:58:57 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 17:59:01 gateway: request_id=06GWA73DTX4TV2PJ1SCGP1JQYR abandoned while generating: rpc error: code = Canceled desc = context canceled
+rag.server: Answer stopped after 4.00 s: the RPC ended, the Ollama request was closed
+2026/11/10 17:59:01 gateway: shutting down: no new requests; waiting up to 1m0s for in-flight ones (Ctrl-C again to force)
+rag.server: SIGTERM: refusing new RPCs, waiting up to 60 s for the ones in flight
+rag.server: stopped

@@ -1,0 +1,28 @@
+rca_cancel_timing.py, 2026-11-10 14:37:46, citable: no; T = 1.0 s
+  [pressure before round 1: 1]
+  round 1: A sent at 0.000, curl gave up at 1.016, B done at 3.879 (s)
+    + 0.023 s  operator(): id  0 | task 2101 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 1899
+    + 1.015 s  [GIN] 2026/11/10 - 14:37:47 | 500 |  1.006363917s |       127.0.0.1 | POST     "/api/generate"
+    + 1.027 s  stop: cancel task, id_task = 2101
+    + 3.769 s  release: id  0 | task 2101 | stop processing: n_tokens = 1899, truncated = 0
+    + 3.769 s  operator(): id  0 | task 2105 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    + 3.879 s  release: id  0 | task 2105 | stop processing: n_tokens = 21, truncated = 0
+    + 3.879 s  [GIN] 2026/11/10 - 14:37:50 | 200 |   2.83897225s |       127.0.0.1 | POST     "/api/generate"
+  [pressure before round 2: 1]
+  round 2: A sent at 0.000, curl gave up at 1.027, B done at 3.917 (s)
+    + 0.039 s  operator(): id  0 | task 2108 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 1899
+    + 1.031 s  [GIN] 2026/11/10 - 14:37:51 | 500 |  1.004953209s |       127.0.0.1 | POST     "/api/generate"
+    + 1.043 s  stop: cancel task, id_task = 2108
+    + 3.803 s  release: id  0 | task 2108 | stop processing: n_tokens = 1899, truncated = 0
+    + 3.803 s  operator(): id  0 | task 2112 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    + 3.918 s  release: id  0 | task 2112 | stop processing: n_tokens = 21, truncated = 0
+    + 3.918 s  [GIN] 2026/11/10 - 14:37:54 | 200 |   2.86598075s |       127.0.0.1 | POST     "/api/generate"
+  [pressure before round 3: 1]
+  round 3: A sent at 0.000, curl gave up at 1.026, B done at 4.007 (s)
+    + 0.039 s  operator(): id  0 | task 2115 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 1899
+    + 1.029 s  [GIN] 2026/11/10 - 14:37:56 | 500 |  1.004304292s |       127.0.0.1 | POST     "/api/generate"
+    + 1.048 s  stop: cancel task, id_task = 2115
+    + 3.844 s  release: id  0 | task 2115 | stop processing: n_tokens = 1899, truncated = 0
+    + 3.844 s  operator(): id  0 | task 2119 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 20
+    + 4.010 s  release: id  0 | task 2119 | stop processing: n_tokens = 21, truncated = 0
+    + 4.010 s  [GIN] 2026/11/10 - 14:37:59 | 200 |  2.957222625s |       127.0.0.1 | POST     "/api/generate"
