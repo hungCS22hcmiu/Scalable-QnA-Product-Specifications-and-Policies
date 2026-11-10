@@ -267,7 +267,7 @@ The namespace is the group of the cache that this question may reuse from. It de
 | Lane | When | Namespace | Example from the corpus |
 | :--- | :--- | :--- | :--- |
 | SPEC | no policy chunk retrieved | the product the user is looking at (`product_id`); if none, the document of the **top-ranked** product chunk | "Which graphics card does this laptop have?" on a laptop's page → `product-laptops-b07qvm5x8w` (Example D) |
-| POLICY | at least one policy chunk | the document of the **top-ranked** policy chunk | "How long is the warranty on these headphones?" → `policy-warranty-electronics` (Example B) |
+| POLICY | at least one policy chunk | the document of the **top-ranked** policy chunk, then `@` and the `product_id` (ADR-024, since 10 Nov 2026); with no `product_id`, the document alone | "How long is the warranty on these headphones?" on H1's page → `policy-warranty-electronics@product-electronics-b07zj7qg33` (Example B ran before ADR-024 and shows `policy-warranty-electronics`) |
 | MIXED (on arm only) | both kinds, inside a set band | the pair `{product}\|{policy}`; both halves are required | `product-electronics-b07zj7qg33\|policy-warranty-electronics` (Example E) |
 
 Four details make this work:
@@ -283,9 +283,11 @@ Four details make this work:
   Paraphrases can rank similar products in a different order. The page the user is on does not change.
 - **An empty namespace matches nothing.** It is never treated as "match everything".
 
-**Why are policy answers not split by product?** A policy answer is the same for every product the
-policy covers. One entry per policy uses less cache space than one entry per product. The cost is shown
-in Example B (e): an answer that names one product's brand can reach another product.
+**Why are policy answers split by product?** (ADR-024, built 10 Nov 2026.) A policy answer used to be
+shared by every product the policy covers, which saves cache space. Example B (e) showed the cost: an
+answer that names one product's brand reached another product, and the gate passed it. Now each
+product writes its own policy answers. The cache holds more entries, and a policy question from
+another product's page is a miss.
 
 ### Step 5 — Search inside the namespace only
 
@@ -469,9 +471,10 @@ the unit-test case in §10 are older and use `dev-v0`.
 
 **Setting of the live run.** 7 Nov 2026, corpus `v1`, code at `d642c45`, gate on, τ = 0.85, MIXED off.
 The cache was emptied first (`make cache-reset`), then `make dev` was started, and the questions were
-sent in the order of this part. **Every request carried a `product_id`**, as the `v1` workload does.
-Memory pressure was yellow, so the latencies are not measurements. The questions are written for this
-document. Four products are used:
+sent in the order of this part. **Every request carried a `product_id`**, as the `v1` workload does. The
+run was before ADR-024 (10 Nov 2026); where ADR-024 changes a result, the example says so. Memory pressure
+was yellow, so the latencies are not measurements. The questions are written for this document. Four
+products are used:
 
 | Short name | `product_id` | What it is |
 | :--- | :--- | :--- |
@@ -563,8 +566,10 @@ Two things in this result are not the cache's work:
 
 1. Tier 1 misses: the Tier-1 key includes the `product_id` (ADR-018).
 2. Retrieval returns H2's own chunk and the same four policy chunks as Question 1.
-3. Lane POLICY, namespace `policy-return-electronics`. A policy namespace is shared by every product the
-   policy covers (Step 4).
+3. Lane POLICY, namespace `policy-return-electronics`. A policy namespace was shared by every product the
+   policy covers (Step 4). *Since ADR-024 the namespace is
+   `policy-return-electronics@product-electronics-b079jfb616`, and step 4 finds nothing: a MISS with
+   nothing judged.*
 4. The search finds Question 1's entry at similarity **1.0000**, because the text is the same.
    Containment is 4/5 = 0.80, because the product chunk differs.
 5. The gate gives 18/32 = 0.5625 again, because the cached answer has no word that only H1's chunk
@@ -621,7 +626,9 @@ H1's brand.
 - H2's customer was served an answer that names another brand, in 85 ms. The 1-year term is right for
   H2, so the error is one phrase.
 
-This is trap 13 of §12a, and no part of the rule can see it. Note also that the HTTP response of a
+This is trap 13 of §12a, and no part of the rule could see it then. ADR-024 closes it: Question 4's
+namespace now names H2, so it is a MISS with nothing judged (replayed on 10 Nov 2026,
+`docs/work/2026-11-10-policy-namespace-product/evidence/`). Note also that the HTTP response of a
 Tier-2 hit lists the **entry's** sources, so Question 4's response shows H1's chunk, not H2's.
 
 **The same case in the unit tests (`dev-v0`).** The namespace was designed for a pair measured on
@@ -886,7 +893,7 @@ validation and test splits.
 | 10 | **Same evidence, opposite condition or negation** | "Is the battery removable?" against "…**not** removable?" | **no check can see it** | always | yes; reported as RQ2a (item 6.4) |
 | 11 | **Product and policy in one question** (stratum D) | "If this laptop is new, how many days do I have to return it, and how much does it weigh?" | the MIXED lane, on its on arm (ADR-016) | the arm is off: the product half is ignored; or the policy fraction falls outside the band (Example E, Question 5) | yes: 33 + 36. Both arms live in Example E |
 | 12 | **A stale answer after a source edit** | a return window changed from 30 to 14 days | dependency purge and the epoch guard (Phase 4) | a purge misses an entry (completeness below 1) | in `mutation: on` runs (item 6.5) |
-| 13 | **A shared policy answer names another product** (found 7 Nov 2026) | asked about a Nokia Lumia 830, served "…no restocking fee for returning an unopened iPhone 8 Plus Gold" | **nothing** in the rule; the judge marks it `INCORRECT` | the model writes the product name into a POLICY answer, and the gate passes on the policy words | yes: 3 of 94 Tier-2 hits in the 1 Nov cost run (not citable); super-plan item 5.6. Seen live in Example B (e) |
+| 13 | **A shared policy answer names another product** (found 7 Nov 2026) | asked about a Nokia Lumia 830, served "…no restocking fee for returning an unopened iPhone 8 Plus Gold" | **the POLICY namespace names the product** (ADR-024, since 10 Nov 2026); before that, nothing in the rule | before ADR-024: the model wrote the product name into a POLICY answer, and the gate passed on the policy words | yes: 3 of 94 Tier-2 hits in the 1 Nov cost run (not citable); super-plan item 5.6. Seen live in Example B (e) |
 
 When retrieval picks the wrong document, the answer is wrong **even with no cache**: the model writes
 from the wrong evidence. The cache inherits that error, and so does the reference answer the judge
@@ -901,7 +908,7 @@ compares against. Item 5.2's labelling ablation exists to measure this.
 | 3 | **The MIXED arm moves a question to another namespace** | 9 policy and 3 product-only questions lose their reuse (ADR-016) | per arm, `mixed_lane` |
 | 4 | **The support gate refuses a right answer** | the model used its own words, not the evidence's (Example A, Question 3: `S_lex` 0.5625; Example C: 0.556) | `SUPPORT`; GroundedCache reports that this gate cut its speed-up from 1.48× to 1.04× |
 | 5 | **Only the nearest entry is judged** (k = 1) | the nearest entry is wrong, and a right one sits second | ADR-009: the same `candidate_entry_id` refused again and again |
-| 6 | **Same question, another `product_id`** | one policy question asked on many product pages gets one entry per page | ADR-018; zero on `v1`, where no question is shared across products |
+| 6 | **Same question, another `product_id`** | one policy question asked on many product pages gets one entry per page | ADR-018 for Tier 1, and since ADR-024 the POLICY lane of Tier 2: a policy question from another product's page no longer reuses (2 correct cross-product hits in the 1 Nov cost run, not citable) |
 | 7 | **Evicted by the LRU limit** | the cache holds only 0.25 × K entries | tier mix, item 7.1 |
 | 8 | **Purged by a cosmetic edit** | blind purge removes answers the edit did not change | precision, item 6.5 (0.695 in item 4.4, not citable) |
 | 9 | **Nothing was written** | the epoch moved during generation; `NOT_SCORED`; the embedding failed | `writeback_discarded`, `NOT_SCORED` |
@@ -948,8 +955,8 @@ away from an "unopened" question.
 - **The MIXED lane** is one pinned band, run as an on/off arm (ADR-016; Step 3).
 - **Removing answers when a source changes is built** (Phase 4): dependency purge, the epoch guard, and
   tracking of every Tier-1 key.
-- **`product_id` will join the POLICY namespace** (ADR-024, 7 Nov 2026, **not built yet**). It closes trap 13.
-  Example A, Question 5, and Example B (e) show the rule as it runs today, before the change.
+- **`product_id` joins the POLICY namespace** (ADR-024, decided 7 Nov 2026, **built 10 Nov 2026**). It closes trap 13.
+  Example A, Question 5, and Example B (e) show the rule as it ran before the change.
 
 **Open in the design:**
 

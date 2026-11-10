@@ -192,7 +192,7 @@ func (hs *harness) useMixedRAG(t *testing.T) {
 func TestMixedLaneLabelMatchesRule(t *testing.T) {
 	const (
 		mixedNS  = "product-kettle-01|policy-returns-01"
-		policyNS = "policy-returns-01"
+		policyNS = "policy-returns-01@product-kettle-01"
 		question = "Can I return the Aurora kettle, and what is its body made of?"
 	)
 	for _, c := range []struct {

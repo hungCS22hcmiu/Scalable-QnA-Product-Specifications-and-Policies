@@ -1,0 +1,4 @@
+=== RUN   TestTier2SearchKeepsPolicyNamespacesApart
+--- PASS: TestTier2SearchKeepsPolicyNamespacesApart (0.01s)
+PASS
+ok  	github.com/hung/thesis/gateway/internal/cache	0.644s

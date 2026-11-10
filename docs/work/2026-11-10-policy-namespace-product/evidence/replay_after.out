@@ -1,0 +1,17 @@
+memory pressure at start: 1
+python3 experiments/scripts/cache_reset.py
+deleted t1:     3
+deleted t2:     3
+deleted lru:    3
+deleted dep:    5
+deleted entry:  3
+corpus: keys 539; FT._LIST ['idx:cache', 'idx:corpus']
+pressure before the request (product-electronics-b07zj7qg33): 1
+{"label":"after","product_id":"product-electronics-b07zj7qg33","pressure":1,"cache":"MISS","similarity":null,"lane":"POLICY","namespace":"policy-warranty-electronics@product-electronics-b07zj7qg33","sources":["product-electronics-b07zj7qg33#chunk-1","policy-warranty-electronics#chunk-0","policy-return-electronics#chunk-0","policy-warranty-electronics#chunk-1"],"latency_ms":5613}
+pressure before the request (product-electronics-b07zj7qg33): 2
+{"label":"after","product_id":"product-electronics-b07zj7qg33","pressure":2,"cache":"TIER2_HIT","similarity":0.9255590438843,"lane":"POLICY","namespace":"policy-warranty-electronics@product-electronics-b07zj7qg33","sources":["product-electronics-b07zj7qg33#chunk-1","policy-warranty-electronics#chunk-0","policy-return-electronics#chunk-0","policy-warranty-electronics#chunk-1"],"latency_ms":101}
+pressure before the request (product-electronics-b079jfb616): 2
+{"label":"after","product_id":"product-electronics-b079jfb616","pressure":2,"cache":"MISS","similarity":null,"lane":"POLICY","namespace":"policy-warranty-electronics@product-electronics-b079jfb616","sources":["product-electronics-b079jfb616#chunk-1","policy-warranty-electronics#chunk-0","policy-return-electronics#chunk-0","policy-warranty-electronics#chunk-1"],"latency_ms":2649}
+arm in the gateway log: mixed_lane=off
+memory pressure at end: 2
+exit=0

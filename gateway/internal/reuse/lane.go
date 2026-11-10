@@ -10,10 +10,13 @@ import "strings"
 //   - A question grounded in PRODUCT chunks ("what is the battery life of X") is answerable only
 //     for X. Its namespace is the product. This is the namespace scoping production semantic
 //     caches already do per tenant.
-//   - A question grounded in POLICY chunks ("how long do I have to return X") has the same
-//     answer for every product the policy governs. Its namespace is the policy. Scoping it by
-//     product would store one entry per product for one answer, which is where a product_id
-//     cache key spends capacity it did not need to.
+//   - A question grounded in POLICY chunks ("how long do I have to return X") is answered from
+//     the policy, but the answer can name the product it was written for. Its namespace is the
+//     policy AND the product (ADR-024, 2026-11-10): "{policy_doc}@{product_id}". Sharing one
+//     entry across every product the policy governs saved capacity, and cost wrong answers: a
+//     POLICY entry written for one product was served to another, naming the first one's brand,
+//     and the support gate passed it. Scoping by product stores one entry per product per
+//     policy, and that is the price. With no product_id the namespace is the policy document.
 //
 //   - A question grounded in BOTH ("how long is the warranty on the EarBuds Pop 3, and what is
 //     its battery life") belongs to neither namespace. data-card.md 2 pre-registers it as
@@ -53,6 +56,11 @@ const (
 	//
 	// Its namespace is therefore the PAIR (product, policy) rather than either alone. See
 	// Namespace and DecideLane.
+	//
+	// ADR-024 (2026-11-10): the paragraph above describes the POLICY lane before ADR-024. With a
+	// product_id, a POLICY namespace keeps the product ({policy_doc}@{product_id}), so the
+	// cross-product case it names no longer arises for a request that carries one. It still holds
+	// without a product_id. What is left of MIXED's effect is mostly lane separation.
 	LaneMixed Lane = "MIXED"
 )
 
@@ -169,11 +177,17 @@ func docID(chunkID string) string {
 }
 
 // Namespace derives the cache partition from the grounding, plus request metadata in the spec
-// lane only.
+// and policy lanes.
 //
-//	POLICY -> doc_id of the HIGHEST-RANKED policy chunk.
+//	POLICY -> "{policy_doc}@{productID}", the doc_id of the HIGHEST-RANKED policy chunk and the
+//	          request's product (ADR-024). With no productID: the policy doc_id alone, and never
+//	          a fallback to a product chunk.
 //	SPEC   -> productID from the request; falls back to the highest-ranked product chunk.
 //	MIXED  -> "{product}|{policy}", both components required.
+//
+// A POLICY namespace never equals a MIXED one, for the same chunks and the same product: the
+// separators differ ("@" and "|") and the order is reversed (the policy first, then the product).
+// DecideNamespace has no lane check, so equal strings would let the two lanes meet with no error.
 //
 // ⚠️ MIXED returned "" and deferred to containment until 2026-09-06. That was WRONG and the run
 // that showed it is recorded in the run log. Containment cannot decide
@@ -216,7 +230,11 @@ func Namespace(lane Lane, chunkIDs []string, productID string) string {
 	case LaneSpec:
 		return specComponent(chunkIDs, productID)
 	case LanePolicy:
-		return firstDocIDWithPrefix(chunkIDs, policyPrefix)
+		policy := firstDocIDWithPrefix(chunkIDs, policyPrefix)
+		if policy == "" || productID == "" {
+			return policy
+		}
+		return policy + policyProductSeparator + productID
 	case LaneMixed:
 		product := specComponent(chunkIDs, productID)
 		policy := firstDocIDWithPrefix(chunkIDs, policyPrefix)
@@ -230,9 +248,17 @@ func Namespace(lane Lane, chunkIDs []string, productID string) string {
 }
 
 // mixedSeparator cannot appear in a doc_id (interfaces.md C's slug alphabet), so the composite is
-// unambiguous and, incidentally, can never equal a SPEC or POLICY namespace -- the lanes cannot
-// collide through the namespace even before DecideLane's explicit lane check.
+// unambiguous and, incidentally, can never equal a SPEC namespace -- the lanes cannot collide
+// through the namespace even before DecideLane's explicit lane check. Since ADR-024 a MIXED
+// namespace never equals a POLICY one either: that one uses policyProductSeparator and puts the
+// policy first.
 const mixedSeparator = "|"
+
+// policyProductSeparator joins the policy document and the product in a POLICY namespace (ADR-024).
+// It cannot appear in a doc_id (a slug that starts with "policy-" or "product-", interfaces.md C),
+// and it differs from mixedSeparator, so a POLICY and a MIXED namespace never meet even for the
+// same pair. escapeTag (cache/tier2.go) escapes it in the Redis query.
+const policyProductSeparator = "@"
 
 func specComponent(chunkIDs []string, productID string) string {
 	if productID != "" {

@@ -1,0 +1,41 @@
+maxmemory-policy=noeviction  maxmemory=0
+  OK — nothing evictable; capacity stays unset until K is derived (the eviction split Open, W8)
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FUNCTIONAL RUN — latencies printed here are NOT citable.    │
+  │  For a number that reaches the thesis, use: make measure     │
+  └─────────────────────────────────────────────────────────────┘
+  memory available: 61% (floor 25%; models need ~2.1 GB of 16 GB)
+rag.server listening on 0.0.0.0:50051 dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2
+  rag.server pid 66042 listening on :50051
+2026/11/10 23:16:24 gateway: dataset_epoch_file=/Users/hung/Desktop/Sem1/thesis/data/dataset-epoch epoch=2 (ADR-008)
+2026/11/10 23:16:24 gateway: tau=0.850 theta=0.60 dim=768 index=idx:cache  (all DEMO values, swept later)
+2026/11/10 23:16:24 gateway: lane_band=[0.20,0.20) mixed_lane=off (pinned, ADR-016)
+2026/11/10 23:16:24 gateway: admission permits=1 queue_budget=2  (permits = the frozen served slot count,
+         ADR-003; must equal np in the ENVELOPE line `make env-check` prints)
+2026/11/10 23:16:24 gateway: cache_capacity=0  UNBOUNDED -- hit rates are an upper bound; set CACHE_CAPACITY=round(0.25*K) once K is frozen
+2026/11/10 23:16:24 gateway: evaluation log DISABLED (RUN_ID unset) -- functional run, produces no measurement
+2026/11/10 23:16:24 gateway: support_gate=on  (default: a candidate that clears tau and the namespace is refused
+         when the cached answer is not supported by this request's evidence)
+2026/11/10 23:16:24 gateway: a measured run starts on a cache it wrote itself: empty t1:, t2: and lru: first
+         (interfaces.md rule 11). Records carry support_gate so a log names its arm.
+2026/11/10 23:16:24 gateway: serving demo UI from /Users/hung/Desktop/Sem1/thesis/ui/dist
+2026/11/10 23:16:24 gateway listening on :8080 (redis=localhost:6379 rag=localhost:50051)
+23:16:25 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 23:16:34 gateway: request_id=06GWCFRNMRSX6MT41NPQYWSDY0 cache=MISS t_tier1=2.176167ms t_embed=585.482958ms t_search=793.208µs t_overlap=621.152375ms
+23:16:36 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 23:16:36 gateway: cascade lane=POLICY ns=policy-warranty-electronics entry_lane=POLICY entry_ns=policy-warranty-electronics sim=0.9256
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=1.00)
+          cause=SUPPORT gate=on support=lex=0.4375 (of 32) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0 policy-warranty-electronics#chunk-1 policy-return-electronics#chunk-0]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0 policy-return-electronics#chunk-0 policy-warranty-electronics#chunk-1]
+2026/11/10 23:16:39 gateway: request_id=06GWCFSZ2VPGKNVMW1BDVET0N8 cache=MISS t_tier1=293.042µs t_embed=52.083916ms t_search=349.5µs t_overlap=124.248084ms
+23:16:41 redisvl.index.index INFO   Index already exists, not overwriting.
+2026/11/10 23:16:41 gateway: cascade lane=POLICY ns=policy-warranty-electronics entry_lane=POLICY entry_ns=policy-warranty-electronics sim=1.0000
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=0.75)
+          cause=SUPPORT gate=on support=lex=0.4375 (of 32) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[product-electronics-b079jfb616#chunk-1 policy-warranty-electronics#chunk-0 policy-return-electronics#chunk-0 policy-warranty-electronics#chunk-1]
+          entry_sources=[product-electronics-b07zj7qg33#chunk-1 policy-warranty-electronics#chunk-0 policy-return-electronics#chunk-0 policy-warranty-electronics#chunk-1]
+2026/11/10 23:16:45 gateway: request_id=06GWCFTMPP1B2GBYVH5D5XTVYM cache=MISS t_tier1=277.833µs t_embed=29.128334ms t_search=482.209µs t_overlap=91.48825ms
+2026/11/10 23:16:47 gateway: shutting down: no new requests; waiting up to 1m0s for in-flight ones (Ctrl-C again to force)
+rag.server: SIGTERM: refusing new RPCs, waiting up to 60 s for the ones in flight
+rag.server: stopped

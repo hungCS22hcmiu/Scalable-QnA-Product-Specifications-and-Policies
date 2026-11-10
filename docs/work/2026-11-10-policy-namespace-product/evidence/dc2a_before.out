@@ -1,0 +1,13 @@
+=== RUN   TestPolicyAnswerIsNotReusedForAnotherProduct
+2026/11/10 23:14:41 gateway: request_id=06GWCFC0XV40SDJ0SQ37Y2F0ZC cache=MISS t_tier1=1.167µs t_embed=2.135917ms t_search=1.167µs t_overlap=2.479333ms
+2026/11/10 23:14:41 gateway: cascade lane=POLICY ns=policy-returns-01 entry_lane=POLICY entry_ns=policy-returns-01 sim=1.0000
+          ns_decision=true (rule=namespace lane_match=false)  band=true overlap_decision=true (overlap=1.00)
+          cause=NONE gate=on support=lex=1.0000 (of 7) numeric_ok=true (unsupported=0 unreadable=0 unitless=0)
+          retrieved=[policy-returns-01#chunk-0 policy-returns-01#chunk-1]
+          entry_sources=[policy-returns-01#chunk-0 policy-returns-01#chunk-1]
+2026/11/10 23:14:41 gateway: request_id=06GWCFC0Y4XZ0MQ0H4ECYRVK40 cache=TIER2_HIT t_tier1=2.166µs t_embed=352.875µs t_search=3.25µs t_overlap=178.709µs
+    policy_product_test.go:102: request 2: cache = "TIER2_HIT", want MISS: product B's request reached the entry written for product A (namespace "policy-returns-01")
+--- FAIL: TestPolicyAnswerIsNotReusedForAnotherProduct (0.01s)
+FAIL
+FAIL	github.com/hung/thesis/gateway/internal/httpapi	0.882s
+FAIL
