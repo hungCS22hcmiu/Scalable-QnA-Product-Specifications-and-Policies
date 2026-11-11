@@ -1,0 +1,347 @@
+{
+  "written_at": "2026-11-11T19:25:11+00:00",
+  "run_id": "2026-11-01T21-17-56_cfg4_judgecost",
+  "judge": "judge-v1",
+  "judge_rf": "judge-rf-v1: failed its sanity check, used for no score (Entry 6)",
+  "reference_free_side": "author",
+  "sheet_sha256": "b3f689e9b1d883d1727ca65514dc11d382484221f5c1ad5f45992e01f9abc2e5",
+  "entry5_first": true,
+  "entry6_first": true,
+  "sample_keys": 100,
+  "author_labels": {
+    "correct": 72,
+    "incorrect": 28
+  },
+  "by_stratum": {
+    "hit": {
+      "keys": 79,
+      "judge_vs_author": {
+        "k": 65,
+        "n": 79,
+        "rate": 0.8228,
+        "wilson95": [
+          0.7242,
+          0.8914
+        ],
+        "undecided": 0,
+        "kappa": 0.6061,
+        "recall": {
+          "k": 20,
+          "n": 27,
+          "rate": 0.7407,
+          "wilson95": [
+            0.5532,
+            0.8683
+          ]
+        },
+        "precision": {
+          "k": 20,
+          "n": 27,
+          "rate": 0.7407,
+          "wilson95": [
+            0.5532,
+            0.8683
+          ]
+        }
+      },
+      "answerable_false_judge_vs_author": {
+        "k": 1,
+        "n": 1,
+        "rate": 1.0,
+        "wilson95": [
+          0.2065,
+          1.0
+        ],
+        "undecided": 0,
+        "kappa": null,
+        "recall": {
+          "k": 1,
+          "n": 1,
+          "rate": 1.0,
+          "wilson95": [
+            0.2065,
+            1.0
+          ]
+        },
+        "precision": {
+          "k": 1,
+          "n": 1,
+          "rate": 1.0,
+          "wilson95": [
+            0.2065,
+            1.0
+          ]
+        }
+      },
+      "judge_vs_author_by_bucket": {
+        "1.0": {
+          "keys": 69,
+          "k": 55,
+          "n": 69,
+          "rate": 0.7971,
+          "wilson95": [
+            0.6878,
+            0.8751
+          ],
+          "undecided": 0,
+          "kappa": 0.4739,
+          "recall": {
+            "k": 11,
+            "n": 18,
+            "rate": 0.6111,
+            "wilson95": [
+              0.3862,
+              0.797
+            ]
+          },
+          "precision": {
+            "k": 11,
+            "n": 18,
+            "rate": 0.6111,
+            "wilson95": [
+              0.3862,
+              0.797
+            ]
+          }
+        },
+        "[0.8, 1)": {
+          "keys": 2,
+          "k": 2,
+          "n": 2,
+          "rate": 1.0,
+          "wilson95": [
+            0.3424,
+            1.0
+          ],
+          "undecided": 0,
+          "kappa": null,
+          "recall": {
+            "k": 2,
+            "n": 2,
+            "rate": 1.0,
+            "wilson95": [
+              0.3424,
+              1.0
+            ]
+          },
+          "precision": {
+            "k": 2,
+            "n": 2,
+            "rate": 1.0,
+            "wilson95": [
+              0.3424,
+              1.0
+            ]
+          }
+        },
+        "[0.6, 0.8)": {
+          "keys": 6,
+          "k": 6,
+          "n": 6,
+          "rate": 1.0,
+          "wilson95": [
+            0.6097,
+            1.0
+          ],
+          "undecided": 0,
+          "kappa": 1.0,
+          "recall": {
+            "k": 5,
+            "n": 5,
+            "rate": 1.0,
+            "wilson95": [
+              0.5655,
+              1.0
+            ]
+          },
+          "precision": {
+            "k": 5,
+            "n": 5,
+            "rate": 1.0,
+            "wilson95": [
+              0.5655,
+              1.0
+            ]
+          }
+        },
+        "below 0.6": {
+          "keys": 2,
+          "k": 2,
+          "n": 2,
+          "rate": 1.0,
+          "wilson95": [
+            0.3424,
+            1.0
+          ],
+          "undecided": 0,
+          "kappa": null,
+          "recall": {
+            "k": 2,
+            "n": 2,
+            "rate": 1.0,
+            "wilson95": [
+              0.3424,
+              1.0
+            ]
+          },
+          "precision": {
+            "k": 2,
+            "n": 2,
+            "rate": 1.0,
+            "wilson95": [
+              0.3424,
+              1.0
+            ]
+          }
+        },
+        "below 1.0": {
+          "keys": 10,
+          "k": 10,
+          "n": 10,
+          "rate": 1.0,
+          "wilson95": [
+            0.7225,
+            1.0
+          ],
+          "undecided": 0,
+          "kappa": 1.0,
+          "recall": {
+            "k": 9,
+            "n": 9,
+            "rate": 1.0,
+            "wilson95": [
+              0.7008,
+              1.0
+            ]
+          },
+          "precision": {
+            "k": 9,
+            "n": 9,
+            "rate": 1.0,
+            "wilson95": [
+              0.7008,
+              1.0
+            ]
+          }
+        }
+      }
+    },
+    "MISS": {
+      "keys": 21,
+      "judge_vs_author": {
+        "k": 17,
+        "n": 21,
+        "rate": 0.8095,
+        "wilson95": [
+          0.6,
+          0.9233
+        ],
+        "undecided": 0,
+        "kappa": -0.0769,
+        "recall": {
+          "k": 0,
+          "n": 1,
+          "rate": 0.0,
+          "wilson95": [
+            0.0,
+            0.7935
+          ]
+        },
+        "precision": {
+          "k": 0,
+          "n": 3,
+          "rate": 0.0,
+          "wilson95": [
+            0.0,
+            0.5615
+          ]
+        }
+      },
+      "answerable_false_judge_vs_author": {
+        "k": 3,
+        "n": 3,
+        "rate": 1.0,
+        "wilson95": [
+          0.4385,
+          1.0
+        ],
+        "undecided": 0,
+        "kappa": null,
+        "recall": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson95": null
+        },
+        "precision": {
+          "k": 0,
+          "n": 0,
+          "rate": null,
+          "wilson95": null
+        }
+      },
+      "judge_vs_author_by_bucket": {
+        "generated": {
+          "keys": 21,
+          "k": 17,
+          "n": 21,
+          "rate": 0.8095,
+          "wilson95": [
+            0.6,
+            0.9233
+          ],
+          "undecided": 0,
+          "kappa": -0.0769,
+          "recall": {
+            "k": 0,
+            "n": 1,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "precision": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          }
+        }
+      }
+    }
+  },
+  "layer5": {
+    "hit": {
+      "k": 1,
+      "n": 79,
+      "rate": 0.0127,
+      "wilson95": [
+        0.0022,
+        0.0683
+      ],
+      "checked": 14
+    },
+    "MISS": {
+      "k": 0,
+      "n": 21,
+      "rate": 0.0,
+      "wilson95": [
+        0.0,
+        0.1546
+      ],
+      "checked": 4
+    }
+  },
+  "circularity": {
+    "result": "bounded",
+    "inflation": null,
+    "a1": 0.7971,
+    "a0": 1.0,
+    "n_a1": 69,
+    "n_a0": 10
+  }
+}

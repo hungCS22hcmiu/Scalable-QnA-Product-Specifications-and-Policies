@@ -1,0 +1,13 @@
+{
+  "version": "judge-rf-v1",
+  "model": "gemma3:4b-it-q4_K_M",
+  "digest": "a2af6cc3eb7fa8be8504abaf9b04e88f17a119ec3f04a3addf55f92841195f5a",
+  "prompt_file": "prompt-rf-v1.txt",
+  "prompt_sha256": "66c655dce75e68fb6a5e3c54d73c5fc6a696e562c4d84336818085c5dfe0e61b",
+  "options": {
+    "temperature": 0,
+    "seed": 20261031,
+    "num_ctx": 4096,
+    "num_predict": 8
+  }
+}

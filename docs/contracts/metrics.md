@@ -7,7 +7,7 @@ part of P1, `decisions.md`)
 
 **What this is.** `Final_Proposal.md` §9.1 says the counting rules for every metric must exist before Phase 5 produces
 its first artefact. This file is that record. It has one entry for each of the 17 metric rows of §9.1 (6 rows, M01–M06)
-and §9.2 (11 rows, M07–M17), and three more: μ_gen (M18), μ_hit (M19) and the miss-path error rate (M20). It was
+and §9.2 (11 rows, M07–M17), and four more: μ_gen (M18), μ_hit (M19), the miss-path error rate (M20) and judge agreement (M21). It was
 written before the judge's first verdict.
 
 **Version.** These rules are `counting-v1`. A run, a table or a figure names the version it used. A change after any
@@ -52,7 +52,8 @@ M11, uses that test as a filter on records already served, because §H's denomin
   beside.
 - If more than **2 %** of a run's verdict keys are `UNPARSED`, that run's verdict-based rates are not reported
   (`summary.json`, `rates_reportable`, §I).
-- A metric that reads a verdict reads it from `judge/records.jsonl`. Only M08, M12, M13, M16 and M20 do.
+- A metric that reads a verdict reads it from `judge/records.jsonl`. Only M08, M12, M13, M16, M20 and M21 do. M21
+  reads by verdict key from `judge/verdicts.jsonl`, the verdict that `records.jsonl` carries for the same key.
 
 **R6 — `answerable: false` queries count like any other.** The rubric makes a "don't know" `CORRECT` for them and an
 invented answer `INCORRECT`. Every verdict-based table has their count as its own row.
@@ -77,7 +78,8 @@ reported apart, as counts and as rates, and never added into one number.
   is copied into the harness.
 - *Layer 5, `reference`.* A reference is one text of the temperature-0 reference writer (ADR-023), so it can be wrong. Item 5.2's
   human check marks a sampled pair whose reference is wrong. The count is reported beside the four layers, with its
-  own Wilson interval over that sample. It never moves a record between layers 1–4. Its sheet and fields are 5.2's.
+  own Wilson interval over that sample. It never moves a record between layers 1–4. Its sheet and fields are 5.2's:
+  `ablation/refcheck.jsonl` (`verdict_key`, `reference_right`) and the `layer5` block of `ablation/scores.json` (M21).
 
 **R8 — Intervals and percentiles.**
 - A rate `k / n` has a Wilson score interval, 95 %, `z = 1.96`:
@@ -115,6 +117,7 @@ reported apart, as counts and as rates, and never added into one number.
 | M18 | μ_gen | §9.1 (text) | `raw/`, Ollama | no | 7.5 |
 | M19 | μ_hit | §9.1 (text) | `raw/`, k6 | no | 7.2 |
 | M20 | Miss-path error rate | — | `judge/records.jsonl` | **yes** | now, config 4 |
+| M21 | Judge agreement (item 5.2) | — | `ablation/`, `judge/verdicts.jsonl` | **yes** | 5.2 |
 
 ---
 
@@ -441,3 +444,37 @@ reported apart, as counts and as rates, and never added into one number.
 - **Interval:** Wilson.
 - **Cells:** every `mutation: off` cell. Configuration 1 (every request generates) is the cleanest baseline.
   **Data:** the harness builds it now, for configuration 4.
+
+### M21 — Judge agreement (item 5.2)
+
+*Added 2026-11-11, before any agreement was scored (pre-registration Entries 5 and 6). It adds a metric; no rule
+above changes.*
+
+- **Claim:** how far `judge-v1` can be trusted, which item 5.3 sets δ against; and whether its reference makes a
+  label depend on overlap (circularity, `Final_Proposal.md` §5). The reference-free side is the author's labels,
+  made once from the question and the gold source documents, without the reference. `judge-rf-v1` (`judge-v1` with
+  only its prompt changed) failed its sanity check and is used for no score (Entry 6).
+- **Formula:** over the pairs `(judge-v1 verdict, author label)` of the sampled keys, hits and MISSes apart (never
+  pooled: they are sampled at different rates).
+  - *Agreement:* equal labels over the pairs where both sides decided. κ = `(p_o − p_e) / (1 − p_e)`, `undefined`
+    when `p_e = 1`. *Recall of `INCORRECT`:* judge `INCORRECT` among author `INCORRECT`. *Precision:* author
+    `INCORRECT` among judge `INCORRECT`.
+  - *By bucket:* hits by `source_overlap` into `1.0`, `[0.8, 1)`, `[0.6, 0.8)`, `below 0.6`, and `below 1.0` (the union
+    of the last three); MISSes are one bucket, `generated`.
+  - *Circularity* (Entry 6): A1 = agreement of `judge-v1` and the author on hits at `1.0`; A0 = the same on hits below
+    `1.0`. **Bounded** if A0 ≥ A1, or A0's Wilson interval contains A1; **quantified** otherwise, with A1 − A0
+    reported as the inflation. Both are printed with n.
+  - *Layer 5* (R7): k = the `reference right: no` marks on the second sheet; n = the sampled keys the author decided.
+    A reference is checked only where `judge-v1` and the author both decided and disagree: a wrong reference that
+    changed no verdict caused no judge error.
+- **Filter:** the 100 keys of `ablation/sample.jsonl`, drawn from the frame of the cost run
+  `2026-11-01T21-17-56_cfg4_judgecost` (served records with a `product_id`, without the Tier-2 hits on another
+  product's entry, one row per verdict key): every hit of the frame (a census) and 21 MISSes by seed. `mutation: off`.
+  The `answerable: false` keys are their own row (R6).
+- **Denominator:** the pairs where both sides decided. An author `unsure` and a judge `UNPARSED` leave the
+  denominator and are counted beside it (R5).
+- **Interval:** Wilson for every rate (R8). κ has none: it is not a rate. The low buckets hold about 10 pairs, so a
+  bound from them is weak.
+- **Cells:** configuration 4, `mutation: off`, `citable: no`. **Limit:** one labeller and no inter-rater check; the
+  overall and per-bucket agreements compare the same two labellers. **Data:** item 5.2 builds it, in
+  `ablation/` (`labels.jsonl`, `refcheck.jsonl`, `scores.json`).

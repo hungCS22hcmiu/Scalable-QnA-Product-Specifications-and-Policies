@@ -50,7 +50,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity ablation-draw ablation-rf-sanity ablation-sheet ablation-lock ablation-score
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -590,6 +590,42 @@ judge-sanity: ## Item 5.1: judge hand-made pairs; any wrong verdict exits 1 (loa
 	@test -n "$(FILE)" || { echo "usage: make judge-sanity FILE=<sanity.jsonl>"; exit 2; }
 	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; the script stops at 4)"
 	$(PY) experiments/scripts/judge.py sanity --file "$(FILE)"
+
+# Item 5.2: the labelling ablation (docs/work/2026-11-11-labelling-ablation/design.md). Five steps, in this
+# order; each writer refuses when its output exists. Only ablation-rf-sanity (citable: no) loads the judge, and
+# it refuses while the generator is loaded. The reference-free run (ablation-rf) was removed by Entry 6 of
+# docs/preregistration.md: judge-rf-v1 failed its sanity check and is used for no score. The sheets hold
+# question and PQA text, so they are written under the trail's gitignored evidence/private/.
+#
+#   make ablation-draw RUN_ID=<id>          # twice: the second run prints `identical`
+#   make ablation-rf-sanity                 # the 12 sanity pairs; three runs, same verdicts
+#   make ablation-sheet RUN_ID=<id>         # the blind sheet
+#   (the author labels the sheet)
+#   make ablation-lock RUN_ID=<id>          # locks the labels, writes the second sheet
+#   (the author marks the second sheet)
+#   make ablation-score RUN_ID=<id>         # scores and prints the tables
+ABLATION_TRAIL := docs/work/2026-11-11-labelling-ablation
+ABLATION_SANITY := docs/work/2026-10-30-judge-harness/evidence/private/sanity-v1.jsonl
+
+ablation-draw: ## Item 5.2: draw the labelling sample from results/RUN_ID; a second run says identical (RUN_ID=<id>)
+	@test -n "$(RUN_ID)" || { echo "usage: make ablation-draw RUN_ID=<id>"; exit 2; }
+	$(PY) experiments/scripts/label_ablation.py draw --run-id "$(RUN_ID)"
+
+ablation-rf-sanity: ## Item 5.2: the 12 sanity pairs through the reference-free judge; a wrong verdict exits 1 (loads the judge, citable: no; FILE=<sanity.jsonl>)
+	@echo "  memory pressure level: $$(sysctl -n kern.memorystatus_vm_pressure_level) (1 = normal/green, 2 = warn, 4 = critical; the script stops at 4)"
+	$(PY) experiments/scripts/label_ablation.py rf-sanity --file "$(or $(FILE),$(ABLATION_SANITY))"
+
+ablation-sheet: ## Item 5.2: write the author's blind sheet to the trail's evidence/private/ (RUN_ID=<id>)
+	@test -n "$(RUN_ID)" || { echo "usage: make ablation-sheet RUN_ID=<id>"; exit 2; }
+	$(PY) experiments/scripts/label_ablation.py sheet --run-id "$(RUN_ID)" --sheet "$(ABLATION_TRAIL)/evidence/private/sheet.md"
+
+ablation-lock: ## Item 5.2: lock the author's labels, then write the second sheet to evidence/private/refsheet.md (RUN_ID=<id>)
+	@test -n "$(RUN_ID)" || { echo "usage: make ablation-lock RUN_ID=<id>"; exit 2; }
+	$(PY) experiments/scripts/label_ablation.py lock --run-id "$(RUN_ID)" --sheet "$(ABLATION_TRAIL)/evidence/private/sheet.md" --refsheet "$(ABLATION_TRAIL)/evidence/private/refsheet.md"
+
+ablation-score: ## Item 5.2: score the ablation, write refcheck.jsonl and scores.json, print the tables (RUN_ID=<id>)
+	@test -n "$(RUN_ID)" || { echo "usage: make ablation-score RUN_ID=<id>"; exit 2; }
+	$(PY) experiments/scripts/label_ablation.py score --run-id "$(RUN_ID)" --sheet "$(ABLATION_TRAIL)/evidence/private/sheet.md" --refsheet "$(ABLATION_TRAIL)/evidence/private/refsheet.md"
 
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }

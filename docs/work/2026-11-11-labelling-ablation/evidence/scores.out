@@ -1,0 +1,29 @@
+python3 experiments/scripts/label_ablation.py score --run-id "2026-11-01T21-17-56_cfg4_judgecost" --sheet "docs/work/2026-11-11-labelling-ablation/evidence/private/sheet.md" --refsheet "docs/work/2026-11-11-labelling-ablation/evidence/private/refsheet.md"
+entry 5 first: yes (checked 5 written_at fields)
+entry 6 first: yes (before the sheet)
+
+== hit (79 keys) ==
+(a) judge-v1 vs author: agreement 65/79 = 0.823 [0.724, 0.891], kappa 0.606, undecided 0
+    recall of INCORRECT 20/27 = 0.741 [0.553, 0.868]; precision 20/27 = 0.741 [0.553, 0.868]
+    answerable false: agreement 1/1 = 1.000 [0.206, 1.000], kappa undefined, undecided 0
+(b) not computed: judge-rf-v1 failed its sanity check (Entry 6)
+(c) judge-v1 vs author, by bucket:
+    bucket 1.0         (n keys 69) agreement 55/69 = 0.797 [0.688, 0.875], kappa 0.474, undecided 0
+    bucket [0.8, 1)    (n keys 2) agreement 2/2 = 1.000 [0.342, 1.000], kappa undefined, undecided 0
+    bucket [0.6, 0.8)  (n keys 6) agreement 6/6 = 1.000 [0.610, 1.000], kappa 1.000, undecided 0
+    bucket below 0.6   (n keys 2) agreement 2/2 = 1.000 [0.342, 1.000], kappa undefined, undecided 0
+    bucket below 1.0   (n keys 10) agreement 10/10 = 1.000 [0.723, 1.000], kappa 1.000, undecided 0
+(d) layer 5, wrong references: 1/79 = 0.013 [0.002, 0.068] (14 checked)
+
+== MISS (21 keys) ==
+(a) judge-v1 vs author: agreement 17/21 = 0.809 [0.600, 0.923], kappa -0.077, undecided 0
+    recall of INCORRECT 0/1 = 0.000 [0.000, 0.793]; precision 0/3 = 0.000 [0.000, 0.561]
+    answerable false: agreement 3/3 = 1.000 [0.439, 1.000], kappa undefined, undecided 0
+(b) not computed: judge-rf-v1 failed its sanity check (Entry 6)
+(c) judge-v1 vs author, by bucket:
+    bucket generated   (n keys 21) agreement 17/21 = 0.809 [0.600, 0.923], kappa -0.077, undecided 0
+(d) layer 5, wrong references: 0/21 = 0.000 [0.000, 0.155] (4 checked)
+
+(e) circularity: bounded
+    A1 0.797 (n 69), A0 1.000 (n 10)
+  wrote /Users/hung/Desktop/Sem1/thesis/experiments/results/2026-11-01T21-17-56_cfg4_judgecost/ablation/scores.json and /Users/hung/Desktop/Sem1/thesis/experiments/results/2026-11-01T21-17-56_cfg4_judgecost/ablation/refcheck.jsonl

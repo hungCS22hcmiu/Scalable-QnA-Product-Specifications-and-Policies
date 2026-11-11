@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.32 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-11-10
+**Status:** Draft v0.33 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-11-11
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -947,13 +947,53 @@ last step.
   `judge-v1.json`. `manifest_sha256` is the sha256 of the manifest file.
 - `judge/` holds question text and PQA-grounded answers, so it is gitignored. The manifest stays tracked.
 
+### The labelling ablation (item 5.2, v0.33)
+
+`experiments/scripts/label_ablation.py` measures how far `judge-v1` can be trusted: about 100 served answers of one
+judged run are labelled once by the author, from the question and the gold source documents, without the reference,
+and compared with `judge-v1`'s verdicts (`metrics.md` M21). `experiments/judge/` also holds `prompt-rf-v1.txt` and
+`judge-rf-v1.json`: `judge-v1` with only its prompt changed, the evidence being the reference index's `chunk_ids` in
+place of the reference. It is recorded here because it failed its sanity check (8 of 12 on item 5.1's sanity pairs,
+in three runs) and is used for no score (pre-registration Entry 6). The author's labels are the reference-free side.
+`judge-v1`, its prompt, the references and the served generator are unchanged. Five targets, in this order; each
+writer refuses when its output exists, and every output carries `written_at`:
+- `make ablation-draw RUN_ID=…` writes `draw.json` and `sample.jsonl`: every hit of the frame, and 21 MISSes by seed.
+  A second run re-draws in memory and prints `identical`, or exits 1. It refuses a run that is not admissible, has
+  `mutation: on`, or was not judged by `judge-v1`.
+- `make ablation-rf-sanity [FILE=…]` judges item 5.1's 12 sanity pairs through `judge-rf-v1` (loads the judge,
+  `citable: no`). It refuses as `make judge` does (digest, prompt hash, the pre-registered record's hash, the generator
+  loaded) and when `model`, `digest` or `options` differ from `judge-v1.json`. It exits 1 on a wrong or `UNPARSED`
+  verdict.
+- `make ablation-sheet RUN_ID=…` writes the blind sheet and `items.jsonl`. It refuses when the sample does not
+  recompute from the run's records.
+- `make ablation-lock RUN_ID=…` reads the author's labels. It refuses an unmarked item, a word other than `correct`,
+  `incorrect` or `unsure`, and a sheet whose items are not those of `items.jsonl`. It writes `labels.jsonl`, then the
+  second sheet for the keys where `judge-v1` and the author both decided and disagree.
+- `make ablation-score RUN_ID=…` refuses when the first sheet's sha256 is not the lock's, when the second sheet is not
+  exactly the decided disagreements or has an item not marked `yes` or `no`, when pre-registration Entry 5 is not
+  earlier than the draw, the sheet and the sanity logs, and when Entry 6 is not earlier than the sheet. It reads no
+  reference-free file.
+
+The script's `rf` command has no target: it prints `REFUSED: retired by Entry 6` and exits 1 before any Ollama call.
+
+| File | Holds |
+| :--- | :--- |
+| `results/{run_id}/ablation/draw.json` | `written_at`, the seed, `n_miss`, the frame's key count with the excluded counts by reason, and the frame and sample counts by stratum and bucket; `sample_sha256`. Committed |
+| `results/{run_id}/ablation/sample.jsonl` | One row per sampled key, hits first: `verdict_key`, `request_id`, `cache`, `stratum` (`hit` or `MISS`), `bucket`, `source_overlap`, `qa_id`, `answerable`, `workload_stratum`. Byte-identical on a second draw. Committed |
+| `results/{run_id}/ablation/items.jsonl` | `item` (the sheet's number, in a seeded random order), `verdict_key`, `written_at`. Committed |
+| `results/{run_id}/ablation/labels.jsonl` | One row per key: `item`, `verdict_key`, `label` (`correct`, `incorrect` or `unsure`), `sheet_sha256`, `written_at`. Committed |
+| `results/{run_id}/ablation/refcheck.jsonl` | One row per checked key: `item`, `verdict_key`, `reference_right` (`yes` or `no`), `written_at`. Committed |
+| `results/{run_id}/ablation/scores.json` | Counts, rates with Wilson intervals, κ, the `layer5` block and `circularity`, per stratum; `judge_rf` (failed, used for no score), `reference_free_side` (`author`), `entry5_first`, `entry6_first`. No question, answer or evidence text. Committed |
+| `docs/work/2026-11-11-labelling-ablation/evidence/private/sheet.md`, `refsheet.md` | The blind sheet (question, product, gold evidence, answer; no reference, verdict, cache outcome or overlap) and the second sheet (adds the reference and the author's locked label). Hold question and PQA-grounded text. Gitignored |
+| `…/evidence/private/rf-sanity-{1,2,3}.log` | The three sanity runs of `judge-rf-v1`, by `qa_id`. Gitignored |
+
 ---
 
 ## Versioning
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.32** (2026-11-10).
+**Current version: v0.33** (2026-11-11).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
@@ -962,6 +1002,7 @@ These contracts are frozen for the study. A change to any wire shape, the chunk-
 | **v0.30** | 2026-11-08 | **`product_id` is required on `/ask`** (**ADR-025**). §A: a request with no `product_id`, or an empty or blank one, gets `400` before any record exists. The id is not checked against the corpus. §B–§I, the `.proto`, Redis and the lane code are unchanged: the lane code and the RAG service still accept `""`, but no request reaches them that way. Sixteen `condition-department` queries of `data/workload-v1-validation.json` have no `product_id`; until the workload is fixed (ADR-025), a replay gets `400` for them. No citable run exists, so none is invalidated |
 | **v0.31** | 2026-11-10 | **F-L is closed, with a residual** (doc-only; trail `docs/work/2026-11-10-fl-cancel-and-rag-shutdown/`). `rag.server` closes its Ollama request when its `Answer` RPC ends, so a cancelled generation no longer runs on. Ollama frees its one slot only after it has read the whole prompt, so a cancel during the prefill still holds the slot for the rest of that prefill (a whole prefill took 1.94 s for a 987-token prompt, `citable: no`), out of the gateway's sight. §H's `t_generate_ms` note is restated. No wire shape, `.proto`, §A–§G, §I or Redis change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. A MISS that follows an ABANDONED request now absorbs at most the rest of one prefill, not the rest of the orphan, so such latencies are not comparable across this commit; the one recorded run has no ABANDONED record. No citable run exists, so none is invalidated |
 | **v0.32** | 2026-11-10 | **The POLICY namespace names the product** (**ADR-024**, item 5.6; trail `docs/work/2026-11-10-policy-namespace-product/`). With a `product_id` (every `/ask` since v0.30), a POLICY namespace is `{policy_doc}@{product_id}`; without one it stays `{policy_doc}`. §A's `product_id` row is restated, and §D's `t2:` schema now lists `namespace` and `lane`. No wire shape or `.proto` change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. A cross-product POLICY candidate is now never found (a MISS with `similarity` null), not refused, so POLICY hit rates are not comparable across this commit. `t2:` entries written before it cannot be reached; `make cache-reset` removes them. No citable run exists; the judge cost run `2026-11-01T21-17-56_cfg4_judgecost` is read as before ADR-024 |
+| **v0.33** | 2026-11-11 | **The labelling ablation** (item 5.2; trail `docs/work/2026-11-11-labelling-ablation/`). §I gains the `ablation/` files and records `judge-rf-v1` (`judge-v1` with only its prompt changed), which failed its sanity check and is used for no score (Entry 6). No wire, `.proto`, Redis or §H change; `judge-v1`, its prompt, the references and the served generator are unchanged. No citable run exists, so none is invalidated |
 | **v0.27** | 2026-10-31 | **Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked** (**ADR-021**). §B: when the natural top k holds no policy chunk, each slot of another product's chunk is refilled with this product's best unused chunk, in score order; with any policy chunk, retrieval is as in v0.8. Lane counts cannot move. No wire shape, `.proto` field, §C–§H or Redis schema change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but a spec question's retrieval now returns more of its product's chunk IDs. No run exists, so none is invalidated |
 | **v0.26** | 2026-10-31 | **Product-scoped retrieval keeps only the asked product's category of policy** (**ADR-020**). §B: after the splice, each policy chunk of another category is replaced by the best unused policy chunk of the product's category, and the policy slots are refilled in score order; the number of policy chunks, so `PolicyFraction` and the lane, is unchanged. §A's `product_id` row says so. No wire shape, `.proto` field, §C–§H or Redis schema change (the `category` and `kind` tags already existed); `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but **which** policy chunk IDs a product-scoped retrieval returns changes. No run exists, so none is invalidated |
 | **v0.25** | 2026-10-30 | **`BYPASS` is removed** (doc-only). §A's `cache` enum is `TIER1_HIT` \| `TIER2_HIT` \| `MISS`; §G says the bypass classifier was never built and is out of scope; the request-flow map loses its classify step. The gateway never sent `BYPASS`, so no code path, record or run changes. Also, at this version, the gateway refuses a `MUTATION` other than `on` or `off` at start, as it already does for `SUPPORT_GATE` (§H's `mutation` is `off\|on`); unset still means `off`. No wire shape, `.proto`, §B–§F or Redis schema change |

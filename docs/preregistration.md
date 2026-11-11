@@ -155,3 +155,112 @@ stop, and run no verdict (Entries 1 and 3).
 
 **Not in this entry.** The author's marks on `sufficiency-v3.md` do not exist at the time of writing. No verdict has
 run.
+
+---
+
+## Entry 5 — 2026-11-11 05:41Z — the labelling ablation (item 5.2)
+
+Written before any reference-free verdict, before the draw of the sample and before the labelling sheet: the files
+`ablation/draw.json`, `ablation/verdicts-rf.jsonl` and the sheet do not exist at the time of writing. Item 5.2 of
+`super-plan.md`; trail `docs/work/2026-11-11-labelling-ablation/`. It cites Entry 1 (the frozen judge, the verdict key,
+the counting rules, the stop rules) and Entry 4 (the reference set), and edits none of them. `judge-v1`, its prompt, the
+references and the served generator are unchanged. Every value below was read from the file named beside it.
+
+| Item | Value | Read from |
+| :--- | :--- | :--- |
+| Reference-free judge record | version `judge-rf-v1`; sha256 **`032513a3636766557b507b14184d53ee90604e588ead084c62f899b2d589462e`** | `shasum -a 256 experiments/judge/judge-rf-v1.json` |
+| Reference-free prompt | `prompt-rf-v1`; sha256 `66c655dce75e68fb6a5e3c54d73c5fc6a696e562c4d84336818085c5dfe0e61b` | `experiments/judge/judge-rf-v1.json`, `prompt_sha256`; `shasum -a 256 experiments/judge/prompt-rf-v1.txt` agrees |
+| Model, digest and options | equal `judge-v1`'s: `gemma3:4b-it-q4_K_M` · digest `a2af6cc3eb7fa8be8504abaf9b04e88f17a119ec3f04a3addf55f92841195f5a` · `temperature` 0 · `seed` 20261031 · `num_ctx` 4096 · `num_predict` 8. Only the prompt differs | `judge-rf-v1.json` against `judge-v1.json` (checked 2026-11-11) |
+| Source run | `2026-11-01T21-17-56_cfg4_judgecost` (configuration 4, gate on, MIXED off, `v1` validation). It supplies the items to label; none of its rates is used | `experiments/results/2026-11-01T21-17-56_cfg4_judgecost/manifest.yaml`, `run_id` |
+| Frame | the run's served records, minus the records with no `product_id`, and minus the Tier-2 hits on another product's entry. 600 distinct verdict keys: 521 MISS, 69 hits at `source_overlap` 1.0, 10 hits below 1.0. The draw prints the counts and the excluded counts by reason (16 and 6) | `design.md` §1 and §3; `ablation/draw.json` (to be written) |
+| Strata | **hits**: every hit in the frame, a census (79). **MISS**: 21 drawn by `random.Random(20261111)` from the MISS keys sorted by verdict key. Sample size 100 | `design.md` §3, "The sample" |
+| Bucket edges | by `source_overlap` on hits: `1.0` and `below 1.0` decide the circularity rule; shown only: `[0.8, 1)`, `[0.6, 0.8)`, `below 0.6`. A MISS is its own bucket, `generated` | `design.md` §3, "The sample" |
+| Evidence rule | a key's evidence is the reference index's `chunk_ids` for its `(question, product_id)`, the chunk texts joined by a blank line as `generate` joins its context | `experiments/references/validation/index.jsonl`, `chunk_ids`; `design.md` §3 |
+| Sanity set | item 5.1's 12 sanity pairs, each with its gold evidence in place of the reference | `docs/work/2026-10-30-judge-harness/evidence/private/sanity-v1.jsonl` |
+| Author's labels | one per sampled key, from the question and the gold source documents, `correct`, `incorrect` or `unsure`; blind (no reference, verdict, cache outcome, overlap or stratum on the sheet); locked by the sha256 of the first sheet before the second sheet shows any reference | `design.md` §3, "The order" |
+
+**The metrics** (`design.md` §3, "The scores"; `metrics.md` M21, new).
+- Agreement: equal labels over the pairs where both sides decided, with a Wilson interval. Cohen's κ, `undefined` when
+  both sides use only one label, with no interval. Recall and precision of `INCORRECT`, a Wilson interval each.
+- Hits and MISSes are reported apart and never pooled: they are sampled at different rates. The hits figure is the one
+  item 5.3 reads.
+- Circularity: A1 = agreement of `judge-v1` and the reference-free judge on hits at 1.0; A0 = the same below 1.0.
+  **Bounded** if A0 ≥ A1, or A0's Wilson interval contains A1; **quantified** otherwise, with A1 − A0 reported as the
+  inflation. Both are printed with n, so a bound from about 10 pairs reads as weak.
+- Layer 5: k = the `reference right: no` marks; n = the sample's keys the author decided; Wilson. A reference is
+  checked only where `judge-v1` and the author both decided and disagree.
+
+**The counting** (`design.md` §3, "Edge cases").
+- An author `unsure` and a judge `UNPARSED` are out of their agreement denominators, and are counted and reported beside
+  them. A disagreement where the author is `unsure` is not a disagreement and gets no second-pass item. Nothing is guessed.
+- `answerable: false` keys follow the rubric's "no answer" rule and are their own row.
+
+**The stop rules.**
+- Any wrong or `UNPARSED` verdict on the 12 sanity pairs, or a verdict that differs between the 3 runs: stop. The prompt
+  is not edited. A new prompt is a new version and a new entry, and the author decides (Entry 1).
+- More than 2 % of the reference-free run's sampled keys `UNPARSED`: its rows are not reported.
+- Any call whose `prompt_eval_count` is at or above `num_ctx` (4096): stop.
+
+**The author's confirmation of ADR-022's two rubric choices.** `design.md` §4, 2026-11-11: "the author confirmed both of
+ADR-022's rubric choices for `prompt-rf-v1.txt` and the author labels: a bare same-polarity "Yes." or "No." is
+`CORRECT`, and a partial answer that says nothing wrong is `CORRECT`."
+
+**Not in this entry.** No reference-free verdict, no draw and no label exists at the time of writing. δ (item 5.3) is
+not set here.
+
+---
+
+## Entry 6 — 2026-11-11 06:37Z — the labelling ablation after the sanity failure (item 5.2)
+
+Written after `judge-rf-v1`'s three sanity runs and before the labelling sheet: `evidence/private/sheet.md` and
+`ablation/items.jsonl` do not exist at the time of writing, and no label exists. Item 5.2 of `super-plan.md`; trail
+`docs/work/2026-11-11-labelling-ablation/`. It cites Entry 5 and edits none of the earlier entries. It changes one
+thing in Entry 5: **who makes the reference-free labels**. The frame, the draw, the strata, the bucket edges, the
+metrics, the rubric and its two confirmed choices, and `judge-v1` are the ones in Entries 1 and 5. The draw
+(`ablation/draw.json`, `sample_sha256` `721c490da4a9303ea779d573feb2ba52c05e167424f31035ef2d953010572fe2`) was
+written at 2026-11-11T05:58:57Z, before this entry, and is not repeated. IDs only: no question, answer or evidence
+text is in this entry.
+
+**What happened.** The 12 sanity pairs of item 5.1 were judged by `judge-rf-v1` (record sha256
+`032513a3636766557b507b14184d53ee90604e588ead084c62f899b2d589462e`), each with its gold evidence in place of the
+reference, three times (`make ablation-rf-sanity`; `evidence/private/rf-sanity-{1,2,3}.log`, gitignored).
+
+| Run | written_at (UTC) | Memory pressure | Last line |
+| :--- | :--- | :--- | :--- |
+| 1 | 2026-11-11T05:59:21 | 1 | `8 of 12 correct, 0 UNPARSED` |
+| 2 | 2026-11-11T06:35:42 | 1 | `8 of 12 correct, 0 UNPARSED` |
+| 3 | 2026-11-11T06:36:38 | 2 (`citable: no`) | `8 of 12 correct, 0 UNPARSED` |
+
+- The same 4 pairs were wrong in all three runs, and the 8 verdict lines of the other pairs were the same in all three
+  (the verdict lines of the three logs are byte-equal). The wrong pairs, by `kind` and `qa_id`:
+  - `bare-yes-against-no`, `q-product-phones-b07ck7kb95-394147-seed`: expected `INCORRECT`, got `CORRECT`
+  - `unanswerable-invented`, `q-product-furniture-b0034jxwwc-53228-u-seed`: expected `INCORRECT`, got `CORRECT`
+  - `unanswerable-invented`, `q-product-laptops-b07wgqwnlf-46510-u-seed`: expected `INCORRECT`, got `CORRECT`
+  - `paraphrase`, `q-product-furniture-b07gbsvygk-17484-seed`: expected `CORRECT`, got `INCORRECT`
+- The cause (`design.md` §4, the RCA): not a code bug. The evidence is the reference index's `chunk_ids`, the same
+  chunks the reference writer read, and the longest failing prompt is far below `num_ctx`. Without a reference, the
+  frozen judge passes facts that the documents never mention, which is the error `judge-v1` exists to catch.
+
+**The decision** (the author's, 2026-11-11).
+- No new prompt version: a `prompt-rf-v2` written after seeing these 4 failures would be tuned on the check.
+- No reference-free run is made. `judge-rf-v1` is used for no score. `ablation/` holds no `verdicts-rf.jsonl` or
+  `rf.json`.
+- The author's labels, made without the reference (Entry 5: from the question and the gold source documents), are the
+  reference-free side.
+
+**What changes in Entry 5.**
+- (b), the reference-free judge against the author, is not computed.
+- (c) is `judge-v1` against the author, per hit bucket (`1.0`, `[0.8, 1)`, `[0.6, 0.8)`, `below 0.6`, `below 1.0`), and
+  for MISS the bucket `generated`: n, agreement with Wilson, κ.
+- Circularity: A1 = agreement of `judge-v1` and the author on hits at 1.0; A0 = the same on hits below 1.0. **Bounded**
+  if A0 ≥ A1, or A0's Wilson interval contains A1; **quantified** otherwise, with A1 − A0 reported as the inflation.
+  Both are printed with n, so a bound from about 10 pairs reads as weak.
+- The stop rules on the reference-free run (`UNPARSED` above 2 %; `prompt_eval_count` at or above `num_ctx`) no longer
+  apply: no such run is made. The sanity stop rule was applied: the prompt is not edited.
+- Everything else in Entry 5 holds: the frame, the sample, the metrics (agreement, κ, recall and precision of
+  `INCORRECT`, layer 5), hits and MISSes apart, and the counting rules (`unsure` and `UNPARSED` out of their
+  denominators, counted beside; `answerable: false` its own row).
+
+**The limit.** The overall and the per-bucket agreements now compare the same two labellers, `judge-v1` and the
+author. So item 5.2's "both schemes" are one comparison shown two ways. There is one labeller and no inter-rater
+check.

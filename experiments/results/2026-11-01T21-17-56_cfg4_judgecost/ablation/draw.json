@@ -1,0 +1,41 @@
+{
+  "written_at": "2026-11-11T05:58:57+00:00",
+  "run_id": "2026-11-01T21-17-56_cfg4_judgecost",
+  "source_judge": "judge-v1",
+  "seed": 20261111,
+  "n_miss": 21,
+  "frame": {
+    "keys": 600,
+    "excluded": {
+      "no_product_id": 16,
+      "cross_product_hit": 6
+    },
+    "by_stratum": {
+      "MISS": 521,
+      "hit": 79
+    },
+    "by_bucket": {
+      "1.0": 69,
+      "[0.6, 0.8)": 6,
+      "[0.8, 1)": 2,
+      "below 0.6": 2,
+      "generated": 521
+    }
+  },
+  "sample": {
+    "keys": 100,
+    "by_stratum": {
+      "MISS": 21,
+      "hit": 79
+    },
+    "by_bucket": {
+      "1.0": 69,
+      "[0.6, 0.8)": 6,
+      "[0.8, 1)": 2,
+      "below 0.6": 2,
+      "generated": 21
+    },
+    "answerable_false": 4
+  },
+  "sample_sha256": "721c490da4a9303ea779d573feb2ba52c05e167424f31035ef2d953010572fe2"
+}
