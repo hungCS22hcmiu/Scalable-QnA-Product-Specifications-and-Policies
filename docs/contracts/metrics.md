@@ -234,18 +234,37 @@ reported apart, as counts and as rates, and never added into one number.
 
 ### M08 — False-hit rate (headline)
 
+*Added 2026-11-12 (ADR-026, item 5.3). It adds a number beside the judged rate; no rule above changes.*
+
 - **Claim:** S3 correctness (RQ2). The cost of caching in wrong answers. The headline claim fails if the rule cannot
-  hold δ. δ ≤ 5 % is provisional until the judge's error is measured (item 5.3).
+  hold δ. δ = 5 % is final (ADR-026): it was fixed against the judge's measured error (item 5.3).
 - **Formula:** false-hit rate = `k / n`. `k` is the judged hits with verdict `INCORRECT`. `n` is the judged hits: hits
   with verdict `CORRECT` or `INCORRECT` (`UNPARSED` leaves both).
   - Every wrong hit counts, whatever its layer. An inherited error and a retrieval error are wrong answers too: the
     user gets a wrong answer either way.
   - Printed beside it, always: the count of `k` in each layer (R7: `retrieval`, `inherited`, `reuse`, `undecided`),
     the `UNPARSED` count, and M20, the miss-path error rate, as the baseline.
+  - **Corrected rate** (ADR-026), printed beside the judged rate: `corrected = (k/n − FA) / (1 − MI − FA)`, clipped to
+    [0, 1]. `k` and `n` are the ones above. `FA` and `MI` are `judge-v1`'s false-alarm and miss rates on hits against
+    the author, the `hits` block of `ablation/floor.json` (`make ablation-floor`; 7/52 and 7/27 on the cost run). The
+    value before the clip is kept as `unclipped`. The code is `noise_floor.corrected_rate`.
 - **Filter:** `mutation: off`. One cell per row. Per stratum and over all strata. The `answerable: false` queries are
   their own row (R6). Tuned on `validation`, reported on `test` (R2). The operating point `(τ, …)` is named.
 - **Denominator:** judged hits.
-- **Interval:** Wilson.
+- **Interval:** Wilson, for the judged rate.
+  - **The corrected rate's interval** is the min and max of the clipped formula over the 8 corners of a box: the
+    Wilson interval of each of `k/n`, `FA` and `MI`, at `z` = 2.394 (95 % shared over three intervals: Bonferroni).
+    The formula is monotone in each rate while the denominator is positive, so the corners hold the extremes. Joint
+    coverage is at least 95 %, so the interval is conservative.
+  - It is refused when `1 − MI − FA` is not positive at a corner. It is `consistent: false`, with no corrected rate
+    and no interval (never `[0, 0]`), when the judged interval lies wholly below `FA`'s lower end or wholly above
+    `1 − MI_lo`: the data then contradict the floor.
+  - **Two rules** (ADR-026). A point **holds δ** when its corrected rate is ≤ 0.05. It is **certified at δ** only when
+    the upper end of its corrected interval is ≤ 0.05. With the cost run's floor no point can be certified, so the
+    thesis says "holds δ", never "certified".
+  - **Worked value:** 165 of 1000 judged `INCORRECT` gives 0.0501 [0, 0.3038].
+  - The correction assumes the floor holds at every point, configuration and stratum. It was measured at
+    configuration 4, τ 0.85 only (ADR-026).
 - **Cells:** configurations 2–5, `mutation: off` (configuration 2 has Tier-1 hits only). **Data:** the judge harness
   builds the verdicts and layers now, for configuration 4. Item 6.2 runs the other cells, and they wait for item 6.0.
 

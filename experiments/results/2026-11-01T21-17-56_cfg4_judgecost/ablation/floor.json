@@ -1,0 +1,141 @@
+{
+  "written_at": "2026-11-12T08:34:27+00:00",
+  "run_id": "2026-11-01T21-17-56_cfg4_judgecost",
+  "judge": "judge-v1",
+  "sheet_sha256": "b3f689e9b1d883d1727ca65514dc11d382484221f5c1ad5f45992e01f9abc2e5",
+  "labels_sha256": "ead0a20fc97bfc2b944b26cebc2fbf30b5c6e159b2f0b0bfccdfe1ee34e01bff",
+  "citable": false,
+  "hits": {
+    "cells": {
+      "tp": 20,
+      "fa": 7,
+      "mi": 7,
+      "tn": 45,
+      "undecided": 0
+    },
+    "false_alarm": {
+      "k": 7,
+      "n": 52,
+      "rate": 0.1346,
+      "wilson95": [
+        0.0668,
+        0.2527
+      ]
+    },
+    "miss": {
+      "k": 7,
+      "n": 27,
+      "rate": 0.2593,
+      "wilson95": [
+        0.1317,
+        0.4468
+      ]
+    },
+    "disagreement": {
+      "k": 14,
+      "n": 79,
+      "rate": 0.1772,
+      "wilson95": [
+        0.1086,
+        0.2758
+      ]
+    }
+  },
+  "by_bucket": {
+    "1.0": {
+      "cells": {
+        "tp": 11,
+        "fa": 7,
+        "mi": 7,
+        "tn": 44,
+        "undecided": 0
+      },
+      "false_alarm": {
+        "k": 7,
+        "n": 51,
+        "rate": 0.1373,
+        "wilson95": [
+          0.0681,
+          0.2572
+        ]
+      },
+      "miss": {
+        "k": 7,
+        "n": 18,
+        "rate": 0.3889,
+        "wilson95": [
+          0.203,
+          0.6138
+        ]
+      },
+      "disagreement": {
+        "k": 14,
+        "n": 69,
+        "rate": 0.2029,
+        "wilson95": [
+          0.1249,
+          0.3122
+        ]
+      }
+    },
+    "below 1.0": {
+      "cells": {
+        "tp": 9,
+        "fa": 0,
+        "mi": 0,
+        "tn": 1,
+        "undecided": 0
+      },
+      "false_alarm": {
+        "k": 0,
+        "n": 1,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.7935
+        ]
+      },
+      "miss": {
+        "k": 0,
+        "n": 9,
+        "rate": 0.0,
+        "wilson95": [
+          0.0,
+          0.2992
+        ]
+      },
+      "disagreement": {
+        "k": 0,
+        "n": 10,
+        "rate": 0.0,
+        "wilson95": [
+          -0.0,
+          0.2775
+        ]
+      }
+    }
+  },
+  "correction": {
+    "formula": "corrected = (k/n - FA) / (1 - MI - FA), clipped to [0, 1]",
+    "z": 2.394,
+    "worked": {
+      "judged": {
+        "k": 165,
+        "n": 1000,
+        "rate": 0.165,
+        "wilson95": [
+          0.1433,
+          0.1893
+        ]
+      },
+      "corrected": 0.0501,
+      "unclipped": 0.0501,
+      "interval": [
+        0.0,
+        0.3038
+      ],
+      "consistent": true,
+      "z": 2.394
+    }
+  }
+}

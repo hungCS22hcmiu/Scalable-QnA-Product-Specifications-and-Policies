@@ -65,6 +65,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-023 | References are written by a pinned reference writer, `qwen3.5:4b-q4_K_M` at temperature 0; the served generator stays `qwen3.5:2b-q4_K_M` | in force (the author, 2026-11-01; amends ADR-022's reference definition) | none — no runs yet; Entry 2's 2B reference set is superseded for verdicts and kept as the baseline |
 | ADR-024 | With a `product_id`, the POLICY namespace names the product as well as the policy document | decided (the author, 2026-11-07; option (b) of item 5.6, closes F-NAME); **built 2026-11-10** (trail `docs/work/2026-11-10-policy-namespace-product/`, `interfaces.md` v0.32) | no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) and `Tier 2.md` Examples A and B are read as "before ADR-024" |
 | ADR-025 | Every `/ask` request must carry a `product_id` | in force (the author, 2026-11-08; built the same day, `interfaces.md` v0.30); **open:** the 16 validation queries with none are dropped (decided 2026-11-08), but the workload is not regenerated yet; it must be before the next replay of validation | none — no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) holds 16 requests that would now get `400` |
+| ADR-026 | δ stays 5 %, read through a correction for `judge-v1`'s measured error; the judge alone cannot certify it | in force (the author, 2026-11-12) | none — no M08 rate has been reported against δ |
 
 ---
 
@@ -83,7 +84,7 @@ doing so needs a **new numbered entry** in this file saying exactly that.
 | Vector index | **FLAT (exact)**, COSINE | Approximate retrieval would make `retrieve(q)` nondeterministic and inject overlap noise indistinguishable from the provenance signal. No mid-study HNSW, ever |
 | Retrieval depth | `top_k` fixed | It is the denominator of the containment measure; changing it rescales θ silently |
 | Cache capacity | `C / K = 0.25` | A ratio of the frozen workload's distinct-query count, so capacity scales with the corpus instead of being a magic number. The **gateway** enforces it; Redis evicts nothing |
-| False-hit budget | **δ ≤ 5 %**, provisional | The target operating point for θ/τ tuning until the judge's measured error floor finalises it |
+| False-hit budget | **δ = 5 %**, final (ADR-026) | The judge's false-alarm rate on hits, 7/52 = 13.5 %, is the noise floor of M08 and is above δ, so `judge-v1` alone cannot certify δ. M08 prints a corrected rate beside the judged one. A point holds δ when its corrected rate is ≤ 5 %; the thesis says "holds δ", never "certified" |
 | Support-gate threshold | **`τ_s = 0.6`**, pinned | Taken from the published value. It is **never swept** — sweeping it would turn an adopted mechanism into a tuned one |
 | Support-gate lexical score definition | `S_lex = \|content-tokens(a) ∩ tokens(C)\| / \|content-tokens(a)\|`: stopwords = **Lucene `StopAnalyzer.ENGLISH_STOP_WORDS_SET`** (33 words, transcribed in `reuse/support.go`); tokens under 3 characters dropped; lowercase then split on `[^a-z0-9]+` (ASCII-only, deliberately not `cache.Normalize`); **no stemming**; sets, not multisets; refused when `S_lex < τ_s` | `τ_s` is pinned and never swept, so the list, the length rule and the tokenizer carry the leverage a tuned threshold would: an edit to any of them silently rescales every `support_lex` logged before it. **Added 2026-10-12 by item 2.1, not pre-thesis.** The proposal specifies only "a fixed stopword list", so Lucene's is this thesis's choice, not the published system's, and that `τ_s = 0.6` transfers to this definition is **assumed, not measured** (to be checked on ~10–20 real generated answers before item 2.3). Pinned by `TestSupportStopwordsArePinned` and `TestContentTokensRules`; record: `docs/work/2026-10-10-support-gate-lexical-arm/approvals.md`. **After the first logged run, any edit to the list, the length rule or the tokenizer needs a numbered ADR with an `Invalidates:` line.** **"After the first logged run" means the first run on `v1` (a citable run), not a `dev-v0` run, which is not citable; decided in ADR-009, 2026-10-14. The unit list stays draft until the Phase 3 freeze and is frozen before any false-hit sample is looked at.** |
 | Support-gate numeric arm definition | Every number in the cached answer must be in **one** evidence chunk that holds the same value and, if a listed unit follows the number, the same unit attached to a number in that chunk; a number the arm cannot read blocks. Number = ASCII digits with `,ddd` groups and a `.d+` part, compared clean (no commas, no leading zeros, no trailing zeros after the point, integer zeros kept). Unit = the word right after the number (glued, after spaces, or after one hyphen; a space is ` `, tab, `U+00A0` or `U+202F`, a hyphen is `-` or `U+2011`, a line break is neither), only if on a **closed list**: second…year · g, kg, mg, lb, oz · mm, cm, km, inch, ft · ml, litre · w, kw, v, mah, wh · hz…db · rpm · percent (`%`) · `$ € £` before; aliases; a plural `s` is dropped only if 2+ letters remain. Letter-digit tokens (`IPX7`, `3rd`) are *codes* and must appear whole. Number words (`zero`…`ninety`, compounds) are read only before a listed unit. Unreadable = refuse: `1,5`, `5.3.1`, `.5`, non-ASCII number characters, `hundred`/`half`/… before a unit. Chunks are read alone, never joined. No threshold | The arm has no threshold, so the grammar is its only knob: an edit to any rule, list or table silently rescales every `support_numeric_ok` logged before it. **Added 2026-10-14 by item 2.2, not pre-thesis.** The rules are this thesis's choice, not the published system's. The unit list is **draft until the Phase 3 corpus freeze** and is frozen before any false-hit sample is looked at. **After the first logged run, any edit needs a numbered ADR with an `Invalidates:` line.** Known gaps, accepted: right number with the wrong unit in the same chunk; words between number and unit (counted in `Unitless`); `a year`; other Unicode spaces and dashes (en dash, `U+2010`, thin space) between number and unit (the answer is then read by value only, and in evidence the unit is lost, so that chunk cannot support a unit). Pinned by `TestNumericReaderGolden`, `TestNumericReaderRules`, `TestNumericUnitListPinned`, `TestNumericNumberWordsPinned`; full text: `docs/work/2026-10-14-numeric-arm/approvals.md` **"After the first logged run" means the first run on `v1` (a citable run), not a `dev-v0` run, which is not citable; decided in ADR-009, 2026-10-14. The unit list stays draft until the Phase 3 freeze and is frozen before any false-hit sample is looked at.** |
@@ -2135,3 +2136,75 @@ check that the id names a real product. **Built 2026-11-08**, with the new test 
     built"). The `types.go` comment is updated.
 - **Invalidates:** no citable run. The cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) holds the 16
   requests with no `product_id`; under ADR-025 they would get `400`.
+
+### ADR-026 — δ stays 5 %, read through a correction for `judge-v1`'s measured error; the judge alone cannot certify it
+**Decided (method)** · 2026-11-12 · the author · *super-plan.md item 5.3; metrics.md M08; preregistration.md Entry 7; trail docs/work/2026-11-12-delta-noise-floor/*
+
+**δ = 5 %, and it is final.** The value does not change; it stops being provisional. The judge's own error on hits is
+the noise floor of M08, and that floor is above 5 %. So `judge-v1` alone cannot certify δ. M08 prints two numbers
+side by side: the judged rate, and a corrected rate with an interval.
+
+- **Two rules.** A point **holds δ** when its corrected rate is ≤ 5 %. A point is **certified at δ** only when the
+  upper end of its corrected interval is ≤ 5 %.
+- **The floor** (`ablation/floor.json`, sha256 `ca82488e3f51b46314ea9631af30f85fdad6ea6b1b76f0d004ff0b6404e36204`).
+  Source: the 79 hits of item 5.2 in the cost run `2026-11-01T21-17-56_cfg4_judgecost` (configuration 4, gate on,
+  MIXED off, `v1` validation, τ 0.85, `citable: no`), judged by `judge-v1` and labelled by the author. Wilson 95 %:
+  - **False alarm** (judge `INCORRECT`, author `correct`): 7/52 = 13.5 % [6.7, 25.3]. This is **the** noise floor: the
+    rate the judge gives a cache with no false hits. All 7 are in the `1.0` overlap bucket (7/51).
+  - **Miss** (judge `CORRECT`, author `incorrect`): 7/27 = 25.9 % [13.2, 44.7].
+  - **Disagreement:** 14/79 = 17.7 % [10.9, 27.6]. One of the 14 is a wrong reference (layer 5), so reference error is
+    already inside this number.
+- **The correction** (the Rogan–Gladen estimator). For `k` of `n` hits judged `INCORRECT`, with `FA` = 7/52 and
+  `MI` = 7/27: `corrected = (k/n − FA) / (1 − MI − FA)`, clipped to [0, 1]. The value before the clip is kept as
+  `unclipped`. The interval is the min and max of the clipped formula over the 8 corners of a box: the Wilson
+  interval of `k/n`, of `FA` and of `MI`, each at `z` = 2.394 (95 % shared over three intervals, Bonferroni). It is
+  refused when `1 − MI − FA` is not positive at any corner (here its smallest value is 0.226). It is `consistent:
+  false`, with no corrected rate and no interval, when the judged interval lies wholly below `FA`'s lower end or
+  wholly above `1 − MI_lo`: the data then contradict the floor.
+- **Worked value.** 165 of 1000 judged `INCORRECT` gives 0.0501 [0, 0.3038]. 134 of 1000 (a judged rate at the floor)
+  gives 0 (unclipped −0.001) [0, 0.2307]. `noise_floor.corrected_rate` is tested against both.
+
+- **Rationale.**
+  - **The proposal's own definition.** δ was chosen "for measurability": the judge's error against the human sample
+    is the noise floor of M08, and "a budget below it cannot be certified" (`Final_Proposal.md` §9, "Target operating
+    point"). Item 5.2 measured that error, so δ can now be fixed against it.
+  - **The gap is the reason.** A cache with no false hits would be judged about 13.5 % wrong, and a true rate of 5 %
+    would be judged about 16.5 %. Even the low end of the false-alarm interval (6.7 %) is above 5 %.
+  - **Nothing is hidden.** The judged rate keeps its meaning and its counting rule (`counting-v1`). The corrected
+    rate is a second number beside it, so a reader can see both.
+  - **The deviation of item 5.2 barely moves the floor.** After two AI reviews the author changed 4 labels (27, 51 and
+    54 to `correct`, 93 to `incorrect`). With the original labels the hits give 7/51 false alarms, 8/28 misses and
+    15/79 disagreements (items 51, 54 and 93 are hits; item 27 is a MISS).
+  - **Verdicts do not depend on load.** At temperature 0, item 5.1 re-judged 30 keys with 0 flips, so the memory
+    pressure of 1–2 during the cost run's judging does not change these counts. They stay `citable: no`, like every
+    number from item 5.2.
+- **Alternatives.**
+  - **(B) Raise δ above the floor**, to about 25–28 %. Then δ could be certified, but "false hits at most 25 %" is a
+    weak headline. Not taken.
+  - **(C) The author labels the hits at every reported operating point.** It needs many more labels from one
+    labeller, who also wrote the rule. Not taken.
+  - **A new judge version to lower the floor.** Possible, but it means a new prompt, a new pre-registration entry and
+    new labels. It is a new item, not part of this decision.
+  - **A seeded Monte Carlo interval over Beta draws.** It gives a narrower interval, but Python does not promise the
+    same `betavariate` stream across versions, so a recorded interval might not regenerate (item 5.4). The box above
+    is deterministic and conservative.
+- **Consequences.**
+  - **With this floor no point can be certified.** Even a judged rate at the floor has an upper end of 0.23. The
+    thesis says "holds δ" and never "certified". Item 6.1-b chooses which of the two rules its selection objective
+    uses.
+  - **The 3.5 % row** (`Final_Proposal.md` §9.2) stays a second row on the same scale. A corrected 3.5 % is a judged
+    15.6 %, and it is also uncertified.
+  - **The correction assumes that `FA` and `MI` hold at every point, configuration and stratum.** They were measured
+    only at configuration 4, τ 0.85, gate on, on validation, and mostly in bucket `1.0` (below `1.0` has one
+    author-`correct` hit, so only the overall hits are used). This is an assumption, not a measurement. Only labelling
+    hits from another cell would settle it.
+  - **The interval is conservative.** Its joint coverage is at least 95 %; how much more is not known.
+  - **More author labels would narrow the box.** The floor's `n` are 52 and 27.
+  - **M20 (the miss path) is not corrected.** Its floor would rest on 21 MISS keys.
+  - **New frozen values:** the correction formula, its interval method with `z` = 2.394, and the two rules. **New
+    recorded value:** the noise floor (`floor.json`). Nothing else changes: `judge-v1`, its prompt, the references,
+    `τ_s` and the served generator stay as they are. Pre-registration Entry 7 holds all of it before item 6.1 writes
+    its first entry.
+  - **Built:** `experiments/scripts/noise_floor.py` and `make ablation-floor`; `interfaces.md` §I, v0.34.
+- **Invalidates:** none — no M08 rate and no frontier point has been reported against δ. The cost run
+  `2026-11-01T21-17-56_cfg4_judgecost` is read and not changed.

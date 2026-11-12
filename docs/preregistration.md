@@ -264,3 +264,49 @@ reference, three times (`make ablation-rf-sanity`; `evidence/private/rf-sanity-{
 **The limit.** The overall and the per-bucket agreements now compare the same two labellers, `judge-v1` and the
 author. So item 5.2's "both schemes" are one comparison shown two ways. There is one labeller and no inter-rater
 check.
+
+---
+
+## Entry 7 — 2026-11-12 08:36Z — δ and the judge's noise floor (item 5.3)
+
+Written after item 5.2 locked its files and after `ablation/floor.json` (`written_at` 2026-11-12T08:34:27+00:00), and
+**before any item 6.1 entry**: the four names `6.1-a` to `6.1-d` above are still empty, and no entry fills them here.
+Item 5.3 of `super-plan.md`; ADR-026; trail `docs/work/2026-11-12-delta-noise-floor/`. It cites Entries 1, 5 and 6 and
+edits none of them. `judge-v1`, its prompt, the references, `τ_s` and the served generator are unchanged. Counts and
+hashes only: no question, answer or evidence text is in this entry. Every number is `citable: no`.
+
+**δ.** δ = 5 %, final (ADR-026). It stops being provisional; its value does not change.
+
+**The floor.** Read from `experiments/results/2026-11-01T21-17-56_cfg4_judgecost/ablation/floor.json` (sha256
+**`ca82488e3f51b46314ea9631af30f85fdad6ea6b1b76f0d004ff0b6404e36204`**; `labels_sha256`
+`ead0a20fc97bfc2b944b26cebc2fbf30b5c6e159b2f0b0bfccdfe1ee34e01bff`; `sheet_sha256`
+`b3f689e9b1d883d1727ca65514dc11d382484221f5c1ad5f45992e01f9abc2e5`, the one in `scores.json`). The 79 hits of item 5.2 (the
+cost run: configuration 4, gate on, MIXED off, `v1` validation, τ 0.85), `judge-v1` against the author's locked labels.
+MISS keys are not in it. Cells: tp 20, fa 7, mi 7, tn 45, undecided 0.
+
+| Rate | k / n | Rate | Wilson 95 % |
+| :--- | :--- | :--- | :--- |
+| False alarm (judge `INCORRECT`, author `correct`) = the noise floor | 7 / 52 | 0.135 | [0.067, 0.253] |
+| Miss (judge `CORRECT`, author `incorrect`) | 7 / 27 | 0.259 | [0.132, 0.447] |
+| Disagreement | 14 / 79 | 0.177 | [0.109, 0.276] |
+
+Bucket `1.0`: false alarm 7 / 51. Bucket `below 1.0`: false alarm 0 / 1. The correction uses the overall hits only.
+
+**The correction.** For `k` of `n` hits judged `INCORRECT`, with `FA` = 7/52 and `MI` = 7/27 (the first and second rows
+above): `corrected = (k/n − FA) / (1 − MI − FA)`, clipped to [0, 1]; the value before the clip is kept as `unclipped`.
+- **Interval.** The Wilson interval of each of `k/n`, `FA` and `MI`, at `z` = 2.394 (95 % shared over three
+  intervals: Bonferroni, each at 1 − 0.05/3). The corrected interval is the min and max of the clipped formula over the
+  8 corners of that box.
+- **Refused** when `1 − MI − FA` is not positive at any corner. With this floor its smallest value is 0.226.
+- **Inconsistent** (`consistent: false`, no corrected rate, no interval) when the judged interval lies wholly below
+  `FA`'s lower end or wholly above `1 − MI_lo`.
+- **Worked value:** 165 of 1000 judged `INCORRECT` gives 0.0501 [0, 0.3038]. 134 of 1000 gives 0 (unclipped −0.001)
+  [0, 0.2307]. 0 of 200 is inconsistent.
+
+**The two rules.** A point **holds δ** when its corrected rate is ≤ 0.05. It is **certified at δ** only when the upper
+end of its corrected interval is ≤ 0.05. With this floor no point can be certified, so the thesis says "holds δ" and
+never "certified". Which of the two rules item 6.1's selection objective uses is item 6.1-b's, and is not fixed here.
+The second row of the budget, 3.5 %, stays on the same scale and is also uncertified.
+
+**The limit.** `FA` and `MI` are taken to hold at every point, configuration and stratum. They were measured only at
+configuration 4, τ 0.85, gate on, on validation, and the false alarms are all in bucket `1.0`. This is an assumption.

@@ -1,0 +1,18 @@
+python3 experiments/scripts/noise_floor.py --run-id "2026-11-01T21-17-56_cfg4_judgecost"
+the noise floor of judge-v1 against the author, over hits (run 2026-11-01T21-17-56_cfg4_judgecost, citable: no)
+hits: tp 20, fa 7, mi 7, tn 45, undecided 0
+    false alarm  7/52 = 0.135 [0.067, 0.253]
+    miss         7/27 = 0.259 [0.132, 0.447]
+    disagreement 14/79 = 0.177 [0.109, 0.276]
+bucket 1.0: tp 11, fa 7, mi 7, tn 44, undecided 0
+    false alarm  7/51 = 0.137 [0.068, 0.257]
+    miss         7/18 = 0.389 [0.203, 0.614]
+    disagreement 14/69 = 0.203 [0.125, 0.312]
+bucket below 1.0: tp 9, fa 0, mi 0, tn 1, undecided 0
+    false alarm  0/1 = 0.000 [0.000, 0.793]
+    miss         0/9 = 0.000 [0.000, 0.299]
+    disagreement 0/10 = 0.000 [-0.000, 0.278]
+correction: corrected = (k/n - FA) / (1 - MI - FA), clipped to [0, 1], z 2.394
+worked value 165/1000: corrected 0.0501 [0.0, 0.3038] (unclipped 0.0501, consistent True)
+  wrote /Users/hung/Desktop/Sem1/thesis/experiments/results/2026-11-01T21-17-56_cfg4_judgecost/ablation/floor.json
+ca82488e3f51b46314ea9631af30f85fdad6ea6b1b76f0d004ff0b6404e36204  experiments/results/2026-11-01T21-17-56_cfg4_judgecost/ablation/floor.json

@@ -50,7 +50,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity ablation-draw ablation-rf-sanity ablation-sheet ablation-lock ablation-score
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity ablation-draw ablation-rf-sanity ablation-sheet ablation-lock ablation-score ablation-floor
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -626,6 +626,10 @@ ablation-lock: ## Item 5.2: lock the author's labels, then write the second shee
 ablation-score: ## Item 5.2: score the ablation, write refcheck.jsonl and scores.json, print the tables (RUN_ID=<id>)
 	@test -n "$(RUN_ID)" || { echo "usage: make ablation-score RUN_ID=<id>"; exit 2; }
 	$(PY) experiments/scripts/label_ablation.py score --run-id "$(RUN_ID)" --sheet "$(ABLATION_TRAIL)/evidence/private/sheet.md" --refsheet "$(ABLATION_TRAIL)/evidence/private/refsheet.md"
+
+ablation-floor: ## Item 5.3: the judge's noise floor and the correction, from the locked ablation files (RUN_ID=<id>)
+	@test -n "$(RUN_ID)" || { echo "usage: make ablation-floor RUN_ID=<id>"; exit 2; }
+	$(PY) experiments/scripts/noise_floor.py --run-id "$(RUN_ID)"
 
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
