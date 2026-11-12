@@ -229,6 +229,11 @@ func incomplete(c runCounts) error {
 	return errors.New(strings.Join(why, "; "))
 }
 
+// shutdownGrace is how long a shutdown waits for in-flight requests. At one permit plus the default
+// queue budget of 2 (ADR-003), up to three generations can be in line, and no token cap bounds one,
+// so 60 s is a choice, not a bound. A second Ctrl-C forces the exit.
+const shutdownGrace = 60 * time.Second
+
 func getenvInt(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -467,27 +472,45 @@ func main() {
 		}
 	}
 
-	// Graceful shutdown exists for ONE reason: the evaluation log is buffered, and a hard exit
-	// would discard whatever had not been written -- silently shortening the run's own record of
-	// itself. Flush before leaving.
+	// Graceful shutdown has two jobs. The evaluation log is buffered, and a hard exit would discard
+	// whatever had not been written -- silently shortening the run's own record of itself. And a
+	// request in flight must finish BEFORE the dependency map and the log close: its write-back puts
+	// the entry in the tiers first and calls Deps.Register after, so an exit between the two leaves
+	// an entry no purge can reach (invariant 1), and its record would be refused by a closed log
+	// without being counted. coalesce.Do runs the generation in the handler's own goroutine, so
+	// waiting for the handlers to return covers the write-back and the registration.
 	srv := &http.Server{Addr: httpAddr, Handler: mux}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-stop
-		log.Printf("gateway: shutting down, flushing the evaluation log")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// A second Ctrl-C now takes Go's default action and kills the process at once: the way out
+		// when a generation hangs and the operator will not wait for shutdownGrace.
+		signal.Stop(stop)
+		log.Printf("gateway: shutting down: no new requests; waiting up to %s for in-flight ones "+
+			"(Ctrl-C again to force)", shutdownGrace)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("gateway: WARNING requests still in flight after %s (%v). Their records are lost "+
+				"uncounted, and a write-back cut between the tier write and Deps.Register leaves an entry "+
+				"no purge can reach. Do not cite this run; flush the cache before the next one.",
+				shutdownGrace, err)
+		}
 	}()
 
 	log.Printf("gateway listening on %s (redis=%s rag=%s)", httpAddr, redisAddr, ragGRPCAddr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Printf("gateway: %v", err)
+	} else {
+		// ListenAndServe returns as soon as Shutdown STARTS, not when it ends. Wait here, or the map
+		// and the log below close while a handler is still generating.
+		<-shutdownDone
 	}
-	// Drain the dependency map before the evaluation log closes. ListenAndServe returns as soon as
-	// Shutdown STARTS, so a write-back still in flight can register after Close; it is counted in
-	// Dropped(), not lost (the existing F-F window, not widened).
+	// Drain the dependency map before the evaluation log closes. Every handler has returned by now
+	// (unless shutdownGrace ran out, which is logged above), so no write-back registers after Close.
 	closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := depMap.Close(closeCtx); err != nil {
 		log.Printf("gateway: closing the dependency map: %v", err)
