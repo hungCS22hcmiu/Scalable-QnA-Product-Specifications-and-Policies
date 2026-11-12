@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -196,6 +197,32 @@ type shedResponse struct {
 	RequestID string `json:"request_id"`
 }
 
+// maxAskBody is the most bytes /ask reads from a request body: 8,192, about 34 times the longest body the
+// frozen v1 workload sends (242 bytes). A larger body is refused with 413 before any record exists
+// (interfaces.md §A v0.36).
+const maxAskBody = 8 << 10
+
+// decodeAsk reads the /ask body through a size limit and decodes it. A body over maxAskBody, however it
+// shows itself, returns a *http.MaxBytesError, so one errors.As in the caller covers every size case. The
+// order is: the declared length first, before a byte is read; then the JSON object; then the rest of the
+// body through the same reader. Decode stops at the end of the first JSON value, so without the last read a
+// small object followed by a large padding would never touch the limit. Data after the object that fits under
+// the limit is still ignored, as before.
+func decodeAsk(w http.ResponseWriter, r *http.Request) (askRequest, error) {
+	var req askRequest
+	if r.ContentLength > maxAskBody {
+		return req, &http.MaxBytesError{Limit: maxAskBody}
+	}
+	mb := http.MaxBytesReader(w, r.Body, maxAskBody)
+	if err := json.NewDecoder(mb).Decode(&req); err != nil {
+		return req, err
+	}
+	if _, err := io.Copy(io.Discard, mb); err != nil {
+		return req, err
+	}
+	return req, nil
+}
+
 func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
@@ -204,8 +231,13 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req askRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Question == "" {
+	req, decodeErr := decodeAsk(w, r)
+	var tooLarge *http.MaxBytesError
+	if errors.As(decodeErr, &tooLarge) {
+		http.Error(w, "request too large: the body is over 8192 bytes", http.StatusRequestEntityTooLarge)
+		return
+	}
+	if decodeErr != nil || req.Question == "" {
 		http.Error(w, "invalid request: expected {\"question\": \"...\", \"product_id\": \"...\"}", http.StatusBadRequest)
 		return
 	}

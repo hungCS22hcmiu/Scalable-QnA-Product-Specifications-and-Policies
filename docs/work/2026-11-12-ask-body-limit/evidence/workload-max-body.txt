@@ -1,0 +1,5 @@
+data/workload-v1.json: queries=1274 max_body_replay_bytes=242 max_body_k6_bytes=239
+data/workload-v1-validation.json: queries=622 max_body_replay_bytes=242 max_body_k6_bytes=239
+data/workload-v1-test.json: queries=652 max_body_replay_bytes=239 max_body_k6_bytes=236
+overall: max_body_replay_bytes=242 max_body_k6_bytes=239 limit=8192
+below_limit: replay=True k6=True
