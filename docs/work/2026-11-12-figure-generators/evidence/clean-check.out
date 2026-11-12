@@ -1,0 +1,6 @@
+RAW_ARCHIVE_DIR="/Users/hung/thesis-raw-archive" bash experiments/scripts/figures_clean_check.sh
+step 1: make figures in the working tree, 4 figure files hashed
+step 2: clean copy of 1114 files, with no raw/, judge/ or figures/
+step 3: make figures exits non-zero in the copy and names the missing raw/
+step 4: restored and checked 1 run(s) from /Users/hung/thesis-raw-archive
+step 5: IDENTICAL 4 files

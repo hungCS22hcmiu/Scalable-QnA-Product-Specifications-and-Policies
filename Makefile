@@ -50,7 +50,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity ablation-draw ablation-rf-sanity ablation-sheet ablation-lock ablation-score ablation-floor
+.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity ablation-draw ablation-rf-sanity ablation-sheet ablation-lock ablation-score ablation-floor raw-archive raw-check raw-restore figures-clean-check
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -631,6 +631,26 @@ ablation-floor: ## Item 5.3: the judge's noise floor and the correction, from th
 	@test -n "$(RUN_ID)" || { echo "usage: make ablation-floor RUN_ID=<id>"; exit 2; }
 	$(PY) experiments/scripts/noise_floor.py --run-id "$(RUN_ID)"
 
+# The raw archive (item 5.4, ADR-027). A run's raw/ and judge/ hold PQA text, so they are gitignored. `raw-archive`
+# writes one tar per run to $(RAW_ARCHIVE_DIR), outside the repository and never pushed, and the tracked hash list
+# results/<run>/archive.sha256. Run it right after the run's last write-once step (`make judge` for a judged run).
+# `raw-restore` puts the two folders back on a clean checkout and checks them against the list.
+RAW_ARCHIVE_DIR ?= $(HOME)/thesis-raw-archive
+
+raw-archive: ## Item 5.4: archive a run's raw/ and judge/ outside the repo and write archive.sha256 (RUN_ID=<id>)
+	@test -n "$(RUN_ID)" || { echo "usage: make raw-archive RUN_ID=<id>"; exit 2; }
+	$(PY) experiments/scripts/raw_archive.py archive --run-id "$(RUN_ID)" --archive-dir "$(RAW_ARCHIVE_DIR)"
+
+raw-check: ## Item 5.4: check raw/ and judge/ against archive.sha256 (RUN_ID=<id>; without it, every run)
+	$(PY) experiments/scripts/raw_archive.py check $(if $(RUN_ID),--run-id "$(RUN_ID)") --archive-dir "$(RAW_ARCHIVE_DIR)"
+
+raw-restore: ## Item 5.4: put raw/ and judge/ back from the archive, then check them (RUN_ID=<id>)
+	@test -n "$(RUN_ID)" || { echo "usage: make raw-restore RUN_ID=<id>"; exit 2; }
+	$(PY) experiments/scripts/raw_archive.py restore --run-id "$(RUN_ID)" --archive-dir "$(RAW_ARCHIVE_DIR)"
+
+figures-clean-check: ## Item 5.4: a clean copy plus the archive draws byte-identical figures (the Phase 5 exit)
+	RAW_ARCHIVE_DIR="$(RAW_ARCHIVE_DIR)" bash experiments/scripts/figures_clean_check.sh
+
 load-smoke: ## k6 harness shakedown against a LOCAL gateway (NOT a measurement)
 	@command -v k6 >/dev/null || { echo "SKIPPED -- k6 not installed"; exit 0; }
 	@lsof -ti tcp:8080 >/dev/null 2>&1 || { echo "FAIL -- no gateway on :8080 (make dev)"; exit 1; }
@@ -898,8 +918,8 @@ ui: ## Build the demo UI bundle. Node is BUILD-time only.
 	cd ui && npm install --no-audit --no-fund && npm run build
 	@echo "  OK -- restart 'make dev' to pick it up, then open http://localhost:8080"
 
-figures: ## Regenerate every figure from raw/ (raw is write-once)
-	$(PY) experiments/scripts/make_figures.py
+figures: ## Regenerate every figure from raw/ (raw is write-once); refuses a run whose raw/ is missing or changed
+	PYTHONHASHSEED=0 $(PY) experiments/scripts/make_figures.py
 
 # NOTE: uses grep, not rg. `rg` is a zsh alias here, not a binary on PATH, so under
 # make's /bin/bash it silently vanished and every check reported "clean" — a vacuous

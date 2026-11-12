@@ -36,8 +36,8 @@ Both services are real and running end-to-end.
   purge and the epoch guard; Phase 4, closed 2026-10-29) are all built and tested. `httpapi/` is tested on
   every exit path of `Ask` (item 1.2, 2026-10-04), against fakes: Redis, Ollama and Python are not needed,
   and Redis semantics stay `cache/`'s to test.
-- **Not built yet:** the Phase 5 judge harness and figure generators (`make figures` calls a script that
-  does not exist), and configuration selection: `CONFIG_ID` only labels the record until item 6.0.
+- **Not built yet:** the Phase 5 judge harness, and configuration selection: `CONFIG_ID` only labels the
+  record until item 6.0.
 
 **Commands that work today:**
 - `cd rag && pip3 install -e '.[dev]'` — install the RAG service + dev tools.

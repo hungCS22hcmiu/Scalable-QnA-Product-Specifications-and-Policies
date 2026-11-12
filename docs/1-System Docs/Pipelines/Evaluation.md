@@ -113,7 +113,7 @@ figure is never drawn by hand.
 | judge harness, references, dedup | ⬜ | item 5.1 |
 | human-verified pairs, labelling ablation | ⬜ | item 5.2 |
 | δ finalised | ⬜ (5 % provisional) | item 5.3 |
-| figure generators (`make figures`) | ⬜ the target calls a script that does not exist | item 5.4 |
+| figure generators (`make figures`) | ✅ built 2026-11-12 (item 5.4, ADR-027): it draws F10 and F16 from the tracked files, after it checks `raw/` and `judge/` against `archive.sha256`; later phases add their figures | item 5.4 |
 
 ## 4. Which runs feed which result
 

@@ -1,6 +1,6 @@
 # Interface & Data Contracts
 
-**Status:** Draft v0.34 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-11-12
+**Status:** Draft v0.35 · **Owner:** thesis author · **Created:** 2026-07-23 · **Revised:** 2026-11-12
 **Companion to:** `Final_Proposal.md` (§6 architecture, §7 stack), `decisions.md` (frozen choices).
 
 **Purpose.** Pin the *seams* the pillars share — the HTTP API, the Go↔Python gRPC boundary, the chunk-ID scheme, the Redis cache/dependency schemas, and the invalidation event — **before** build work starts (timeline W5–W7 wires the gateway↔RAG seam; W9–W11 the invalidation map). These contracts are the single reuse-critical decision set: get the chunk-ID and provenance shape right once, or re-plumb them twice. Contracts here are **frozen**; any change requires a new entry in `decisions.md`.
@@ -1007,13 +1007,66 @@ number it writes is `citable: no`. One target:
 | :--- | :--- |
 | `results/{run_id}/ablation/floor.json` | `written_at`, `run_id`, `judge` (`judge-v1`), `sheet_sha256`, `labels_sha256` (of the bytes of `labels.jsonl`), `citable` (`false`), `hits` and `by_bucket` (`1.0`, `below 1.0`; each holds `cells` with `tp`, `fa`, `mi`, `tn` and `undecided`, and `false_alarm`, `miss` and `disagreement` as `k`, `n`, `rate` and `wilson95`), and `correction` (`formula`, `z` 2.394, `worked`: the value for 165 of 1000). No verdict key and no text. Committed |
 
+### The raw archive and figures (item 5.4, v0.35)
+
+`experiments/scripts/raw_archive.py` keeps a run's `raw/` and `judge/` outside the repository and proves they are
+unchanged (ADR-027). `experiments/scripts/make_figures.py` draws the figures from a run's tracked files, and only after
+that proof. Neither loads a model, and every number is `citable: no` unless its source says `citable: true`.
+
+```
+experiments/results/{run_id}/
+├── manifest.yaml        tracked
+├── archive.sha256       tracked: the hash list, written last and once by `make raw-archive`
+├── raw/  judge/         gitignored: kept in the archive, put back by `make raw-restore`
+├── ablation/            tracked
+└── figures/             gitignored: emptied and redrawn by every `make figures`
+    ├── {name}.pdf
+    └── {name}.json
+$RAW_ARCHIVE_DIR/{run_id}.tar     outside the repository, never pushed; default ~/thesis-raw-archive/
+```
+
+| File | Holds |
+| :--- | :--- |
+| `results/{run_id}/archive.sha256` | One `<sha256>  <path>` line (two spaces, the `shasum -a 256` format) per file under `raw/` and `judge/`, sorted by path, paths relative to the run folder in POSIX form. `.DS_Store` is not listed. Paths and hashes only, no text. `shasum -a 256 -c archive.sha256` in the run folder checks it with no code of ours. A run that is never judged has no `judge/`, so its list covers `raw/` only. Tracked |
+| `$RAW_ARCHIVE_DIR/{run_id}.tar` | An uncompressed tar of regular files only, members sorted by path and named relative to the run folder (`raw/…`, `judge/…`). It holds PQA text. Never copied into the repository |
+| `results/{run_id}/figures/{name}.pdf` | The figure. It holds no date. Its footer reads `run <run_id> · citable: no` (or `yes`). Gitignored |
+| `results/{run_id}/figures/{name}.json` | `figure`, `run_id`, `citable` (true only when the source file says `citable: true`; `scores.json` has no such field, so F10 is `false`), `source` (one `{path, sha256}` per input file) and `values` (what the PDF plots, copied from the source and never recomputed, except F16, which calls `noise_floor.corrected_rate`). Sorted keys, indent 2, a final newline, no timestamp. Gitignored |
+
+The registered figures, in `make_figures.FIGURES`: `F10-agreement-by-bucket` from `ablation/scores.json` and
+`F16-noise-floor-correction` from `ablation/floor.json`. A later item adds its figures to the same list.
+
+Five targets:
+- `make raw-archive RUN_ID=…` refuses, and writes nothing, when `manifest.yaml` or `raw/` is missing, when the list or
+  the tar exists, or when the run is not consistent: a `raw/answers/<x>.txt` that does not hash to `x`, a non-null
+  `answer_sha256` with no file, or a `requests.jsonl` whose line count is not the manifest's `records.count`. It then
+  writes the tar to `<run_id>.tar.partial`, renames it, reads it back against the files, and writes the list last. It
+  never overwrites. A refusal prints `REFUSED: …` and exits 2.
+- `make raw-check [RUN_ID=…]` exits 0, or 1 and prints each problem: `no hash list`, `no raw/`, `missing: <path>`,
+  `changed: <path>`, `added: <path>`. Without `RUN_ID` it checks every folder that has `manifest.yaml`; a run with no
+  list is `no hash list`, and no run at all is exit 1.
+- `make raw-restore RUN_ID=…` refuses, and extracts nothing, when the list or the tar is missing, when `raw/` or
+  `judge/` exists, or when a tar member is not a regular file under `raw/` or `judge/` (a link, a device, an absolute
+  path, `..`). It extracts, then runs the check, and a problem is a refusal (exit 2).
+- `make figures` runs in this order. The matplotlib version must be the pin in `experiments/requirements.txt`
+  (`matplotlib==3.10.8`), else exit 2 before anything is drawn. Then `raw-check` on every run; any problem prints
+  each one (with `make raw-restore RUN_ID=<id>` when `raw/` is missing) and exits 1 with nothing drawn. Then each run's
+  `figures/` is emptied. Then each figure and run prints `built <name> <run_id>`, or `not applicable <name> <run_id>:
+  <input>` naming the first missing input. It exits 1 if a registered figure was built for no run. A folder with no
+  `manifest.yaml` is not a run: `skipped <folder>: no manifest.yaml`.
+- `make figures-clean-check` copies the repository's tracked and untracked, not-ignored files into a temp folder. It
+  checks that `make figures` fails there and names `raw/`, runs `raw-restore` and `raw-check` for each run that has a
+  list, and checks that `make figures` then gives the same sha256 as the working tree for every file under
+  `figures/`. It prints `IDENTICAL <n> files`.
+
+No wire shape, `.proto`, Redis, gateway or §H change. `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched.
+
 ---
 
 ## Versioning
 
 These contracts are frozen for the study. A change to any wire shape, the chunk-ID format, the Redis schema, or the §H run layout under `raw/` is a design decision: add a dated entry to `decisions.md` and bump this file's version. Silent drift here invalidates cross-configuration comparisons (proposal §12).
 
-**Current version: v0.34** (2026-11-12).
+**Current version: v0.35** (2026-11-12).
 
 | Version | Date | Change |
 | :--- | :--- | :--- |
@@ -1024,6 +1077,7 @@ These contracts are frozen for the study. A change to any wire shape, the chunk-
 | **v0.32** | 2026-11-10 | **The POLICY namespace names the product** (**ADR-024**, item 5.6; trail `docs/work/2026-11-10-policy-namespace-product/`). With a `product_id` (every `/ask` since v0.30), a POLICY namespace is `{policy_doc}@{product_id}`; without one it stays `{policy_doc}`. §A's `product_id` row is restated, and §D's `t2:` schema now lists `namespace` and `lane`. No wire shape or `.proto` change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. A cross-product POLICY candidate is now never found (a MISS with `similarity` null), not refused, so POLICY hit rates are not comparable across this commit. `t2:` entries written before it cannot be reached; `make cache-reset` removes them. No citable run exists; the judge cost run `2026-11-01T21-17-56_cfg4_judgecost` is read as before ADR-024 |
 | **v0.33** | 2026-11-11 | **The labelling ablation** (item 5.2; trail `docs/work/2026-11-11-labelling-ablation/`). §I gains the `ablation/` files and records `judge-rf-v1` (`judge-v1` with only its prompt changed), which failed its sanity check and is used for no score (Entry 6). No wire, `.proto`, Redis or §H change; `judge-v1`, its prompt, the references and the served generator are unchanged. No citable run exists, so none is invalidated |
 | **v0.34** | 2026-11-12 | **The judge's noise floor** (**ADR-026**, item 5.3; trail `docs/work/2026-11-12-delta-noise-floor/`). §I gains `noise_floor.py`, `make ablation-floor` and `ablation/floor.json`. No wire shape, `.proto`, Redis, gateway or §H change; `judge-v1`, its prompt, the references and the served generator are unchanged; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. No M08 rate has been reported against δ, so no run is invalidated |
+| **v0.35** | 2026-11-12 | **The raw archive and figures** (**ADR-027**, item 5.4; trail `docs/work/2026-11-12-figure-generators/`). §I gains `raw_archive.py`, `make_figures.py`, `make raw-archive`, `raw-check`, `raw-restore` and `figures-clean-check`, the tracked `archive.sha256` per run, the tar outside the repository, and `figures/{name}.pdf` and `{name}.json`. No wire shape, `.proto`, Redis, gateway or §H change; `source_chunk_ids`, `t1_key` and `dataset_epoch` are untouched. No run is invalidated: the cost run gets one new tracked file |
 | **v0.27** | 2026-10-31 | **Product-scoped retrieval refills other products' slots with the product's own chunks when no policy chunk ranked** (**ADR-021**). §B: when the natural top k holds no policy chunk, each slot of another product's chunk is refilled with this product's best unused chunk, in score order; with any policy chunk, retrieval is as in v0.8. Lane counts cannot move. No wire shape, `.proto` field, §C–§H or Redis schema change; `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but a spec question's retrieval now returns more of its product's chunk IDs. No run exists, so none is invalidated |
 | **v0.26** | 2026-10-31 | **Product-scoped retrieval keeps only the asked product's category of policy** (**ADR-020**). §B: after the splice, each policy chunk of another category is replaced by the best unused policy chunk of the product's category, and the policy slots are refilled in score order; the number of policy chunks, so `PolicyFraction` and the lane, is unchanged. §A's `product_id` row says so. No wire shape, `.proto` field, §C–§H or Redis schema change (the `category` and `kind` tags already existed); `source_chunk_ids`, `t1_key` and `dataset_epoch` keep their meaning, but **which** policy chunk IDs a product-scoped retrieval returns changes. No run exists, so none is invalidated |
 | **v0.25** | 2026-10-30 | **`BYPASS` is removed** (doc-only). §A's `cache` enum is `TIER1_HIT` \| `TIER2_HIT` \| `MISS`; §G says the bypass classifier was never built and is out of scope; the request-flow map loses its classify step. The gateway never sent `BYPASS`, so no code path, record or run changes. Also, at this version, the gateway refuses a `MUTATION` other than `on` or `off` at start, as it already does for `SUPPORT_GATE` (§H's `mutation` is `off\|on`); unset still means `off`. No wire shape, `.proto`, §B–§F or Redis schema change |

@@ -1,0 +1,3 @@
+# The figures' only pinned dependency (item 5.4). The pin keeps the figure bytes fixed:
+# make_figures.py refuses to draw with any other matplotlib version.
+matplotlib==3.10.8

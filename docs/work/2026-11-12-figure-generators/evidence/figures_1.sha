@@ -1,0 +1,4 @@
+a32003b523cbae12f79f1ff2f4f4bba2dcc6b32cd874cfd734ecadb8b4273d28  experiments/results/2026-11-01T21-17-56_cfg4_judgecost/figures/F10-agreement-by-bucket.json
+d52d3de01a29f9d6bc1f3f8c7bc63b20b8737b23d06a0387732c74fbcf30cb66  experiments/results/2026-11-01T21-17-56_cfg4_judgecost/figures/F10-agreement-by-bucket.pdf
+bd9f10e5fb87238fd1e49b9bd33d90ba805b50c4e80e2e404671093555dab1d7  experiments/results/2026-11-01T21-17-56_cfg4_judgecost/figures/F16-noise-floor-correction.json
+8cb1a8205740927ed1bb3cdbadda77faf5407ec1769748ee58e8cbef44758405  experiments/results/2026-11-01T21-17-56_cfg4_judgecost/figures/F16-noise-floor-correction.pdf

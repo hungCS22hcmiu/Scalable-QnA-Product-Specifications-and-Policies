@@ -1,0 +1,4 @@
+python3 experiments/scripts/raw_archive.py archive --run-id "2026-11-01T21-17-56_cfg4_judgecost" --archive-dir "/Users/hung/thesis-raw-archive"
+archived 2026-11-01T21-17-56_cfg4_judgecost: 523 files
+  wrote /Users/hung/Desktop/Sem1/thesis/experiments/results/2026-11-01T21-17-56_cfg4_judgecost/archive.sha256
+  wrote /Users/hung/thesis-raw-archive/2026-11-01T21-17-56_cfg4_judgecost.tar

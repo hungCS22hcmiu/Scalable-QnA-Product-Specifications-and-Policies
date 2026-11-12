@@ -66,6 +66,7 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-024 | With a `product_id`, the POLICY namespace names the product as well as the policy document | decided (the author, 2026-11-07; option (b) of item 5.6, closes F-NAME); **built 2026-11-10** (trail `docs/work/2026-11-10-policy-namespace-product/`, `interfaces.md` v0.32) | no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) and `Tier 2.md` Examples A and B are read as "before ADR-024" |
 | ADR-025 | Every `/ask` request must carry a `product_id` | in force (the author, 2026-11-08; built the same day, `interfaces.md` v0.30); **open:** the 16 validation queries with none are dropped (decided 2026-11-08), but the workload is not regenerated yet; it must be before the next replay of validation | none — no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) holds 16 requests that would now get `400` |
 | ADR-026 | δ stays 5 %, read through a correction for `judge-v1`'s measured error; the judge alone cannot certify it | in force (the author, 2026-11-12) | none — no M08 rate has been reported against δ |
+| ADR-027 | A run's `raw/` and `judge/` are kept as one tar outside the repository, and a tracked hash list proves them unchanged | in force (the author, 2026-11-12) | none — the cost run gets one new tracked file, `archive.sha256`; nothing recorded changes |
 
 ---
 
@@ -2208,3 +2209,61 @@ side by side: the judged rate, and a corrected rate with an interval.
   - **Built:** `experiments/scripts/noise_floor.py` and `make ablation-floor`; `interfaces.md` §I, v0.34.
 - **Invalidates:** none — no M08 rate and no frontier point has been reported against δ. The cost run
   `2026-11-01T21-17-56_cfg4_judgecost` is read and not changed.
+
+### ADR-027 — A run's `raw/` and `judge/` are kept as one tar outside the repository, and a tracked hash list proves them unchanged
+**Decided (data)** · 2026-11-12 · the author · *super-plan.md item 5.4; ADR-005's follow-on; `contracts/interfaces.md` §I (v0.35); `experiments/scripts/raw_archive.py`, `make_figures.py`; trail `docs/work/2026-11-12-figure-generators/`*
+
+ADR-005 put `raw/` outside git and left two things to item 5.4: how the archive is kept and restored, and how a run
+stays write-once when git no longer shows an edit. `judge/` holds PQA text too (ADR-022), so it is kept the same way.
+This entry decides both. Each run has two files:
+
+- **The archive:** `$RAW_ARCHIVE_DIR/<run_id>.tar`. It holds the run's `raw/` and `judge/` files and nothing else.
+  `RAW_ARCHIVE_DIR` defaults to `~/thesis-raw-archive/`. It is outside the repository and is never pushed, because the
+  files hold PQA text, redistribution is not granted and the remote is public.
+- **The hash list:** `experiments/results/<run_id>/archive.sha256`, tracked and pushed. It has one `<sha256>  <path>`
+  line per file under `raw/` and `judge/`, in the `shasum -a 256` format, and no text. So `shasum -a 256 -c
+  archive.sha256` in the run folder is a second check that needs none of our code.
+
+How it is used:
+
+- **When.** Right after the run's last write-once step: `make raw-archive RUN_ID=<id>`, and for a judged run after
+  `make judge`. It refuses to overwrite the tar or the list. A run judged after it was archived shows its new `judge/`
+  files as `added`; the author then moves the old list and tar aside and archives again by hand.
+- **Check.** `make raw-check` names every file that is `missing`, `changed` or `added`. `.DS_Store` is the only
+  ignored name.
+- **Restore.** `make raw-restore RUN_ID=<id>` on a clean checkout. It refuses if `raw/` or `judge/` exists, and refuses
+  a tar member that is not a regular file under those two folders. It extracts, then checks against the list.
+- **Figures.** `make figures` checks every run first and draws nothing from a run whose `raw/` is missing or changed.
+  `figures/` is gitignored and emptied before each run. `make figures-clean-check` is the proof: a clean copy of the
+  repository, plus the archive, draws figures with the same sha256 (the last Phase 5 exit criterion).
+- **The private backup.** The author keeps a backup of `RAW_ARCHIVE_DIR` on their own storage, never on the public
+  remote. The tar is the only copy of a run's text besides the run folder. The hash list proves a loss; it cannot
+  repair one.
+
+- **Rationale.**
+  - **ADR-005 removed git's proof.** With `raw/` untracked, an edit to a finished run left no trace. A tracked hash
+    list gives the same proof: any change shows as `changed`, `missing` or `added`.
+  - **Figures must regenerate from `raw/` on a clean checkout** (`CLAUDE.md`). Now that means the checkout plus the
+    archive, and `make figures-clean-check` tests exactly that.
+  - **One tar per run** is one file to copy and one file to back up. It is written to a temp name, read back and
+    compared with the list before the list is written, so a half-written tar cannot be blessed.
+- **Alternatives.**
+  - **A private second git repository, or git-lfs, for `raw/`.** Rejected: it is one more repository to keep in step
+    with this one, and the tracked hash list gives the same proof that `raw/` is unchanged without it.
+- **Consequences.**
+  - **One limit.** The cost run `2026-11-01T21-17-56_cfg4_judgecost` was archived on 2026-11-12, eleven days after it
+    ran. Its list proves `raw/` unchanged from 2026-11-12, not from 2026-11-01. What could be checked before the list
+    was written was checked: the 519 answer files hash to their names, all 519 distinct `answer_sha256` of
+    `requests.jsonl` have their file, and its 622 lines are the manifest's `records.count`. Every later run is
+    archived right after it finishes.
+  - **What the figures read.** The tracked `ablation/scores.json` and `floor.json`. They are not rebuilt on a clean
+    copy, because that also needs the reference set and the trail's private sheets, which are gitignored. Both files
+    record `sheet_sha256` and `labels_sha256`.
+  - **One pinned dependency.** `matplotlib==3.10.8` (`experiments/requirements.txt`), because the same bytes depend
+    on it. `make figures` refuses any other version before it draws. It takes about 88 MB of memory (87,752,704
+    bytes, measured in step 6.4), and only while it runs, never in a measured run.
+  - **Both figures stay `citable: no`**, as their source is (F10 from `scores.json`, F16 from `floor.json`).
+  - **Built:** `raw_archive.py`, `make_figures.py`, `figures_clean_check.sh`; `make raw-archive`, `raw-check`,
+    `raw-restore`, `figures-clean-check`; `interfaces.md` §I, v0.35.
+- **Invalidates:** none — the cost run gets one new tracked file, `archive.sha256`. Its `raw/`, `judge/`,
+  `ablation/` and `manifest.yaml` are read and not changed (done condition 8 of the trail compares their hashes).
