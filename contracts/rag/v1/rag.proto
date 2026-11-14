@@ -79,4 +79,7 @@ message AnswerChunk {
   repeated string source_chunk_ids = 3;   // terminal chunk; provenance for C1 + C2
   string model_used    = 4;               // terminal chunk; constant (routing rejected)
   uint64 dataset_epoch = 5;               // epoch at retrieval; gates write-back (§E)
+  bool   no_answer     = 6;               // terminal chunk; true when the model wrote NO_ANSWER and
+                                          // `text` is the fixed fallback sentence. The gateway never
+                                          // caches a flagged answer (interfaces.md §B, v0.37)
 }

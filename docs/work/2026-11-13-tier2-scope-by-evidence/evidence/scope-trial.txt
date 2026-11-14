@@ -1,0 +1,18 @@
+python3 experiments/scripts/scope_trial.py 2026-11-14T01-43-29_cfg4_scope-off 2026-11-14T02-18-25_cfg4_scope-on --out "docs/work/2026-11-13-tier2-scope-by-evidence/evidence/scope-trial.json"
+scope-trial: off = 2026-11-14T01-43-29_cfg4_scope-off
+             on  = 2026-11-14T02-18-25_cfg4_scope-on
+
+lane    arm  requests  hits  hit_rate  correct  wrong  unjudged  wrong/hits  Wilson(requests)  clusters  wrong_cl  Wilson(clusters)
+POLICY  off       170     8     0.047        1      7         0       0.875    [0.529, 0.978]         8         7  [0.529, 0.978]
+POLICY  on        170    15     0.088        9      6         0       0.400    [0.198, 0.643]         6         5  [0.436, 0.970]
+SPEC    off       436   172     0.394      108     64         0       0.372    [0.303, 0.446]       117        48  [0.325, 0.501]
+SPEC    on        436   168     0.385      105     63         0       0.375    [0.305, 0.450]       112        46  [0.324, 0.503]
+
+POLICY off: misses 162, judged wrong 71 (0.438); hit_scope {'product': 8}; write_scope {'product': 152}; no_answer 10
+POLICY on: misses 155, judged wrong 65 (0.419); hit_scope {'shared': 14, 'product': 1}; write_scope {'product': 48, 'shared': 97}; no_answer 10
+
+rule 1: POLICY hits judged correct, on minus off = 8 (need at least 20): FAIL
+rule 2: with the arm on, wrong share of POLICY hits 0.400 against wrong share of POLICY misses 0.419 + 0.05: pass
+verdict: KEEP OFF
+
+  wrote docs/work/2026-11-13-tier2-scope-by-evidence/evidence/scope-trial.json

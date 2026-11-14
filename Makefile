@@ -50,7 +50,7 @@ DATASET_EPOCH_FILE ?= $(CURDIR)/data/dataset-epoch
 export DATASET_EPOCH_FILE
 
 .DEFAULT_GOAL := help
-.PHONY: help setup spike ingest dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity ablation-draw ablation-rf-sanity ablation-sheet ablation-lock ablation-score ablation-floor raw-archive raw-check raw-restore figures-clean-check
+.PHONY: help setup spike ingest docmeta scope-calibrate prompt-probe scope-trial dev measure ask demo-reset demo proto test test-go test-isolation-check lint verify figures check env-check ollama-env redis-check gate-corpus corpus-assemble corpus-index-check corpus-freeze corpus-verify pqa-fetch pqa-build pqa-verify pqa-select pqa-select-verify pqa-audit-sheet pqa-audit-score epqa-fetch pqa-answerability policy-check policy-sources workload-status workload-sheets workload-import workload-labels workload-author-sheet workload-author-score workload-embed workload-build workload-verify load-smoke mu-hit ui seam-check support-check footprint epoch-advance epoch-race-check update-set-probe update-set-verify cache-reset update-set-check update-set-score verify-admission judge-gold-check judge-references replay run-manifest run-manifest-check judge judge-sanity ablation-draw ablation-rf-sanity ablation-sheet ablation-lock ablation-score ablation-floor raw-archive raw-check raw-restore figures-clean-check
 
 help: ## Show targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -72,6 +72,13 @@ spike: ## Feasibility spike — measure the memory envelope. SPENT: already froz
 # This is NOT Make's VERSION (that one is v1 for the gate, and would flip the default by accident).
 ingest: ## Build the index from the corpus in data/$DATASET_VERSION (default v1). Memory check first
 	cd $(RAG) && $(PY) -m rag.ingest
+
+# Item 6.0a: one hash per document, docmeta:{doc_id} (category; for products a title vector and the bound
+# words). The gateway reads them at start. Loads nomic-embed-text only: check
+# `sysctl kern.memorystatus_vm_pressure_level` first, every time. Run it after `make ingest`, and again
+# whenever the corpus changes. It is idempotent.
+docmeta: ## Item 6.0a: write docmeta:{doc_id} (category, title vector, bound words) to Redis. Embedding model only; memory check first
+	cd $(RAG) && $(PY) -m rag.docmeta
 
 env-check: ## Verify the frozen envelope and the runner's prompt cache (ADR-003, ADR-017) against the LIVE runner -- loads both models, ~2.1 GB
 	@$(PY) experiments/scripts/env_check.py --frozen-np $(OLLAMA_NUM_PARALLEL) \
@@ -556,6 +563,28 @@ update-set-score: ## Item 4.4: score a saved run from its evidence folder (IDs i
 #   make replay SPLIT=validation                                # every query once, seeded order
 #   (stop the gateway, SIGINT)  make run-manifest RUN_ID=<id> GATEWAY_LOG=<file> SPLIT=validation
 #   ollama stop <the generator>; make judge RUN_ID=<id>         # loads the judge
+# Item 6.0a: the tau_P rule of design.md section 1 on the stored validation vectors and the title vectors in
+# Redis (run `make docmeta` first). Read-only, no model. OUT is where the JSON result goes.
+SCOPE_TRIAL_EVIDENCE := docs/work/2026-11-13-tier2-scope-by-evidence/evidence
+scope-calibrate: ## Item 6.0a: tau_P from the stored validation vectors and the title vectors in Redis; read-only, no model (OUT=file)
+	$(PY) experiments/scripts/scope_calibrate.py --out "$(or $(OUT),$(SCOPE_TRIAL_EVIDENCE)/scope-calibrate.json)"
+
+# Item 6.0a, done condition 4 (citable: no): the old and the served generator prompt on 120 seeded validation
+# queries. Loads the embedding model and the generator: check `sysctl kern.memorystatus_vm_pressure_level`
+# first, every time. The answers hold Amazon-PQA wording and go to evidence/private/; an existing OUT is never
+# overwritten, so a second probe (the P2 prompt) needs its own OUT and SUMMARY.
+prompt-probe: ## Item 6.0a: old vs served generator prompt on 120 seeded validation queries (loads the generator, citable: no; OUT= SUMMARY=)
+	$(PY) experiments/scripts/prompt_probe.py \
+	  --out "$(or $(OUT),$(SCOPE_TRIAL_EVIDENCE)/private/prompt-probe.jsonl)" \
+	  --summary "$(or $(SUMMARY),$(SCOPE_TRIAL_EVIDENCE)/prompt-probe.json)"
+
+# Item 6.0a: the two trial runs (arm off, then arm on) after `make judge` on each: the table of done
+# condition 11 and the adoption verdict. Reads raw/ and judge/, writes only OUT. No model.
+#   make scope-trial RUNS="<run_id off> <run_id on>"
+scope-trial: ## Item 6.0a: per lane and arm hits, judged correct/wrong, Wilson intervals, and the adoption verdict (RUNS="<off> <on>"; OUT=file)
+	@test -n "$(RUNS)" || { echo 'usage: make scope-trial RUNS="<run_id off> <run_id on>"'; exit 2; }
+	$(PY) experiments/scripts/scope_trial.py $(RUNS) --out "$(or $(OUT),$(SCOPE_TRIAL_EVIDENCE)/scope-trial.json)"
+
 judge-gold-check: ## Item 5.1: audit the workload's gold labels, offline (SPLIT=validation)
 	@test -n "$(SPLIT)" || { echo "usage: make judge-gold-check SPLIT=validation"; exit 2; }
 	$(PY) experiments/scripts/judge_references.py gold-check --split "$(SPLIT)"

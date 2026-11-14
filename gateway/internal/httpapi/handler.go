@@ -150,6 +150,17 @@ type Handler struct {
 	// makes the endpoint answer 503; cmd/gateway always sets it.
 	Invalidator invalidator
 
+	// ScopeOn is the scope arm (item 6.0a, ADR-030): true runs the second, shared search for a POLICY
+	// request and writes a neutral POLICY answer once for all products of its category. The ZERO VALUE IS
+	// OFF, so a Handler built as a struct literal (every test that predates the arm) runs today's single
+	// search and writes "{policy_doc}@{product_id}". It is set once, in main, and one field feeds both the
+	// behaviour and the record's scope_arm label (Ask), as SupportGate does.
+	ScopeOn bool
+
+	// DocMeta is `docmeta:{doc_id}` for every document, loaded once at start (cache.LoadDocMeta, converted
+	// in main) and read-only afterwards. Nil with the arm off.
+	DocMeta map[string]reuse.DocMeta
+
 	// Catalog backs GET /products for the demo UI. Nil is valid and yields an empty list --
 	// the gateway must start and serve /ask whether or not a corpus index exists.
 	Catalog *catalog.Catalog
@@ -184,6 +195,12 @@ type generation struct {
 	// either tier or the dependency map, so there is no entry. Every request that shared the
 	// generation then reports entry_id "" (interfaces.md §H).
 	Discarded bool
+
+	// NoAnswer marks a generation whose answer is the service's fixed fallback sentence (the model wrote
+	// NO_ANSWER). Nothing was written, for the same reason as Discarded and by the same shape: no entry,
+	// entry_id "". WriteScope is the scope of the entry a normal generation wrote ("product" or "shared").
+	NoAnswer   bool
+	WriteScope string
 }
 
 // retryAfterSeconds is the frozen Retry-After of interfaces.md A's shed response.
@@ -271,6 +288,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		// cannot come from two places (ADR-016, item 4.5).
 		SupportGate:     h.SupportGate.String(),
 		MixedLane:       h.LaneBand.Arm(),
+		ScopeArm:        h.scopeArm(),
 		TS:              start.UTC().Format(time.RFC3339Nano),
 		QueryRaw:        req.Question,
 		QueryNormalized: normalized,
@@ -405,6 +423,15 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rec.Similarity, rec.SourceOverlap = similarity, sourceOverlap
+	if t2.QueryLane != "" {
+		lane := string(t2.QueryLane)
+		rec.QueryLane = &lane
+	}
+	rec.SharedSimilarity = t2.SharedSimilarity
+	if t2.SharedCause != "" {
+		cause := t2.SharedCause
+		rec.SharedRefusalCause = &cause
+	}
 	rec.EnteredBand = t2.EnteredBand
 	rec.Tier2SearchFailed = t2.SearchFailed
 	rec.ReuseRule = t2.NSDecision.Rule
@@ -422,6 +449,8 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	if t2.Served {
 		modelUsed := modelUsedConstant
 		rec.Cache, rec.EntryID = cacheTier2Hit, t2.Candidate.Entry.EntryID
+		hitScope := t2.HitScope
+		rec.HitScope = &hitScope
 		rec.EntrySources = t2.Candidate.Entry.SourceChunkIDs
 		rec.SetAnswer(t2.Candidate.Entry.Answer)
 		// Fire-and-forget, and it must actually BE that. Awaiting it put a Redis round-trip on
@@ -469,7 +498,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 			ModelUsed:       &modelUsed,
 			RequestID:       requestID,
 			Lane:            string(t2.QueryLane),
-			Namespace:       t2.QueryNS,
+			Namespace:       t2.NSDecision.QueryNS, // the shared namespace on a shared hit, else t2.QueryNS
 			ReuseRule:       t2.NSDecision.Rule,
 			OverlapDecision: overlapDecision,
 		})
@@ -517,18 +546,33 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 			return nil, err
 		}
 
-		// entry_id is minted here, not inside Put, so both tiers carry the SAME id. Divergence
-		// would break the Phase-2 purge, which finds t2 by entry_id and t1 through its t1_key.
-		// t1Key is the OUTER, hoisted key (closure capture) -- the same one used for the Tier-1
-		// lookup above, so Tier-2's t1_key can never drift from what Tier-1 actually wrote under.
-		entryID := cache.NewEntryID()
-
 		// The entry is partitioned by ITS OWN grounding, not by the incoming query's. Those
 		// differ: the query's lane came from retrieve(q) in the cascade, this one comes from the
 		// chunks the answer was actually generated over. Using the query's would let a request
 		// that never entered the band write an entry with no partition at all.
 		writeLane := reuse.Classify(result.SourceChunkIDs, h.LaneBand)
 		writeNS := reuse.Namespace(writeLane, result.SourceChunkIDs, req.ProductID)
+
+		// A fallback answer (the model wrote NO_ANSWER) is served and never stored (item 6.0a, ADR-029).
+		// This return is BEFORE the epoch check and before an entry id exists: no Put, PutTier2, Register,
+		// touch or TrimToCapacity runs, so no Tier-1 key, no Tier-2 record and no dep:* member can name
+		// it. Cached, "no detail" would be served to a later question that does have an answer.
+		if result.NoAnswer {
+			return &generation{
+				Text:           result.Text,
+				SourceChunkIDs: result.SourceChunkIDs,
+				ModelUsed:      result.ModelUsed,
+				Lane:           writeLane,
+				Namespace:      writeNS,
+				NoAnswer:       true,
+			}, nil
+		}
+
+		// entry_id is minted here, not inside Put, so both tiers carry the SAME id. Divergence
+		// would break the Phase-2 purge, which finds t2 by entry_id and t1 through its t1_key.
+		// t1Key is the OUTER, hoisted key (closure capture) -- the same one used for the Tier-1
+		// lookup above, so Tier-2's t1_key can never drift from what Tier-1 actually wrote under.
+		entryID := cache.NewEntryID()
 
 		// The epoch guard (item 4.2, interfaces.md §E): any difference between the epoch Answer read
 		// the chunk texts under and the epoch now discards the write-back, and so does a failed read.
@@ -559,6 +603,26 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// The scope arm's write side (item 6.0a, ADR-030). With the arm on, a POLICY answer that names
+		// nothing of its product is stored ONCE for every product of its category: in the policy document's
+		// own namespace, keyed by the projected question vector. Every other answer is stored as ADR-024
+		// says. With the arm off this block does nothing: the scope stays "product", the key is the raw
+		// vector and the namespace is "{policy_doc}@{product_id}". The test reads the ANSWER, never the
+		// question, and the same Project and SharedNamespace serve the read side (sharedCandidate).
+		writeScope := reuse.ScopeProduct
+		tier2Key := vec
+		if h.ScopeOn && vec != nil {
+			policyDoc := reuse.Namespace(reuse.LanePolicy, result.SourceChunkIDs, "")
+			policy, hasPolicy := h.DocMeta[policyDoc]
+			product := h.DocMeta[req.ProductID]
+			if reuse.DecideScope(writeLane, result.Text, product, policy, hasPolicy) == reuse.ScopeShared {
+				if projected := reuse.Project(vec, product.TitleVec); projected != nil {
+					writeScope, tier2Key = reuse.ScopeShared, projected
+					writeNS = reuse.SharedNamespace(policyDoc)
+				}
+			}
+		}
+
 		// A failed write-back must NOT fail the request. The generation already succeeded, and it
 		// is the most expensive resource in the system -- discarding it because a cache write
 		// failed spends it for nothing, which is backwards on this thesis's own premise. It also
@@ -585,10 +649,11 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 				T1Key:          t1Key,
 				Namespace:      writeNS,
 				Lane:           string(writeLane),
+				Scope:          string(writeScope),
 				// Stored with the entry. The guard above compares it at write-back; the field cannot
 				// be reconstructed after the fact (interfaces.md E).
 				DatasetEpoch: result.DatasetEpoch,
-			}, vec); err != nil {
+			}, tier2Key); err != nil {
 				log.Printf("gateway: tier-2 write-back failed for request_id=%s: %v", requestID, err)
 			}
 		}
@@ -625,6 +690,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 			EntryID:        entryID,
 			Lane:           writeLane,
 			Namespace:      writeNS,
+			WriteScope:     string(writeScope),
 		}, nil
 	})
 
@@ -684,11 +750,16 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	result := gen
 	rec.Cache, rec.EntryID = cacheMiss, gen.EntryID
 	rec.EntrySources = gen.SourceChunkIDs
-	if gen.Discarded {
+	if gen.Discarded || gen.NoAnswer {
 		// interfaces.md H: no entry was written, so the record names none -- for the leader and for
-		// every follower that shared the discarded generation. The response below still lists the
-		// answer's sources; only the record changes.
+		// every follower that shared the discarded (or fallback) generation. The response below still
+		// lists the answer's sources; only the record changes.
 		rec.EntryID, rec.EntrySources = "", nil
+	}
+	rec.NoAnswer = gen.NoAnswer
+	if gen.EntryID != "" {
+		writeScope := gen.WriteScope
+		rec.WriteScope = &writeScope
 	}
 	rec.SetAnswer(gen.Text)
 	rec.Coalesced = shared
@@ -757,6 +828,14 @@ func (h *Handler) touch(ctx context.Context, entryID string) {
 	if err := h.Cache.Touch(ctx, entryID, time.Now().UnixNano()); err != nil {
 		log.Printf("gateway: lru touch failed for %s: %v", entryID, err)
 	}
+}
+
+// scopeArm is the record's scope_arm: "on" or "off", from the one field that also steers the behaviour.
+func (h *Handler) scopeArm() string {
+	if h.ScopeOn {
+		return "on"
+	}
+	return "off"
 }
 
 // durMS and msPtr keep interfaces.md H's millisecond fields in one place. msPtr returns nil for a

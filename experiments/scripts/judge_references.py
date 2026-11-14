@@ -3,7 +3,8 @@
     make judge-gold-check SPLIT=validation       offline: are the workload's gold labels sound?
     make judge-references SPLIT=validation       loads the reference writer (citable: no)
 
-A reference is `LLM_w(gold(q), q)`: the served prompt, given every chunk of the query's own `doc_ids` (in
+A reference is `LLM_w(gold(q), q)`: the writer's own pinned prompt (`experiments/judge/reference-prompt-v1.txt`,
+the old served prompt, ADR-029), given every chunk of the query's own `doc_ids` (in
 document order) instead of what the system retrieved, and answered by the pinned reference writer
 (`experiments/judge/reference-writer-v1.json`, ADR-023: `qwen3.5:4b-q4_K_M` at temperature 0). A reference
 built from a run's own retrieval would share a wrong retrieval's error, and the judge would call the
@@ -45,6 +46,9 @@ FREEZE_PATH = DATA_DIR / "v1-freeze.json"
 RETRIEVE_PY = ROOT / "rag" / "src" / "rag" / "retrieve.py"
 REFERENCES_DIR = ROOT / "experiments" / "references"
 WRITER_PATH = ROOT / "experiments" / "judge" / "reference-writer-v1.json"
+# The reference writer keeps the OLD generator prompt (ADR-029 amends ADR-023): the references and the
+# judge-error figures were measured under it, so it lives in this pinned file, not in rag/generate.py.
+WRITER_PROMPT_PATH = ROOT / "experiments" / "judge" / "reference-prompt-v1.txt"
 WRITER_TIMEOUT = (
     600.0  # seconds for one reference; the 4B writer decodes at about 17 tok/s
 )
@@ -287,16 +291,26 @@ def load_writer(path: Path = WRITER_PATH) -> dict:
     return json.loads(Path(path).read_text())
 
 
+def load_writer_prompt(path: Path | None = None) -> str:
+    """The reference writer's prompt template, exactly as the pinned file holds it (no newline is
+    added or removed). It has the `{context}` and `{query}` fields and no system text."""
+    return Path(path or WRITER_PROMPT_PATH).read_bytes().decode("utf-8")
+
+
 def writer_block(
-    http: Callable[..., dict] = http_json, path: Path = WRITER_PATH
+    http: Callable[..., dict] = http_json,
+    path: Path = WRITER_PATH,
+    prompt_path: Path | None = None,
 ) -> dict:
     """The reference writer, checked against the live Ollama (ADR-023, design.md failure mode 15).
 
     Refuses when the tag is not in `/api/tags`, when its live digest differs from the file's, or when
-    the served prompt template no longer hashes to the file's `prompt_sha256`. Returns the file's
-    fields: it is what the reference set's `version.json` stores as `reference_writer`.
+    the writer's own pinned prompt file (`reference-prompt-v1.txt`) no longer hashes to the file's
+    `prompt_sha256`. The served prompt is not read here: since ADR-029 it can change without touching
+    the writer. Returns the file's fields: it is what the reference set's `version.json` stores as
+    `reference_writer`.
     """
-    from rag import config, generate
+    from rag import config
 
     writer = load_writer(path)
     base = config.OLLAMA_BASE_URL.rstrip("/")
@@ -313,10 +327,11 @@ def writer_block(
             f"the live digest of {writer['model']} is {digest[:12]}..., "
             f"{Path(path).name} has {writer['digest'][:12]}..."
         )
-    prompt = sha256_bytes(generate._PROMPT_TEMPLATE.encode("utf-8"))
+    prompt_file = Path(prompt_path or WRITER_PROMPT_PATH)
+    prompt = sha256_bytes(load_writer_prompt(prompt_file).encode("utf-8"))
     if prompt != writer["prompt_sha256"]:
         raise ReferenceRefused(
-            f"the served prompt hashes to {prompt[:12]}..., "
+            f"the writer's prompt file {prompt_file.name} hashes to {prompt[:12]}..., "
             f"{Path(path).name} has {writer['prompt_sha256'][:12]}..."
         )
     return {
@@ -332,23 +347,28 @@ def answer_with_writer(
     *,
     http: Callable[..., dict] = http_json,
     path: Path = WRITER_PATH,
+    prompt_path: Path | None = None,
 ) -> tuple[str, list[str]]:
     """Write one reference with the pinned reference writer (ADR-023).
 
-    The served prompt (`generate._build_prompt`) over the chunks `retrieve.fetch_by_ids` loads for
-    `chunk_ids`, sent to `/api/generate` with the writer's model and options. `think` is sent (as the
+    The writer's own prompt (`reference-prompt-v1.txt`, the old served prompt, no system text) over the
+    chunks `retrieve.fetch_by_ids` loads for `chunk_ids`, joined by a blank line as the served prompt
+    joins them, sent to `/api/generate` with the writer's model and options. `think` is sent (as the
     file gives it) only when `/api/show` lists `thinking`. Returns the text and the IDs `fetch_by_ids`
     returned, so `make_reference` still sees a chunk that was dropped. `product_id` only keeps the
-    signature of `answer_in_process`: the served prompt does not use it.
+    signature of `answer_in_process`: the prompt does not use it. That the file still hashes to the
+    writer file's `prompt_sha256` is checked by `writer_block`, which `build` runs before any reference.
     """
-    from rag import config, generate, retrieve
+    from rag import config, retrieve
 
     writer = load_writer(path)
+    template = load_writer_prompt(prompt_path)
     base = config.OLLAMA_BASE_URL.rstrip("/")
     chunks, _ = retrieve.fetch_by_ids(list(chunk_ids))
+    context = "\n\n".join(c.text for c in chunks)
     body = {
         "model": writer["model"],
-        "prompt": generate._build_prompt(query, chunks),
+        "prompt": template.format(context=context, query=query),
         "stream": False,
         "options": dict(writer["options"]),
     }

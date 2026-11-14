@@ -108,7 +108,9 @@ func (t Thresholds) Judge(g Gate, d NamespaceDecision, similarity float64, answe
 	if !(d.Match && (d.Rule != RuleComposite || d.LaneMatch)) {
 		return Judgement{Cause: CauseNamespace}
 	}
-	if !(similarity >= t.Tau) {
+	// The threshold is the one DecideLane applied (d.Tau): Tau for a product candidate, TauP for a shared
+	// one. Written positively so that NaN refuses.
+	if !(similarity >= d.Tau) {
 		return Judgement{Cause: CauseSimilarity}
 	}
 	if g == GateOff {

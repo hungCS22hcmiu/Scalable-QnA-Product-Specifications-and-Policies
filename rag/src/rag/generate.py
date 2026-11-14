@@ -15,6 +15,8 @@ ran on, and the next request queued behind it inside Ollama, out of the gateway'
 import asyncio
 import contextlib
 import contextvars
+import hashlib
+import re
 import threading
 from collections.abc import Iterator
 
@@ -51,11 +53,54 @@ def stop_when(stop: threading.Event) -> Iterator[None]:
         _stop.reset(token)
 
 
-_PROMPT_TEMPLATE = (
-    "Answer the question using ONLY the context below. "
-    "If the answer is not contained in the context, say you don't know.\n\n"
-    "Context:\n{context}\n\nQuestion: {query}\nAnswer:"
+# The served prompt has two parts: a system text and a user template (item 6.0a, ADR-029).
+# It asks for a short, direct answer that never mentions the context, and for the sentinel
+# NO_ANSWER when the facts do not hold the answer. The old one-part template is saved verbatim
+# in experiments/judge/reference-prompt-v1.txt: the reference writer (ADR-023) keeps using it.
+_SYSTEM_PROMPT = "\n".join(
+    [
+        "You answer shoppers' questions about one product and the store's policies.",
+        "Use only the facts given with the question.",
+        "",
+        "Rules:",
+        "- Answer in one or two short sentences.",
+        "- Start with the answer itself.",
+        "- Never mention the facts, the context, a document, or where the information comes from.",
+        "- Do not greet the shopper. Do not repeat the product's name.",
+        "- Use the exact numbers and terms from the facts.",
+        "- If the facts do not answer the question, reply with exactly: NO_ANSWER",
+        "",
+        "Example",
+        "Facts: Unopened items can be returned within 30 days of delivery for a full refund.",
+        "Question: I never opened the box. Can I still send it back?",
+        "Answer: Yes. Unopened items can be returned within 30 days of delivery for a full refund.",
+    ]
 )
+
+_PROMPT_TEMPLATE = "Facts:\n{context}\n\nQuestion: {query}\nAnswer:"
+
+# What a customer sees instead of the sentinel. The gateway never caches an answer that carries it.
+FALLBACK_ANSWER = (
+    "Sorry, I don't have that detail for this product. "
+    "Please check the product page or contact our support team."
+)
+
+_NO_ANSWER_RE = re.compile(r"\bno[ _]?answer\b", re.IGNORECASE)
+
+
+def finalize(text: str) -> tuple[str, bool]:
+    """Fail-closed: if the output holds the sentinel anywhere, return the fixed sentence and True.
+
+    The sentinel must never reach a customer, so a match anywhere counts, in any case.
+    """
+    if _NO_ANSWER_RE.search(text):
+        return FALLBACK_ANSWER, True
+    return text, False
+
+
+def prompt_sha256() -> str:
+    """sha256 of the system text, a NUL byte, then the user template: both parts are pinned."""
+    return hashlib.sha256((_SYSTEM_PROMPT + "\x00" + _PROMPT_TEMPLATE).encode("utf-8")).hexdigest()
 
 
 def _build_prompt(query: str, chunks: list[RetrievedChunk]) -> str:
@@ -66,6 +111,7 @@ def _build_prompt(query: str, chunks: list[RetrievedChunk]) -> str:
 def _request_body(query: str, chunks: list[RetrievedChunk]) -> dict:
     return {
         "model": config.LLM_MODEL,
+        "system": _SYSTEM_PROMPT,
         "prompt": _build_prompt(query, chunks),
         "stream": False,
         "think": config.LLM_THINK,

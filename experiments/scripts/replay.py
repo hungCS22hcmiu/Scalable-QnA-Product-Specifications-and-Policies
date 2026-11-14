@@ -10,6 +10,11 @@ Each request is `POST /ask {question, product_id}`, with `product_id` left out w
 (interfaces.md section A), and an `X-Thesis-Stratum` header (section A, the workload's label). It prints
 progress and the macOS memory pressure level every 50 requests, and stops at level 4.
 
+A query with no `product_id` is not sent (item 6.0a, ADR-025's decision): the command skips it before it
+orders the rest, and the summary says `skipped_no_product_id`. Validation has 16 such queries, so a
+validation replay sends 606. The seeded order is drawn over the queries that remain, so two replays of
+one split see the same sequence. The test split has none.
+
 Exit codes: 0 every request got an HTTP answer; 1 a request failed or the replay stopped.
 """
 
@@ -82,20 +87,33 @@ def replay(
     post: Callable[[str, dict, dict, float], tuple[int, dict | None]] = http_post,
     pressure: Callable[[], int | None] = corpus_gate.memory_pressure_level,
     log: Callable[[str], None] = print,
+    skip_no_product_id: bool = False,
 ) -> Counter:
     """Send every query once. Returns counts: `sent`, `http_<status>`, `cache_<value>`, `errors`.
 
     A 503 is a shed, counted as `http_503`, never an error. A connection failure is `errors`. Stops
     (raises `ReplayStopped`) when the pressure level is 4.
+
+    With `skip_no_product_id` (the command sets it), a query whose `product_id` is empty or missing is
+    dropped before the order is drawn, and `skipped_no_product_id` holds how many. It is off by default
+    only so that a direct call keeps sending every query, as the tests of item 5.1 expect.
     """
     queries = refs.load_split(split) if queries is None else queries
+    skipped = 0
+    if skip_no_product_id:
+        kept = [q for q in queries if q.get("product_id")]
+        skipped = len(queries) - len(kept)
+        queries = kept
     todo = order(queries, seed)
     endpoint = url.rstrip("/") + "/ask"
     counts: Counter = Counter()
+    if skip_no_product_id:
+        counts["skipped_no_product_id"] = skipped
 
     level = pressure()
     log(
         f"  memory pressure level: {level} (1 green, 2 warn, 4 critical); {len(todo)} queries"
+        + (f", {skipped} skipped (no product_id)" if skip_no_product_id else "")
     )
     if level == PRESSURE_STOP:
         raise ReplayStopped(
@@ -132,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args(argv)
     try:
-        counts = replay(args.split, args.url, args.seed)
+        counts = replay(args.split, args.url, args.seed, skip_no_product_id=True)
     except ReplayStopped as e:
         print(f"STOPPED: {e}", file=sys.stderr)
         return 1

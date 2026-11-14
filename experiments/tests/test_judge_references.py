@@ -815,16 +815,15 @@ def test_version_block_holds_the_generator_corpus_and_retrieval(tmp_path):
 # ADR-023: the reference writer
 # =================================================================================================
 def writer_file(tmp_path, **override):
-    """A `reference-writer-v1.json` in a temp folder, with the real served prompt's hash."""
-    from rag import generate
-
+    """A `reference-writer-v1.json` in a temp folder, with the hash of the writer's own pinned prompt
+    file (`reference-prompt-v1.txt`; it moved out of rag/generate.py at item 6.0a, ADR-029)."""
     writer = {
         "version": "reference-writer-v1",
         "model": "writer-m:4b",
         "digest": "w" * 64,
         "options": {"num_ctx": 8192, "temperature": 0, "seed": 20261101},
         "think": False,
-        "prompt_sha256": sha(generate._PROMPT_TEMPLATE),
+        "prompt_sha256": sha(jr.load_writer_prompt()),
     }
     writer.update(override)
     path = tmp_path / "reference-writer-v1.json"
@@ -848,9 +847,7 @@ def writer_http(digest="w" * 64, capabilities=("completion", "thinking"), calls=
     return http
 
 
-def test_writer_block_refuses_another_live_digest(tmp_path, monkeypatch):
-    from rag import generate
-
+def test_writer_block_refuses_another_live_digest(tmp_path):
     path = writer_file(tmp_path)
 
     # the live tag has the pinned digest: the block is the file's fields
@@ -861,7 +858,7 @@ def test_writer_block_refuses_another_live_digest(tmp_path, monkeypatch):
         "digest": "w" * 64,
         "options": {"num_ctx": 8192, "temperature": 0, "seed": 20261101},
         "think": False,
-        "prompt_sha256": sha(generate._PROMPT_TEMPLATE),
+        "prompt_sha256": sha(jr.load_writer_prompt()),
     }
 
     # a re-pulled tag: the live digest is no longer the pinned one
@@ -873,12 +870,12 @@ def test_writer_block_refuses_another_live_digest(tmp_path, monkeypatch):
     with pytest.raises(jr.ReferenceRefused, match="not in /api/tags"):
         jr.writer_block(lambda url, body=None, timeout=10.0: nothing, path)
 
-    # the served prompt changed under the pinned hash
-    monkeypatch.setattr(
-        generate, "_PROMPT_TEMPLATE", generate._PROMPT_TEMPLATE + " Be brief."
-    )
-    with pytest.raises(jr.ReferenceRefused, match="served prompt hashes to"):
-        jr.writer_block(writer_http(), path)
+    # the writer's prompt file changed under the pinned hash (item 6.0a: it is read from the pinned
+    # file, not from rag/generate.py, so a change to the served prompt cannot reach it)
+    changed = tmp_path / "reference-prompt-v1.txt"
+    changed.write_text(jr.load_writer_prompt() + " Be brief.")
+    with pytest.raises(jr.ReferenceRefused, match="prompt file .* hashes to"):
+        jr.writer_block(writer_http(), path, changed)
 
 
 def test_answer_with_writer_sends_the_writer_model_and_options(tmp_path, monkeypatch):
@@ -912,9 +909,15 @@ def test_answer_with_writer_sends_the_writer_model_and_options(tmp_path, monkeyp
     expected_chunks = [
         retrieve.RetrievedChunk(c, 0.0, f"text {c}", "d", 0) for c in ids
     ]
+    # the writer's own prompt, from the pinned file: the old template, no system text
+    context = "\n\n".join(c.text for c in expected_chunks)
+    old_prompt = jr.load_writer_prompt().format(
+        context=context, query="Can I return it?"
+    )
+    assert old_prompt != generate._build_prompt("Can I return it?", expected_chunks)
     assert body == {
         "model": "writer-m:4b",
-        "prompt": generate._build_prompt("Can I return it?", expected_chunks),
+        "prompt": old_prompt,
         "stream": False,
         "options": {"num_ctx": 8192, "temperature": 0, "seed": 20261101},
         "think": False,  # /api/show lists thinking

@@ -77,6 +77,10 @@ class RagServicer(rag_pb2_grpc.RagServiceServicer):
                 flush=True,
             )
             return
+        # The model writes NO_ANSWER when the facts do not hold the answer. finalize swaps it for
+        # one fixed sentence and says so, so the sentinel never reaches a customer and the gateway
+        # knows not to cache the answer (item 6.0a, ADR-029).
+        text, no_answer = generate.finalize(text)
         # stream=false is the only path in scope (SSE dropped) -- exactly one
         # terminal chunk, never per-token emission.
         yield rag_pb2.AnswerChunk(
@@ -85,6 +89,7 @@ class RagServicer(rag_pb2_grpc.RagServiceServicer):
             source_chunk_ids=[c.chunk_id for c in chunks],
             model_used=config.LLM_MODEL_ID,
             dataset_epoch=ep,
+            no_answer=no_answer,
         )
 
 

@@ -310,3 +310,59 @@ The second row of the budget, 3.5 %, stays on the same scale and is also uncerti
 
 **The limit.** `FA` and `MI` are taken to hold at every point, configuration and stratum. They were measured only at
 configuration 4, τ 0.85, gate on, on validation, and the false alarms are all in bucket `1.0`. This is an assumption.
+
+---
+
+## Entry 8 — 2026-11-14 01:10 +07:00 (2026-11-13 18:10Z) — the Tier-2 trial: τ_P, the scope-test cut and the adoption rule (item 6.0a)
+
+Written **before any replay of the trial**: `experiments/results/` holds no run of it at the time of writing, and no
+judge verdict of the trial exists. Item 6.0a of `super-plan.md`; ADR-028, ADR-029, ADR-030; trail
+`docs/work/2026-11-13-tier2-scope-by-evidence/`. It cites Entries 1, 4, 6 and 7 and edits none of them. `judge-v1`, its
+prompt, the references, δ, τ 0.85, `τ_s` 0.6, `top_k` 5, chunking, the embedder and the served generator model are
+unchanged. Counts, hashes and rules only: no question, answer or evidence text is in this entry. Every number is
+`citable: no`.
+
+**τ_P.** `make scope-calibrate` applied the rule of ADR-030 to the stored validation question vectors
+(`data/v1-draft/workload/vectors.json`) and the title vectors in Redis (`make docmeta`). It uses no verdict. The result is
+read from `docs/work/2026-11-13-tier2-scope-by-evidence/evidence/scope-calibrate.json` (sha256
+`ca1611e4ee1bd1b8be8dc4763099fa3d9ce902c7306104fb27dc9056885ed23d`, `date` 2026-11-14).
+
+| Item | Value |
+| :--- | :--- |
+| The rule | τ_P is the smallest projected cosine at which the share of pairs that pass is not above the share that passes raw cosine at τ = 0.85. The pairs are the policy questions with another question on the same policy document |
+| Policy questions, documents, pairs | 142, 12, 1,322 |
+| Raw pass at τ = 0.85 | 78 pairs, 0.0590 |
+| Projected pass at τ_P | 77 pairs, 0.0582 |
+| Pairs with no projection | 0 |
+| **τ_P** | **0.8329** (exact 0.832813, rounded up to four decimals, so the rounding can only lower the share) |
+| Stored vector against the gateway's own embedding | `gateprobe -embedcheck`: 3 of 3 questions at cosine 1.000000 (the floor is 0.9999) |
+
+τ_P is **never swept**.
+
+**The scope-test cut.** 10 %: a product-bound word occurs in at most 10 % of the 152 products. Pinned, never swept. The
+tokenizer is `contracts/scope/cases.json` (sha256 `33483c2231f8170a127cf77d1b6c3c0719c177be4f45bb70bd24118dd0f6a0e8`).
+`make docmeta` wrote a category for 164 of 164 documents and a title vector for 152 of 152 products.
+
+**The adoption rule**, as in the trail's `design.md` §1 (the sha256 of its §1 at the time of writing is
+`86631c226e2a1c1b727ab2ec0c1e9f0ce333db0c007775dc5df703e86f237ca6`). `SCOPE_ARM=on` becomes the served default only if
+both hold on the two validation replays:
+1. POLICY-lane hits judged correct rise by **at least 20** (arm on minus arm off).
+2. With the arm on, the judged-wrong share of POLICY-lane hits is **at most** the judged-wrong share of POLICY-lane
+   misses in the same run **plus 5 points**.
+
+Otherwise the default stays `off`. The decision, either way, is ADR-031.
+
+**The trial's settings.** Two validation replays, arm off and arm on: configuration 4, `MUTATION=off`, `SUPPORT_GATE=off`,
+`LANE_SIGMA_HI=0.20` (MIXED off), `REUSE_TAU=0.85`, `CACHE_CAPACITY=156`, a cold cache, the same seed and order, 606
+queries sent and 16 with no `product_id` skipped. Each is judged by `judge-v1` against the references of Entry 4. Green
+pressure is preferred; yellow is allowed and recorded; red stops the run.
+
+**The served prompt.** P1 passed done condition 4 (`make prompt-probe`, `citable: no`): meta phrases old 88 of 120, new 23
+of 120; `NO_ANSWER` on answerable questions new 6 of 100 against the old prompt's "don't know" 10 of 100. P2 is not used.
+The served prompt's sha256 (`generate.prompt_sha256()`) is
+`7a6acf979a041a7683e67a8453de1316636410998d2c225ef12f7b2179fe3929`. The reference writer keeps the old prompt
+(`experiments/judge/reference-prompt-v1.txt`, sha256 `3e224f4500a18dc065ab6e24c46e25302ac275f8e145085bfb211bcf65ba67dd`,
+equal to `prompt_sha256` in `reference-writer-v1.json`), so Entry 4's reference set and Entry 7's floor stand.
+
+**The limit.** Entry 7's false-alarm and miss rates were measured on answers from the old prompt and the old POLICY
+namespace. They are taken to hold for the trial's answers. This is an assumption, as it was in Entry 7.

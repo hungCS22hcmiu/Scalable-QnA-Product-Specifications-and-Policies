@@ -1,0 +1,165 @@
+{
+ "what": "POLICY-lane hits judged CORRECT/INCORRECT by judge-v1, split by hit_scope; an analysis agreed by the author 2026-11-14, not part of the adoption rule; citable: no",
+ "source": "scope_trial.load_run + scope_trial.lanes",
+ "off (2026-11-14T01-43-29_cfg4_scope-off)": {
+  "by_scope": {
+   "product": {
+    "INCORRECT": 7,
+    "CORRECT": 1
+   }
+  },
+  "hits": [
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.9777306318283,
+    "shared_similarity": null
+   },
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.9776916503906,
+    "shared_similarity": null
+   },
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.999551653862,
+    "shared_similarity": null
+   },
+   {
+    "scope": "product",
+    "verdict": "CORRECT",
+    "similarity": 0.9114874601364,
+    "shared_similarity": null
+   },
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.9698159098625,
+    "shared_similarity": null
+   },
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.890400528908,
+    "shared_similarity": null
+   },
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.892590582371,
+    "shared_similarity": null
+   },
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.881174504757,
+    "shared_similarity": null
+   }
+  ]
+ },
+ "on (2026-11-14T02-18-25_cfg4_scope-on)": {
+  "by_scope": {
+   "shared": {
+    "INCORRECT": 5,
+    "CORRECT": 9
+   },
+   "product": {
+    "INCORRECT": 1
+   }
+  },
+  "hits": [
+   {
+    "scope": "shared",
+    "verdict": "INCORRECT",
+    "similarity": 0.9565270543098,
+    "shared_similarity": 0.9565270543098
+   },
+   {
+    "scope": "product",
+    "verdict": "INCORRECT",
+    "similarity": 0.9776916503906,
+    "shared_similarity": null
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.846452236176,
+    "shared_similarity": 0.846452236176
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.9357291460037,
+    "shared_similarity": 0.9357291460037
+   },
+   {
+    "scope": "shared",
+    "verdict": "INCORRECT",
+    "similarity": 0.839238524437,
+    "shared_similarity": 0.839238524437
+   },
+   {
+    "scope": "shared",
+    "verdict": "INCORRECT",
+    "similarity": 0.9537306427956,
+    "shared_similarity": 0.9537306427956
+   },
+   {
+    "scope": "shared",
+    "verdict": "INCORRECT",
+    "similarity": 0.834010601044,
+    "shared_similarity": 0.834010601044
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.860988080502,
+    "shared_similarity": 0.860988080502
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.837994873524,
+    "shared_similarity": 0.837994873524
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.877987980843,
+    "shared_similarity": 0.877987980843
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.879438281059,
+    "shared_similarity": 0.879438281059
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.858982384205,
+    "shared_similarity": 0.858982384205
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.849328279495,
+    "shared_similarity": 0.849328279495
+   },
+   {
+    "scope": "shared",
+    "verdict": "INCORRECT",
+    "similarity": 0.9511509537697,
+    "shared_similarity": 0.9511509537697
+   },
+   {
+    "scope": "shared",
+    "verdict": "CORRECT",
+    "similarity": 0.862847924232,
+    "shared_similarity": 0.862847924232
+   }
+  ]
+ }
+}

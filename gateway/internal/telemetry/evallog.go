@@ -128,6 +128,26 @@ type Record struct {
 	// the one-stratum-per-normalised-form guarantee, which a product-scoped Tier-1 key
 	// relaxes; t1_key alone cannot recover which product a record belongs to.
 	ProductID string `json:"product_id,omitempty"`
+
+	// --- the scope arm (item 6.0a, interfaces.md H v0.37) ---
+	// None of these has omitempty. A null is a statement ("no lane was derived", "nothing was written"), a
+	// log from before the arm lacks the keys altogether, and key presence is what tells the two eras
+	// apart. All are plain strings and numbers: this package imports nothing from the repository.
+	//
+	// ScopeArm is "on" or "off", on EVERY record, written from the handler's one ScopeOn field.
+	// QueryLane is the lane derived from this request's own retrieval ("SPEC", "POLICY" or "MIXED"), null
+	// when none was (a Tier-1 hit, or no retrieval). HitScope is "product" or "shared" on a TIER2_HIT,
+	// null otherwise. WriteScope is the scope of the entry a MISS wrote, null when it wrote none (a discard,
+	// a no-answer, or an error). NoAnswer is true when the answer is the service's fixed fallback sentence.
+	// SharedSimilarity and SharedRefusalCause describe the shared candidate when a shared search found one
+	// (null otherwise); a shared hit has the same values in similarity and refusal_cause.
+	ScopeArm           string   `json:"scope_arm"`
+	QueryLane          *string  `json:"query_lane"`
+	HitScope           *string  `json:"hit_scope"`
+	WriteScope         *string  `json:"write_scope"`
+	NoAnswer           bool     `json:"no_answer"`
+	SharedSimilarity   *float64 `json:"shared_similarity"`
+	SharedRefusalCause *string  `json:"shared_refusal_cause"`
 }
 
 // Logger appends Records as JSONL, off the request path.

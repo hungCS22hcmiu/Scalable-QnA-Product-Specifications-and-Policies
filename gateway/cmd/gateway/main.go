@@ -166,6 +166,73 @@ func mutationFromEnv(lookup func(string) (string, bool)) (string, error) {
 	return v, nil
 }
 
+// scopeArmDefault is the scope arm when SCOPE_ARM is unset. It is "off" until the adoption rule of the
+// item 6.0a trial (design.md section 1) says otherwise, and the decision is an ADR (ADR-031).
+const scopeArmDefault = "off"
+
+// scopeFromEnv reads the scope arm (item 6.0a, ADR-030): SCOPE_ARM is "on" or "off", unset means
+// scopeArmDefault, and with the arm on REUSE_TAU_P (the shared candidate's threshold, calibrated by
+// `make scope-calibrate`) is required. It takes os.LookupEnv's shape as gateFromEnv and mutationFromEnv
+// do, and for the same reason: set-but-empty, "ON", " on" and every other value stop the process before
+// it opens Redis or the evaluation log, because the arm is chosen for the whole run and a record's
+// scope_arm names it. With the arm on, REUSE_TAU_P must be a number in (0, 1]. With the arm off it is not
+// read: tau_p is 0, and a shared candidate then can never pass (reuse.DecideLane). Pure, so the rule is
+// testable. On error the values returned are off and 0.
+func scopeFromEnv(lookup func(string) (string, bool)) (on bool, tauP float64, err error) {
+	arm := scopeArmDefault
+	if v, set := lookup("SCOPE_ARM"); set {
+		arm = v
+	}
+	if arm != "off" && arm != "on" {
+		return false, 0, fmt.Errorf("SCOPE_ARM=%q is not \"on\" or \"off\" (unset means %q): the scope arm is "+
+			"chosen for the whole run, so a value that is almost right stops the gateway", arm, scopeArmDefault)
+	}
+	if arm == "off" {
+		return false, 0, nil
+	}
+	raw, set := lookup("REUSE_TAU_P")
+	if !set || raw == "" {
+		return false, 0, errors.New("SCOPE_ARM=on needs REUSE_TAU_P (the shared candidate's similarity threshold, " +
+			"printed by `make scope-calibrate`): without it a shared candidate could never pass")
+	}
+	f, perr := strconv.ParseFloat(raw, 64)
+	if perr != nil || !(f > 0 && f <= 1) {
+		return false, 0, fmt.Errorf("REUSE_TAU_P=%q is not a number in (0, 1]", raw)
+	}
+	return true, f, nil
+}
+
+// checkDocMeta refuses a metadata set the scope arm cannot run on: no `product-*` document at all (the
+// metadata was never written: run `make docmeta`), or a product with no title vector. With either, the
+// projection is impossible and a request would silently fall back to product scope, so the arm would
+// measure nothing under its own label.
+func checkDocMeta(meta map[string]cache.DocMeta) error {
+	products := 0
+	for id, m := range meta {
+		if !strings.HasPrefix(id, "product-") {
+			continue
+		}
+		products++
+		if len(m.TitleVec) == 0 {
+			return fmt.Errorf("docmeta:%s has no title_vec: run `make docmeta`", id)
+		}
+	}
+	if products == 0 {
+		return errors.New("no docmeta:product-* hash in Redis: run `make docmeta` before starting with SCOPE_ARM=on")
+	}
+	return nil
+}
+
+// reuseDocMeta converts the cache package's metadata to reuse's. The two types have the same fields and
+// are kept apart so that reuse/ imports nothing from this repository.
+func reuseDocMeta(in map[string]cache.DocMeta) map[string]reuse.DocMeta {
+	out := make(map[string]reuse.DocMeta, len(in))
+	for id, m := range in {
+		out[id] = reuse.DocMeta{Category: m.Category, TitleVec: m.TitleVec, BoundWords: m.BoundWords}
+	}
+	return out
+}
+
 // runCounts is everything that can make a finished run inadmissible. A struct rather than
 // positional arguments, so two int64 counts cannot be passed in the wrong order.
 type runCounts struct {
@@ -227,6 +294,38 @@ func incomplete(c runCounts) error {
 		return nil
 	}
 	return errors.New(strings.Join(why, "; "))
+}
+
+// runEndedLine starts the gateway's last line when a run ended with nothing lost. run_manifest.py
+// reads it for rule 6 (interfaces.md §I), and a pytest checks that the text it looks for is printed
+// here, so renaming the line fails a test instead of voiding every later run (design.md §4 of
+// docs/work/2026-11-13-tier2-scope-by-evidence: `29da622` renamed the old shutdown line and rule 6
+// stopped holding).
+const runEndedLine = "gateway: run ended cleanly"
+
+// runEnd is how the process ended. A struct, like runCounts, so two errors cannot be passed in the
+// wrong order.
+type runEnd struct {
+	ServeErr    error // what ListenAndServe returned: http.ErrServerClosed after a Shutdown
+	ShutdownErr error // srv.Shutdown: not nil when requests were still in flight at shutdownGrace
+	DepCloseErr error // depMap.Close
+
+	DepDropped, DepRegisterErrors, DepPurgeErrors int64
+
+	CloseErr error // the evaluation log's Close
+	Verdict  error // finishRun's verdict
+}
+
+// clean says whether nothing was lost: the server stopped because Shutdown was called, every request
+// in flight finished within the grace, the dependency map closed with nothing dropped or failed, and
+// the evaluation log closed complete. Only then does main print runEndedLine, as its last line. The
+// shutdown line itself is printed when shutdown STARTS, so it cannot show this: a second Ctrl-C kills
+// the process after it, losing buffered records with no INCOMPLETE line.
+func (e runEnd) clean() bool {
+	return errors.Is(e.ServeErr, http.ErrServerClosed) &&
+		e.ShutdownErr == nil && e.DepCloseErr == nil &&
+		e.DepDropped == 0 && e.DepRegisterErrors == 0 && e.DepPurgeErrors == 0 &&
+		e.CloseErr == nil && e.Verdict == nil
 }
 
 // shutdownGrace is how long a shutdown waits for in-flight requests. At one permit plus the default
@@ -293,6 +392,13 @@ func main() {
 		log.Fatalf("gateway: %v", err)
 	}
 
+	// The scope arm, for the same reason and in the same place (item 6.0a, ADR-030): a misspelt SCOPE_ARM
+	// or a missing REUSE_TAU_P must not leave a run directory behind, and a record's scope_arm names the arm.
+	scopeOn, tauP, err := scopeFromEnv(os.LookupEnv)
+	if err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
+
 	redisAddr := getenv("REDIS_URL", "localhost:6379")
 	ollamaURL := getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 	ragGRPCAddr := getenv("RAG_GRPC_ADDR", "localhost:50051")
@@ -318,6 +424,21 @@ func main() {
 		log.Fatalf("gateway: creating %s: %v", cache.CacheIndexName, err)
 	}
 
+	// The scope arm reads the document metadata once, here, and never on the hit path. With the arm on a
+	// product without a title vector stops the start; with it off nothing is read.
+	var docMeta map[string]reuse.DocMeta
+	if scopeOn {
+		loaded, err := store.LoadDocMeta(context.Background())
+		if err != nil {
+			log.Fatalf("gateway: loading document metadata: %v", err)
+		}
+		if err := checkDocMeta(loaded); err != nil {
+			log.Fatalf("gateway: document metadata: %v", err)
+		}
+		docMeta = reuseDocMeta(loaded)
+		log.Printf("gateway: document metadata: %d documents loaded for the scope arm", len(docMeta))
+	}
+
 	// C2: the dependency map. One writer goroutine owns dep:* and entry:*; *cache.Store is its Purger
 	// (deps/ imports no internal package). 1024 queued messages is far above one write-back at a time
 	// (ADR-003); a full queue makes Register wait, never drop. Closed at shutdown, below.
@@ -336,6 +457,8 @@ func main() {
 	thresholds := reuse.Thresholds{
 		Tau:   getenvFloat("REUSE_TAU", 0.85),
 		Theta: getenvFloat("REUSE_THETA", 0.60),
+		// TauP is calibrated, not swept, and read only with the scope arm on (scopeFromEnv).
+		TauP: tauP,
 	}
 	// The lane band is the two-lane experiment's selector. It is NOT a demo value and not swept: ADR-016
 	// pins two bands and the MIXED lane is an on/off arm, read and checked by bandFromEnv above. The
@@ -356,8 +479,18 @@ func main() {
 	// ungrounded. See approvals.md.
 	log.Printf("gateway: tau=%.3f theta=%.2f dim=%d index=%s  (all DEMO values, swept later)",
 		thresholds.Tau, thresholds.Theta, embed.Dim, cache.CacheIndexName)
-	log.Printf("gateway: lane_band=[%.2f,%.2f) mixed_lane=%s (pinned, ADR-016)",
-		band.Lo, band.Hi, band.Arm())
+	// scope_arm and tau_p sit on this line, next to mixed_lane, because run_manifest.py reads the arm from
+	// it and compares it with the records' scope_arm (ADR-010). tau_p is n/a with the arm off.
+	tauPText := "n/a"
+	if scopeOn {
+		tauPText = fmt.Sprintf("%.4f", tauP)
+	}
+	scopeArm := "off"
+	if scopeOn {
+		scopeArm = "on"
+	}
+	log.Printf("gateway: lane_band=[%.2f,%.2f) mixed_lane=%s scope_arm=%s tau_p=%s (pinned, ADR-016; "+
+		"scope arm: ADR-030)", band.Lo, band.Hi, band.Arm(), scopeArm, tauPText)
 
 	// Admission control. The permit count is the frozen generation slot count (ADR-003): the slots
 	// the model runner ACTUALLY serves, which `make env-check` verifies against the live runner.
@@ -425,6 +558,10 @@ func main() {
 	handler.ConfigID = getenvInt("CONFIG_ID", 0)
 	handler.Mutation = mutation
 	handler.SupportGate = supportGate
+	// The scope arm: ONE field steers the second search and the shared write and labels every record's
+	// scope_arm, so behaviour and label cannot come from two places. The metadata is nil with the arm off.
+	handler.ScopeOn = scopeOn
+	handler.DocMeta = docMeta
 	// Always set: a gateway without a map registers nothing, silently, and no purge can reach its
 	// entries (design.md failure mode 8; TestMainWiresDeps reads this file for it).
 	handler.Deps = depMap
@@ -483,6 +620,7 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	shutdownDone := make(chan struct{})
+	var shutdownErr error // written before close(shutdownDone), read only after <-shutdownDone
 	go func() {
 		defer close(shutdownDone)
 		<-stop
@@ -494,6 +632,7 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
+			shutdownErr = err
 			log.Printf("gateway: WARNING requests still in flight after %s (%v). Their records are lost "+
 				"uncounted, and a write-back cut between the tier write and Deps.Register leaves an entry "+
 				"no purge can reach. Do not cite this run; flush the cache before the next one.",
@@ -502,21 +641,27 @@ func main() {
 	}()
 
 	log.Printf("gateway listening on %s (redis=%s rag=%s)", httpAddr, redisAddr, ragGRPCAddr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Printf("gateway: %v", err)
+	var end runEnd
+	end.ServeErr = srv.ListenAndServe()
+	if end.ServeErr != nil && end.ServeErr != http.ErrServerClosed {
+		log.Printf("gateway: %v", end.ServeErr)
 	} else {
 		// ListenAndServe returns as soon as Shutdown STARTS, not when it ends. Wait here, or the map
 		// and the log below close while a handler is still generating.
 		<-shutdownDone
+		end.ShutdownErr = shutdownErr
 	}
 	// Drain the dependency map before the evaluation log closes. Every handler has returned by now
 	// (unless shutdownGrace ran out, which is logged above), so no write-back registers after Close.
 	closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := depMap.Close(closeCtx); err != nil {
+		end.DepCloseErr = err
 		log.Printf("gateway: closing the dependency map: %v", err)
 	}
 	closeCancel()
-	if d, e, p := depMap.Dropped(), depMap.RegisterErrors(), depMap.PurgeErrors(); d != 0 || e != 0 || p != 0 {
+	end.DepDropped, end.DepRegisterErrors, end.DepPurgeErrors =
+		depMap.Dropped(), depMap.RegisterErrors(), depMap.PurgeErrors()
+	if d, e, p := end.DepDropped, end.DepRegisterErrors, end.DepPurgeErrors; d != 0 || e != 0 || p != 0 {
 		log.Printf("gateway: the dependency map is INCOMPLETE: %d registration(s) dropped after close, "+
 			"%d registration write(s) failed, %d purge call(s) failed. An entry without its dependency "+
 			"record survives every purge (interfaces.md §E).", d, e, p)
@@ -529,10 +674,18 @@ func main() {
 			"incompleteness.", n)
 	}
 	closeErr, verdict := finishRun(evalLog)
+	end.CloseErr, end.Verdict = closeErr, verdict
 	if closeErr != nil {
 		log.Printf("gateway: closing evaluation log: %v", closeErr)
 	}
 	if verdict != nil {
 		log.Fatalf("gateway: THIS RUN IS INCOMPLETE -- %v", verdict)
+	}
+	// The last line, and the only proof for rule 6 that nothing was lost (interfaces.md §I).
+	if end.clean() {
+		log.Printf("%s -- every request finished, the dependency map closed with nothing lost, "+
+			"the evaluation log is complete", runEndedLine)
+	} else {
+		log.Printf("gateway: the run did not end cleanly (see the lines above), so rule 6 will not admit it")
 	}
 }

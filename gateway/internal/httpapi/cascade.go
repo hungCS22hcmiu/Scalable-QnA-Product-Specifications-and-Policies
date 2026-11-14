@@ -83,7 +83,41 @@ type tier2Outcome struct {
 	// Served is the ONLY serve decision: Cause == NONE. It is never "no arm refused", because an
 	// unscored result does not refuse (reuse.Judgement.Served).
 	Served bool
+
+	// --- the scope arm (item 6.0a, ADR-030) ---
+	// HitScope says which search served the candidate: "product" or "shared". It is "" unless Served.
+	// With the arm on and a POLICY request, the product-scope candidate is judged first and the shared one
+	// only when the product one did not serve.
+	//
+	// When the SHARED candidate serves, every field above describes it (Candidate, NSDecision, Cause,
+	// Support, EnteredBand, Decision), so a hit keeps the invariants of interfaces.md H: a TIER2_HIT has a
+	// similarity and the cause NONE. When it does not serve, the fields above still describe the
+	// product-scope candidate, and the shared one shows only in the two fields below.
+	HitScope string
+	// SharedSimilarity is the cosine similarity of the nearest shared candidate, nil when no shared
+	// candidate was found. SharedCause is the refusal cause of the shared candidate, "" when none was
+	// judged (the arm is off, the request is not POLICY, the category guard refused, no entry, or the
+	// entry was invalidated).
+	SharedSimilarity *float64
+	SharedCause      string
 }
+
+// judgedCandidate is the verdict on one candidate, product or shared: the lane rule's decision, the
+// containment counterfactual, the cause and the support gate's verdicts.
+type judgedCandidate struct {
+	NSDecision  reuse.NamespaceDecision
+	EnteredBand bool
+	Decision    reuse.Decision
+	Cause       string
+	Support     *reuse.SupportResult
+	Served      bool
+}
+
+// Scope names as the cascade writes them to the record. They are reuse.ScopeProduct and ScopeShared.
+const (
+	hitScopeProduct = string(reuse.ScopeProduct)
+	hitScopeShared  = string(reuse.ScopeShared)
+)
 
 // tryTier2 runs: lane + namespace -> one namespace-scoped search -> the two-lane rule, computing
 // the containment rule alongside it as the counterfactual when the candidate cleared tau, then
@@ -96,7 +130,8 @@ type tier2Outcome struct {
 // result in, which is what turns the hit path from the SUM of those two round-trips into their
 // maximum.
 //
-// ONE search, and only after retrieval, because the namespace that scopes it is derived from
+// ONE search (a second one only with the scope arm on, for a POLICY request the first did not serve:
+// sharedCandidate), and only after retrieval, because the namespace that scopes it is derived from
 // retrieval. The unfiltered search that used to run first was retired (interfaces.md v0.9,
 // ADR-004): it searched outside the namespace the rule enforces, so it could only report an entry
 // the rule would refuse. The alternative to a scoped search -- one over-fetch filtered in Go --
@@ -140,51 +175,42 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 		return out
 	}
 
-	// Ask Redis for the nearest entry INSIDE the namespace rather than over-fetching and filtering
-	// in Go. k=1 suffices: the rule accepts or refuses on namespace equality, which every
-	// candidate in this result satisfies, so the most similar one is the best one and the rest
-	// could only lose on tau.
-	searchStart := time.Now()
-	scoped, err := h.Cache.NearestTier2InNamespace(ctx, vec, out.QueryNS, 1)
-	t.Search = time.Since(searchStart)
-	if err != nil {
-		log.Printf("gateway: tier-2 namespace search failed, degrading to MISS: %v", err)
-		out.SearchFailed = true
-		return out
-	}
-	if len(scoped) == 0 {
+	h.productCandidate(ctx, vec, retrieved, &out, t)
+	if out.SearchFailed {
 		return out
 	}
 
-	// The rule still runs in reuse/ over whatever came back. The filter above is an optimisation
-	// and this is the enforcement: if the two ever disagree, the Go check refuses.
-	c := scoped[0]
-
-	// C2's hit-path check, after the Redis read (see Ask's Tier-1 check). An invalidated candidate is
-	// dropped here, before DecideLane: it is not judged, so it earns no refusal cause and the request is
-	// a MISS with refusal_cause null. A promoted Tier-1 key shares this entry_id, so it is refused too.
-	if h.Deps != nil && h.Deps.Invalidated(c.Entry.EntryID) {
-		out.InvalidatedEntryID = c.Entry.EntryID
-		return out
+	// The scope arm: a POLICY request whose product-scope candidate did not serve looks once more, in the
+	// shared namespace, under the projected vector. The product-scope match is always served first.
+	if h.ScopeOn && out.QueryLane == reuse.LanePolicy && !out.Served {
+		h.sharedCandidate(ctx, productID, vec, retrieved, &out, t)
 	}
+	return out
+}
 
-	out.Found, out.Candidate = true, c
-	out.NSDecision = h.Thresholds.DecideLane(reuse.LaneInput{
+// judge runs the lane rule, the containment counterfactual and the cause for ONE candidate. `shared`
+// makes the rule hold the candidate to TauP instead of Tau (reuse.LaneInput.Shared).
+func (h *Handler) judge(c cache.Candidate, queryLane reuse.Lane, queryNS string, shared bool, retrieved *ragclient.RetrieveResult) judgedCandidate {
+	// The rule still runs in reuse/ over whatever came back. The Redis filter is an optimisation and this
+	// is the enforcement: if the two ever disagree, the Go check refuses.
+	j := judgedCandidate{NSDecision: h.Thresholds.DecideLane(reuse.LaneInput{
 		Similarity: c.Similarity,
-		QueryLane:  out.QueryLane,
-		QueryNS:    out.QueryNS,
+		QueryLane:  queryLane,
+		QueryNS:    queryNS,
 		EntryLane:  reuse.Lane(c.Entry.Lane),
 		EntryNS:    c.Entry.Namespace,
-	})
+		Shared:     shared,
+	})}
 
 	// The band, written in the positive form so that a NaN similarity stays out of it, agreeing
-	// with DecideLane's >=. The containment counterfactual is computed on the candidate the lane rule
-	// judged, once. It is the rule configuration 4 would apply with the support gate off AND theta
-	// served, which it does not (F-K): it is a logged counterfactual, never a serve decision.
-	if c.Similarity >= h.Thresholds.Tau {
-		out.EnteredBand = true
-		out.Decision = h.Thresholds.Decide(c.Similarity, retrieved.ChunkIDs, c.Entry.SourceChunkIDs)
-		out.NSDecision.Overlap = out.Decision.Overlap
+	// with DecideLane's >=, and against the threshold the rule applied (Tau, or TauP for a shared
+	// candidate). The containment counterfactual is computed on the candidate the lane rule judged, once.
+	// It is the rule configuration 4 would apply with the support gate off AND theta served, which it does
+	// not (F-K): it is a logged counterfactual, never a serve decision.
+	if c.Similarity >= j.NSDecision.Tau {
+		j.EnteredBand = true
+		j.Decision = h.Thresholds.Decide(c.Similarity, retrieved.ChunkIDs, c.Entry.SourceChunkIDs)
+		j.NSDecision.Overlap = j.Decision.Overlap
 	}
 
 	// The cause, and the support gate behind it. THIS request's evidence goes in -- retrieved.Texts
@@ -193,23 +219,121 @@ func (h *Handler) tryTier2(ctx context.Context, productID string, vec []float32,
 	// c.Entry.Answer; the query text is nowhere in this call. The first argument is the gate's arm
 	// (item 2.4): h.SupportGate is the same field that labels the record, so what ran and what the log
 	// says it ran cannot differ. With GateOff the gate does not run and retrieved.Texts is not read.
-	j := h.Thresholds.Judge(h.SupportGate, out.NSDecision, c.Similarity, c.Entry.Answer, retrieved.Texts, retrieved.ChunkIDs)
-	out.Cause, out.Support, out.Served = j.Cause, j.Support, j.Served()
+	judgement := h.Thresholds.Judge(h.SupportGate, j.NSDecision, c.Similarity, c.Entry.Answer, retrieved.Texts, retrieved.ChunkIDs)
+	j.Cause, j.Support, j.Served = judgement.Cause, judgement.Support, judgement.Served()
+	return j
+}
+
+// apply copies a verdict into the outcome as the one the record describes.
+func (o *tier2Outcome) apply(c cache.Candidate, j judgedCandidate) {
+	o.Found, o.Candidate = true, c
+	o.NSDecision, o.EnteredBand, o.Decision = j.NSDecision, j.EnteredBand, j.Decision
+	o.Cause, o.Support, o.Served = j.Cause, j.Support, j.Served
+}
+
+// productCandidate is the single search of every request before the scope arm: the nearest entry INSIDE
+// the query's own namespace, under the raw question vector, judged against Tau. It fills `out` and sets
+// SearchFailed on an error.
+func (h *Handler) productCandidate(ctx context.Context, vec []float32, retrieved *ragclient.RetrieveResult, out *tier2Outcome, t *stageTimings) {
+	// Ask Redis for the nearest entry INSIDE the namespace rather than over-fetching and filtering
+	// in Go. k=1 suffices: the rule accepts or refuses on namespace equality, which every
+	// candidate in this result satisfies, so the most similar one is the best one and the rest
+	// could only lose on tau.
+	searchStart := time.Now()
+	scoped, err := h.Cache.NearestTier2InNamespace(ctx, vec, out.QueryNS, 1)
+	t.Search += time.Since(searchStart)
+	if err != nil {
+		log.Printf("gateway: tier-2 namespace search failed, degrading to MISS: %v", err)
+		out.SearchFailed = true
+		return
+	}
+	if len(scoped) == 0 {
+		return
+	}
+	c := scoped[0]
+
+	// C2's hit-path check, after the Redis read (see Ask's Tier-1 check). An invalidated candidate is
+	// dropped here, before DecideLane: it is not judged, so it earns no refusal cause and the request is
+	// a MISS with refusal_cause null. A promoted Tier-1 key shares this entry_id, so it is refused too.
+	if h.Deps != nil && h.Deps.Invalidated(c.Entry.EntryID) {
+		out.InvalidatedEntryID = c.Entry.EntryID
+		return
+	}
+
+	j := h.judge(c, out.QueryLane, out.QueryNS, false, retrieved)
+	out.apply(c, j)
+	if j.Served {
+		out.HitScope = hitScopeProduct
+	}
 
 	// The two verdicts side by side ARE the experiment. rule= names which TERM judged the lane
 	// verdict, so a MIXED composite hit is never confused with a pure-lane namespace hit when the
 	// false-hit rate is attributed per lane. cause= is the one value that reaches the log.
-	log.Printf("gateway: cascade lane=%s ns=%s entry_lane=%s entry_ns=%s sim=%.4f\n"+
-		"          ns_decision=%v (rule=%s lane_match=%v)  band=%v overlap_decision=%v (overlap=%.2f)\n"+
+	h.logCascade("product", out.QueryLane, out.QueryNS, c, j, retrieved)
+}
+
+// sharedCandidate is the scope arm's second search (design.md 3.2). It runs only for a POLICY request the
+// product-scope candidate did not serve. The category guard and the title vector come first
+// (reuse.CanShare); then the question vector is projected away from the product's title vector, and the
+// nearest entry in the policy document's own namespace is judged against TauP.
+//
+// It never replaces what the product search found unless the shared candidate SERVES: then `out`
+// describes the shared candidate and HitScope says "shared". Otherwise only SharedSimilarity and
+// SharedCause are set. An entry in the shared namespace whose scope is not "shared" (one written before
+// the arm) is ignored: it was keyed by a raw vector and must not be compared with a projected one.
+func (h *Handler) sharedCandidate(ctx context.Context, productID string, vec []float32, retrieved *ragclient.RetrieveResult, out *tier2Outcome, t *stageTimings) {
+	policyDoc := reuse.Namespace(reuse.LanePolicy, retrieved.ChunkIDs, "")
+	policy, hasPolicy := h.DocMeta[policyDoc]
+	product := h.DocMeta[productID]
+	if !reuse.CanShare(product, policy, hasPolicy) {
+		return
+	}
+	projected := reuse.Project(vec, product.TitleVec)
+	if projected == nil {
+		return
+	}
+	sharedNS := reuse.SharedNamespace(policyDoc)
+
+	searchStart := time.Now()
+	found, err := h.Cache.NearestTier2InNamespace(ctx, projected, sharedNS, 1)
+	t.Search += time.Since(searchStart)
+	if err != nil {
+		log.Printf("gateway: tier-2 shared search failed, degrading to MISS: %v", err)
+		out.SearchFailed = true
+		return
+	}
+	if len(found) == 0 || found[0].Entry.Scope != hitScopeShared {
+		return
+	}
+	c := found[0]
+	if h.Deps != nil && h.Deps.Invalidated(c.Entry.EntryID) {
+		if out.InvalidatedEntryID == "" {
+			out.InvalidatedEntryID = c.Entry.EntryID
+		}
+		return
+	}
+
+	j := h.judge(c, out.QueryLane, sharedNS, true, retrieved)
+	sim := c.Similarity
+	out.SharedSimilarity, out.SharedCause = &sim, j.Cause
+	if j.Served {
+		out.apply(c, j)
+		out.HitScope = hitScopeShared
+	}
+	h.logCascade("shared", out.QueryLane, sharedNS, c, j, retrieved)
+}
+
+// logCascade writes the cascade's log line for one judged candidate.
+func (h *Handler) logCascade(scope string, lane reuse.Lane, queryNS string, c cache.Candidate, j judgedCandidate, retrieved *ragclient.RetrieveResult) {
+	log.Printf("gateway: cascade scope=%s lane=%s ns=%s entry_lane=%s entry_ns=%s sim=%.4f\n"+
+		"          ns_decision=%v (rule=%s lane_match=%v tau=%.4f)  band=%v overlap_decision=%v (overlap=%.2f)\n"+
 		"          cause=%s gate=%s support=%s\n"+
 		"          retrieved=%v\n          entry_sources=%v",
-		out.QueryLane, out.QueryNS, c.Entry.Lane, c.Entry.Namespace, c.Similarity,
-		out.NSDecision.Reuse, out.NSDecision.Rule, out.NSDecision.LaneMatch,
-		out.EnteredBand, out.Decision.Reuse, out.Decision.Overlap,
-		out.Cause, h.SupportGate, supportSummary(out.Support),
+		scope, lane, queryNS, c.Entry.Lane, c.Entry.Namespace, c.Similarity,
+		j.NSDecision.Reuse, j.NSDecision.Rule, j.NSDecision.LaneMatch, j.NSDecision.Tau,
+		j.EnteredBand, j.Decision.Reuse, j.Decision.Overlap,
+		j.Cause, h.SupportGate, supportSummary(j.Support),
 		retrieved.ChunkIDs, c.Entry.SourceChunkIDs)
-
-	return out
 }
 
 // supportSummary renders the gate's verdicts for the cascade's log line. It is a log line only; the

@@ -36,9 +36,12 @@ _CHUNK = RetrievedChunk(
 
 _FULL_TEXT = "the full fake answer"
 
-# Taken from the code before the change (evidence/golden_before.out, plan step 1.1).
-_TEMPLATE_SHA256 = "3e224f4500a18dc065ab6e24c46e25302ac275f8e145085bfb211bcf65ba67dd"
-_PROMPT_SHA256 = "c4f5162b72d7dca13ca8258a15c744022d5cfe05c18f7af223213d38c34a6377"
+# Moved at item 6.0a (ADR-029; the human approved it in that task's design.md section 4).
+# The served prompt now has a system text and a new user template. The two pins it replaces
+# (3e224f45..., c4f5162b...) belong to the reference writer's own file,
+# experiments/judge/reference-prompt-v1.txt, and are pinned there.
+_SERVED_PROMPT_SHA256 = "7a6acf979a041a7683e67a8453de1316636410998d2c225ef12f7b2179fe3929"
+_PROMPT_SHA256 = "42acfc09a6bb9486e42f4f442cbcfe9cf4b0d8c0298ae6197c23f76dc8d2176d"
 
 
 class FakeContext:
@@ -191,6 +194,7 @@ def test_request_body_is_unchanged(stack):
     assert fake.bodies == [
         {
             "model": "qwen3.5:2b-q4_K_M",
+            "system": generate._SYSTEM_PROMPT,
             "prompt": generate._build_prompt("How heavy is it?", [_CHUNK]),
             "stream": False,
             "think": False,
@@ -200,8 +204,8 @@ def test_request_body_is_unchanged(stack):
 
 
 def test_prompt_is_unchanged():
-    """DC 2. judge_references.py reads both (the manifest's prompt_sha256 and the reference
-    prompt), so neither may change."""
-    assert hashlib.sha256(generate._PROMPT_TEMPLATE.encode()).hexdigest() == _TEMPLATE_SHA256
+    """DC 2. run_manifest.py writes generate.prompt_sha256() (system text and template together)
+    as the manifest's generator.prompt_sha256, so it may change only with an ADR."""
+    assert generate.prompt_sha256() == _SERVED_PROMPT_SHA256
     prompt = generate._build_prompt("How heavy is it?", [_CHUNK])
     assert hashlib.sha256(prompt.encode()).hexdigest() == _PROMPT_SHA256

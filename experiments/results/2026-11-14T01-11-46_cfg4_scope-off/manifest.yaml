@@ -1,0 +1,51 @@
+manifest_version: 1
+run_id: 2026-11-14T01-11-46_cfg4_scope-off
+written_at: '2026-11-13T18:33:36+00:00'
+gateway:
+  git_sha: 1a9d7a0951a86d2d3f689f844af8c5c2e744a8d9
+  dirty: true
+arms:
+  config_id: 4
+  mutation: 'off'
+  support_gate: 'off'
+  mixed_lane: 'off'
+  scope_arm: 'off'
+envelope: ENVELOPE server_pid=74550 runner_pid=26665 version=0.33.2 np=1 ctx=8192
+  total_slots=1 n_ctx_slot=8192 blob=sha256-7a3a8d55382135a773916fd7c35044b2a2a3a7b8dee788095d70f122e6d8f520
+redis:
+  redis_version: 7.4.7
+  rdb_last_save_time: 1794594752
+corpus:
+  dataset_version: v1
+  snapshot_digest: a5708fefa62cec0aef5505e9e5242bc04bf351fd02a2efb5da54a98f211bb2e4
+workload:
+  file: data/workload-v1-validation.json
+  sha256: 3a686613fe86b0d44777cbc2542a57365672ed627516c6f051a76eaa966e8dff
+  K: 622
+  frozen_cache_capacity: 156
+cache:
+  capacity: 156
+  tau_run: 0.85
+  theta_run: 0.6
+retrieval:
+  retrieval_version: adr-021
+  retrieve_py_sha256: 22ddbce24fbede8f5d16e78510291befdee2b7c7b621dce94c31587a90199ed6
+  top_k: 5
+generator:
+  model: qwen3.5:2b-q4_K_M
+  digest: 124a03c347777e8e4e5955c33610ae01d9d90d8c2a718bfba069c498d5c7f3c9
+  num_ctx: 8192
+  think: false
+  temperature: 1.0
+  prompt_sha256: 7a6acf979a041a7683e67a8453de1316636410998d2c225ef12f7b2179fe3929
+records:
+  count: 606
+  by_cache:
+    MISS: 430
+    TIER2_HIT: 176
+admissibility:
+  rule_6: false
+  rule_10: true
+  rule_12: true
+  i9: true
+  admissible: false

@@ -1,6 +1,9 @@
 package reuse
 
-import "strings"
+import (
+	"math"
+	"strings"
+)
 
 // Two-lane cache namespacing -- EXPERIMENT.
 //
@@ -179,11 +182,15 @@ func docID(chunkID string) string {
 // Namespace derives the cache partition from the grounding, plus request metadata in the spec
 // and policy lanes.
 //
-//	POLICY -> "{policy_doc}@{productID}", the doc_id of the HIGHEST-RANKED policy chunk and the
-//	          request's product (ADR-024). With no productID: the policy doc_id alone, and never
+//	POLICY -> "{policy_doc}@{productID}", the policy document the VOTE picks and the request's
+//	          product (ADR-024, ADR-028). With no productID: the policy doc_id alone, and never
 //	          a fallback to a product chunk.
 //	SPEC   -> productID from the request; falls back to the highest-ranked product chunk.
-//	MIXED  -> "{product}|{policy}", both components required.
+//	MIXED  -> "{product}|{policy}", both components required; the policy part is the vote too.
+//
+// The vote (policyDocByVote, ADR-028 amends ADR-024's rank-1 rule): the policy document with the MOST
+// retrieved chunks, and on a tie the one whose first chunk ranks higher. It is the same function on
+// the read and the write path, so a request and the entry it would reuse derive the namespace alike.
 //
 // A POLICY namespace never equals a MIXED one, for the same chunks and the same product: the
 // separators differ ("@" and "|") and the order is reversed (the policy first, then the product).
@@ -230,14 +237,14 @@ func Namespace(lane Lane, chunkIDs []string, productID string) string {
 	case LaneSpec:
 		return specComponent(chunkIDs, productID)
 	case LanePolicy:
-		policy := firstDocIDWithPrefix(chunkIDs, policyPrefix)
+		policy := policyDocByVote(chunkIDs)
 		if policy == "" || productID == "" {
 			return policy
 		}
 		return policy + policyProductSeparator + productID
 	case LaneMixed:
 		product := specComponent(chunkIDs, productID)
-		policy := firstDocIDWithPrefix(chunkIDs, policyPrefix)
+		policy := policyDocByVote(chunkIDs)
 		if product == "" || policy == "" {
 			return ""
 		}
@@ -267,6 +274,35 @@ func specComponent(chunkIDs []string, productID string) string {
 	return firstDocIDWithPrefix(chunkIDs, productPrefix)
 }
 
+// policyDocByVote returns the policy document that most of the retrieved chunks belong to, or "" when
+// no chunk is a policy chunk. A tie goes to the document whose FIRST chunk ranks higher (comes earlier
+// in chunkIDs), so with one chunk per document it is exactly the old rank-1 rule. The result does not
+// depend on map order: the two keys it compares, the count and the first rank, are never both equal for
+// two documents.
+func policyDocByVote(chunkIDs []string) string {
+	type tally struct{ count, firstRank int }
+	votes := make(map[string]*tally)
+	for rank, id := range chunkIDs {
+		if !strings.HasPrefix(id, policyPrefix) {
+			continue
+		}
+		doc := docID(id)
+		if v, ok := votes[doc]; ok {
+			v.count++
+		} else {
+			votes[doc] = &tally{count: 1, firstRank: rank}
+		}
+	}
+	best, bestTally := "", (*tally)(nil)
+	for doc, v := range votes {
+		if bestTally == nil || v.count > bestTally.count ||
+			(v.count == bestTally.count && v.firstRank < bestTally.firstRank) {
+			best, bestTally = doc, v
+		}
+	}
+	return best
+}
+
 func firstDocIDWithPrefix(chunkIDs []string, prefix string) string {
 	for _, id := range chunkIDs {
 		if strings.HasPrefix(id, prefix) {
@@ -292,6 +328,12 @@ type NamespaceDecision struct {
 	QueryNS string
 	EntryNS string
 	Match   bool
+
+	// Tau is the similarity threshold this decision applied: Thresholds.Tau for a product candidate and
+	// Thresholds.TauP for a shared one. Judge compares the similarity with THIS value, so the threshold a
+	// candidate is held to is decided once, in DecideLane, and cannot differ between the two functions
+	// (done condition 13). It is +Inf when a shared candidate has no TauP: nothing passes.
+	Tau float64
 
 	// Rule names which TERM judged the candidate, so a run can tell a namespace hit from a
 	// containment hit without re-deriving it from Lane. It is set on a refusal as well as a hit,
@@ -331,13 +373,20 @@ const (
 // and is wrong). Containment is still computed, as the counterfactual baseline, on every request
 // whose candidate cleared tau; see Thresholds.Decide and the cascade's log line.
 func (t Thresholds) DecideNamespace(similarity float64, lane Lane, queryNS, entryNS string) NamespaceDecision {
+	return t.decideNamespace(similarity, t.Tau, lane, queryNS, entryNS)
+}
+
+// decideNamespace is DecideNamespace with the threshold as a parameter, so a shared candidate can be held
+// to TauP by the same expression.
+func (t Thresholds) decideNamespace(similarity, tau float64, lane Lane, queryNS, entryNS string) NamespaceDecision {
 	match := MatchNamespace(queryNS, entryNS)
 	return NamespaceDecision{
-		Reuse:   similarity >= t.Tau && match,
+		Reuse:   similarity >= tau && match,
 		Lane:    lane,
 		QueryNS: queryNS,
 		EntryNS: entryNS,
 		Match:   match,
+		Tau:     tau,
 		Rule:    RuleNamespace,
 	}
 }
@@ -358,6 +407,10 @@ type LaneInput struct {
 
 	EntryLane Lane
 	EntryNS   string
+
+	// Shared marks a candidate found in the shared namespace (item 6.0a, ADR-030). It is held to TauP
+	// instead of Tau. Only a POLICY request has one; on any other lane the candidate can never pass.
+	Shared bool
 }
 
 // DecideLane is the two-lane rule including its stratum-D fallback. It is the entry point the
@@ -379,9 +432,20 @@ type LaneInput struct {
 //
 // The three lanes therefore partition the cache into three non-interacting regions, which is what
 // makes their false-hit rates separately attributable to the evaluation's two causes.
+//
+// A shared candidate (in.Shared) is held to TauP, and a product candidate to Tau. Fail closed: a shared
+// candidate on a lane other than POLICY, or with no TauP, gets an infinite threshold, so a mistake in
+// the wiring refuses instead of serving.
 func (t Thresholds) DecideLane(in LaneInput) NamespaceDecision {
+	tau := t.Tau
+	if in.Shared {
+		tau = t.TauP
+		if in.QueryLane != LanePolicy || !(tau > 0) {
+			tau = math.Inf(1)
+		}
+	}
 	if in.QueryLane != LaneMixed {
-		d := t.DecideNamespace(in.Similarity, in.QueryLane, in.QueryNS, in.EntryNS)
+		d := t.decideNamespace(in.Similarity, tau, in.QueryLane, in.QueryNS, in.EntryNS)
 		d.EntryLane = in.EntryLane
 		return d
 	}
@@ -389,11 +453,12 @@ func (t Thresholds) DecideLane(in LaneInput) NamespaceDecision {
 	laneMatch := in.EntryLane == LaneMixed
 	match := MatchNamespace(in.QueryNS, in.EntryNS)
 	return NamespaceDecision{
-		Reuse:     in.Similarity >= t.Tau && laneMatch && match,
+		Reuse:     in.Similarity >= tau && laneMatch && match,
 		Lane:      in.QueryLane,
 		QueryNS:   in.QueryNS,
 		EntryNS:   in.EntryNS,
 		Match:     match,
+		Tau:       tau,
 		Rule:      RuleComposite,
 		EntryLane: in.EntryLane,
 		LaneMatch: laneMatch,

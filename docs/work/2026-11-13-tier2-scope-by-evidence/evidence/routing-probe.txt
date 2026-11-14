@@ -1,0 +1,5 @@
+routing: 158 policy-gold questions with a logged retrieval (0 more have none)
+  top-chunk rule correct: 131
+  vote correct:           143
+  vote right and top wrong: 19; top right and vote wrong: 7
+routing: PASS, vote-correct >= top-chunk-correct

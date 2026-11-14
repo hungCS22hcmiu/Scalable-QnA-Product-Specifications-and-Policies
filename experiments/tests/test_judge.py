@@ -889,7 +889,9 @@ def test_dc9_an_empty_answer_is_a_real_answer_and_is_judged(tmp_path):
         ("generator", "num_ctx", 4096),
         ("generator", "think", True),
         ("generator", "temperature", 0.5),
-        ("generator", "prompt_sha256", "z" * 64),
+        # ("generator", "prompt_sha256", ...) moved at item 6.0a (ADR-029, design.md section 4): the
+        # generator prompt is recorded in summary.json and no longer compared. The writer's prompt is
+        # refused in test_dc9_preflight_refuses_another_reference_writer.
     ],
 )
 def test_dc9_refuses_when_the_manifest_and_the_reference_index_disagree(
@@ -903,30 +905,70 @@ def test_dc9_refuses_when_the_manifest_and_the_reference_index_disagree(
     assert world.nothing_judged()  # it never continues on a mismatch
 
 
-def test_dc9_preflight_refuses_another_generator_prompt(tmp_path):
-    # References and the run were made under two generator prompts: every other field agrees, so only
-    # the prompt hash can show it. The six generator fields come from one function on both sides.
-    world = build_world(tmp_path, version=("generator", "prompt_sha256", "z" * 64))
-    manifest = yaml.safe_load((world.run_dir / "manifest.yaml").read_text())
-    ref_version = json.loads((world.refs_dir / "version.json").read_text())
-    cfg = judge.load_judge(world.judge_path)
-
+def test_dc9_preflight_refuses_another_writer_prompt_and_not_another_generator_prompt(
+    tmp_path,
+):
+    # Moved at item 6.0a (ADR-029, design.md section 4). The references are written with the reference
+    # writer's own pinned prompt, so only THAT prompt must match reference-writer-v1.json. A run served
+    # under another generator prompt (the new one) is judged against the same references.
+    refused = build_world(
+        tmp_path / "writer", version=("reference_writer", "prompt_sha256", "z" * 64)
+    )
+    manifest = yaml.safe_load((refused.run_dir / "manifest.yaml").read_text())
+    ref_version = json.loads((refused.refs_dir / "version.json").read_text())
+    cfg = judge.load_judge(refused.judge_path)
     problems = judge.preflight(
         manifest,
         ref_version,
         cfg,
-        world.prereg.read_text(),
-        world.fake,
-        writer_cfg=judge.refs.load_writer(world.writer_path),
+        refused.prereg.read_text(),
+        refused.fake,
+        writer_cfg=judge.refs.load_writer(refused.writer_path),
     )
-
     assert len(problems) == 1
-    assert problems[0].startswith("generator.prompt_sha256:")
+    assert problems[0].startswith("reference_writer.prompt_sha256:")
+    with pytest.raises(judge.JudgeRefused, match="reference_writer.prompt_sha256"):
+        refused.run()
+    assert refused.nothing_judged()
+
+    # the generator prompts differ ("p"... in the manifest, "z"... in the reference set): no problem
+    differ = build_world(
+        tmp_path / "generator", version=("generator", "prompt_sha256", "z" * 64)
+    )
+    manifest = yaml.safe_load((differ.run_dir / "manifest.yaml").read_text())
+    ref_version = json.loads((differ.refs_dir / "version.json").read_text())
     assert manifest["generator"]["prompt_sha256"] == "p" * 64
     assert ref_version["generator"]["prompt_sha256"] == "z" * 64
-    with pytest.raises(judge.JudgeRefused, match="generator.prompt_sha256"):
-        world.run()
-    assert world.nothing_judged()
+    problems = judge.preflight(
+        manifest,
+        ref_version,
+        judge.load_judge(differ.judge_path),
+        differ.prereg.read_text(),
+        differ.fake,
+        writer_cfg=judge.refs.load_writer(differ.writer_path),
+    )
+    assert problems == []
+
+
+def test_dc9_a_run_under_another_generator_prompt_is_judged_and_both_hashes_are_kept(
+    tmp_path,
+):
+    # New at item 6.0a (ADR-029). The run's served prompt and the one the reference set was built under
+    # differ; the run is judged all the same, and summary.json holds both hashes.
+    world = build_world(tmp_path, version=("generator", "prompt_sha256", "z" * 64))
+
+    summary = world.run()
+
+    assert summary["generator_prompt_sha256"] == {
+        "run": "p" * 64,
+        "reference_set": "z" * 64,
+    }
+    stored = json.loads((world.run_dir / "judge" / "summary.json").read_text())
+    assert stored["generator_prompt_sha256"] == {
+        "run": "p" * 64,
+        "reference_set": "z" * 64,
+    }
+    assert summary["verdict_keys"] > 0
 
 
 def test_dc9_preflight_refuses_a_reference_set_that_has_no_generator_prompt(tmp_path):

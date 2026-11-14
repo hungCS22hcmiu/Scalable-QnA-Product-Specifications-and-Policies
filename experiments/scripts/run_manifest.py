@@ -36,7 +36,10 @@ ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = Path(os.environ.get("RESULTS_DIR") or ROOT / "experiments" / "results")
 GATEWAY_PORT = 8080
 SPLITS = ("validation", "test")
-ARM_KEYS = ("config_id", "mutation", "support_gate", "mixed_lane")
+ARM_KEYS = ("config_id", "mutation", "support_gate", "mixed_lane", "scope_arm")
+# `scope_arm` exists from item 6.0a. A run from before it has no such key in its records or its log, and
+# its arms stay four; a run that has it in one place must have it in the other, and the two must agree.
+OPTIONAL_ARM_KEYS = ("scope_arm",)
 HITS = ("TIER1_HIT", "TIER2_HIT")
 MANIFEST_VERSION = 1
 
@@ -111,9 +114,11 @@ def read_records(run_dir: Path) -> list[dict]:
 
 
 def arms(records: list[dict]) -> dict:
-    """`config_id, mutation, support_gate, mixed_lane`, read from the records (ADR-010).
+    """`config_id, mutation, support_gate, mixed_lane` and, from item 6.0a, `scope_arm`, read from the
+    records (ADR-010).
 
-    Raises when one differs across records, or when a record does not carry the key.
+    Raises when one differs across records, or when a record does not carry the key. `scope_arm` alone
+    may be absent from every record (an older run); then it is left out.
     """
     if not records:
         raise ManifestError("there are no records to read the arms from")
@@ -124,20 +129,41 @@ def arms(records: list[dict]) -> dict:
             raise ManifestError(f"the records differ on {key}: {sorted(values)}")
         value = records[0].get(key)
         if value is None:
+            if key in OPTIONAL_ARM_KEYS:
+                continue
             raise ManifestError(f"the records carry no {key}")
         out[key] = value
     return out
 
 
-def _single(pattern: str, text: str, what: str) -> str:
+def _single(pattern: str, text: str, what: str, optional: bool = False) -> str | None:
     found = sorted({m.group(1) for m in re.finditer(pattern, text, re.MULTILINE)})
     if not found:
+        if optional:
+            return None
         raise ManifestError(f"the gateway log has no {what}")
     if len(found) > 1:
         raise ManifestError(
             f"the gateway log has {len(found)} values for {what}: {found}"
         )
     return found[0]
+
+
+# Rule 6 reads these gateway lines (interfaces.md §I). `ENDED_LINES`: one shows that the run ended with
+# nothing lost. The first is the gateway's last line since item 6.0a, printed only after a clean end;
+# the second is the shutdown line of logs written before `29da622`, which renamed it and so voided
+# every later run (design.md §4, docs/work/2026-11-13-tier2-scope-by-evidence). `BAD_LINES`: any one
+# voids the run; the last two are the warnings `29da622` added. test_run_manifest_end.py checks that
+# the gateway still prints every line here except the pre-`29da622` one.
+ENDED_LINES = (
+    "gateway: run ended cleanly",
+    "gateway: shutting down, flushing the evaluation log",
+)
+BAD_LINES = (
+    "gateway: THIS RUN IS INCOMPLETE --",
+    "gateway: WARNING requests still in flight",
+    "gateway: the dependency map is INCOMPLETE",
+)
 
 
 def parse_gateway_log(text: str, run_id: str) -> dict:
@@ -153,7 +179,7 @@ def parse_gateway_log(text: str, run_id: str) -> dict:
     )
     if log_run != run_id:
         raise ManifestError(f"the gateway log is for run {log_run}, not {run_id}")
-    return {
+    out = {
         "run_id": log_run,
         "tau": float(_single(r"gateway: tau=([0-9.]+) theta=", text, "tau")),
         "theta": float(_single(r"gateway: tau=[0-9.]+ theta=([0-9.]+)", text, "theta")),
@@ -166,9 +192,17 @@ def parse_gateway_log(text: str, run_id: str) -> dict:
         "mixed_lane": _single(
             r"lane_band=\S+ mixed_lane=(on|off)\b", text, "mixed_lane"
         ),
-        "ended": "gateway: shutting down, flushing the evaluation log" in text,
-        "incomplete": "gateway: THIS RUN IS INCOMPLETE --" in text,
+        "ended": any(line in text for line in ENDED_LINES),
+        "incomplete": any(line in text for line in BAD_LINES),
     }
+    # From item 6.0a the start-up line reads `mixed_lane=… scope_arm=… tau_p=…`. An older log has no
+    # scope_arm, and then the key is left out.
+    scope_arm = _single(
+        r"mixed_lane=(?:on|off) scope_arm=(on|off)\b", text, "scope_arm", optional=True
+    )
+    if scope_arm is not None:
+        out["scope_arm"] = scope_arm
+    return out
 
 
 def i9_violations(records: list[dict]) -> list[str]:
@@ -234,10 +268,12 @@ def build_manifest(
     records = read_records(run_dir)
     run_arms = arms(records)
     log = parse_gateway_log(Path(log_path).read_text(), run_dir.name)
-    for key in ("support_gate", "mixed_lane"):
-        if log[key] != run_arms[key]:
+    for key in ("support_gate", "mixed_lane", "scope_arm"):
+        if key in OPTIONAL_ARM_KEYS and key not in log and key not in run_arms:
+            continue  # a run from before item 6.0a
+        if log.get(key) != run_arms.get(key):
             raise ManifestError(
-                f"the gateway log says {key}={log[key]} but the records say {run_arms[key]}"
+                f"the gateway log says {key}={log.get(key)} but the records say {run_arms.get(key)}"
             )
 
     freeze = json.loads((repo / "data" / "v1-freeze.json").read_text())
@@ -303,9 +339,9 @@ def manifest_problems(
         return [*problems, str(e)]
     stored = manifest.get("arms") or {}
     for key in ARM_KEYS:
-        if stored.get(key) is not None and stored[key] != run_arms[key]:
+        if stored.get(key) is not None and stored[key] != run_arms.get(key):
             problems.append(
-                f"the records say {key}={run_arms[key]!r}, the manifest says {stored[key]!r}"
+                f"the records say {key}={run_arms.get(key)!r}, the manifest says {stored[key]!r}"
             )
     count = _get(manifest, "records.count")
     if count is not None and count != len(records):
@@ -318,10 +354,12 @@ def manifest_problems(
             log = parse_gateway_log(Path(log_path).read_text(), run_dir.name)
         except (ManifestError, OSError) as e:
             return [*problems, f"gateway log: {e}"]
-        for key in ("support_gate", "mixed_lane"):
-            if log[key] != run_arms[key]:
+        for key in ("support_gate", "mixed_lane", "scope_arm"):
+            if key in OPTIONAL_ARM_KEYS and key not in log and key not in run_arms:
+                continue  # a run from before item 6.0a
+            if log.get(key) != run_arms.get(key):
                 problems.append(
-                    f"the gateway log says {key}={log[key]}, the records say {run_arms[key]}"
+                    f"the gateway log says {key}={log.get(key)}, the records say {run_arms.get(key)}"
                 )
     return problems
 
@@ -394,6 +432,17 @@ def checked_envelope(args: argparse.Namespace) -> str:
     return env_check.envelope_line(obs)
 
 
+def generator_block() -> dict:
+    """The generator block, with the served prompt's hash: `generate.prompt_sha256()`, the system text
+    and the user template together (ADR-029). `refs.generator_block` reads everything else from Ollama;
+    its own prompt field hashes the template alone, so it is replaced here."""
+    from rag import generate
+
+    block = refs.generator_block()
+    block["prompt_sha256"] = generate.prompt_sha256()
+    return block
+
+
 def write(args: argparse.Namespace) -> int:
     run_dir = Path(args.results_dir) / args.run_id
     path = run_dir / "manifest.yaml"
@@ -411,7 +460,7 @@ def write(args: argparse.Namespace) -> int:
         git=gateway_git,
         redis_info=redis_info,
         envelope=lambda: checked_envelope(args),
-        ollama=refs.generator_block,
+        ollama=generator_block,
     )
     problems = manifest_problems(manifest, run_dir, args.gateway_log)
     if problems:

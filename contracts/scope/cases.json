@@ -1,0 +1,147 @@
+{
+  "_comment": [
+    "Golden cases for the scope-by-evidence arm (item 6.0a, ADR-030). This file is a CONTRACT, not a",
+    "fixture: two languages implement parts of the same functions and nothing else forces them to agree.",
+    "",
+    "Go     (authoritative, runs at write time and on the hit path): gateway/internal/reuse/scope.go",
+    "Python (builds the document metadata, calibrates tau_P):        rag/src/rag/docmeta.py,",
+    "                                                                experiments/scripts/scope_calibrate.py",
+    "",
+    "Why the pin exists. The Python side decides which words of a product are 'bound' to it (docmeta, one",
+    "run). The Go side tests an answer against those words (every miss). If the two tokenizers differ,",
+    "a bound word is never found, every policy answer looks neutral, and an answer that names its product",
+    "is stored for all products. Nothing errors, and a trap query comes back across products.",
+    "The projection has the same risk: tau_P is calibrated in Python on projected vectors, and the gateway",
+    "serves with its own projection. A difference shifts every shared hit by a constant.",
+    "",
+    "tokenize: ASCII letters and digits make tokens; the case of an ASCII letter is folded; every other",
+    "  character (punctuation, spaces, accents, letters of other scripts) separates tokens; a token of",
+    "  fewer than 2 characters is dropped. The result is a set, listed here sorted.",
+    "scope:    the decision for one POLICY answer. 'shared' only when the lane is POLICY, the product has a",
+    "  title vector, the policy document has metadata, both documents have the same non-empty category,",
+    "  and no token of the answer is one of the product's bound words. Otherwise 'product'.",
+    "project:  v' = normalise(v - (v . t^) t^), with t^ = t / |t|. The result is null when t is missing or",
+    "  empty, when |v| is 0, or when |v'| <= 1e-6 * |v|. 'tol' is the largest allowed difference per",
+    "  component (the gateway works in float32).",
+    "",
+    "Adding a case is cheap and is the right response to any question about these rules. Changing an",
+    "existing 'out' changes the rule and needs a numbered decision."
+  ],
+  "contract": "scope-by-evidence",
+  "tokenize": [
+    { "name": "lowercase",                       "in": "Returns WITHIN 30 Days",          "out": ["30", "days", "returns", "within"] },
+    { "name": "digits are kept",                 "in": "30 days, 14 days",                "out": ["14", "30", "days"] },
+    { "name": "a hyphen splits",                 "in": "KDL-52XBR4",                      "out": ["52xbr4", "kdl"] },
+    { "name": "one-character tokens are dropped", "in": "USB-C 3.0",                      "out": ["usb"] },
+    { "name": "a unit stays with its number",    "in": "weighs 2.1kg, 15.6 inches",       "out": ["15", "1kg", "inches", "weighs"] },
+    { "name": "two-letter tokens are kept",      "in": "a TV is 4K",                      "out": ["4k", "is", "tv"] },
+    { "name": "repeats collapse",                "in": "Return, return! RETURN?",         "out": ["return"] },
+    { "name": "an accent is a separator",        "in": "Café 30",                         "out": ["30", "caf"] },
+    { "name": "an apostrophe is a separator",    "in": "shopper's order",                 "out": ["order", "shopper"] },
+    { "name": "punctuation only",                "in": "??? -- !!",                       "out": [] },
+    { "name": "empty",                           "in": "",                                "out": [] }
+  ],
+  "scope": [
+    {
+      "name": "a neutral policy answer is shared",
+      "lane": "POLICY",
+      "answer": "Unopened items can be returned within 30 days of delivery for a full refund.",
+      "product": { "category": "electronics", "has_title_vec": true, "bound_words": ["bravia", "hdmi", "kdl", "52xbr4"] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "shared"
+    },
+    {
+      "name": "a bound word makes it product scope",
+      "lane": "POLICY",
+      "answer": "Yes, the Bravia can be returned within 30 days of delivery.",
+      "product": { "category": "electronics", "has_title_vec": true, "bound_words": ["bravia", "hdmi"] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "product"
+    },
+    {
+      "name": "a bound word inside a hyphenated model name is found",
+      "lane": "POLICY",
+      "answer": "The KDL-52XBR4 can be sent back within 30 days.",
+      "product": { "category": "electronics", "has_title_vec": true, "bound_words": ["52xbr4"] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "product"
+    },
+    {
+      "name": "a bound word is matched as a whole token, not as a part of one",
+      "lane": "POLICY",
+      "answer": "Please clear the cache before you send it back.",
+      "product": { "category": "electronics", "has_title_vec": true, "bound_words": ["ear"] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "shared"
+    },
+    {
+      "name": "another category stays product scope",
+      "lane": "POLICY",
+      "answer": "Unopened items can be returned within 30 days of delivery for a full refund.",
+      "product": { "category": "furniture", "has_title_vec": true, "bound_words": [] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "product"
+    },
+    {
+      "name": "a missing title vector stays product scope",
+      "lane": "POLICY",
+      "answer": "Unopened items can be returned within 30 days of delivery for a full refund.",
+      "product": { "category": "electronics", "has_title_vec": false, "bound_words": [] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "product"
+    },
+    {
+      "name": "a missing policy document stays product scope",
+      "lane": "POLICY",
+      "answer": "Unopened items can be returned within 30 days of delivery for a full refund.",
+      "product": { "category": "electronics", "has_title_vec": true, "bound_words": [] },
+      "policy": { "category": "" },
+      "has_policy": false,
+      "out": "product"
+    },
+    {
+      "name": "an empty policy category is never shared",
+      "lane": "POLICY",
+      "answer": "Unopened items can be returned within 30 days of delivery for a full refund.",
+      "product": { "category": "", "has_title_vec": true, "bound_words": [] },
+      "policy": { "category": "" },
+      "has_policy": true,
+      "out": "product"
+    },
+    {
+      "name": "the SPEC lane is never shared",
+      "lane": "SPEC",
+      "answer": "Unopened items can be returned within 30 days of delivery for a full refund.",
+      "product": { "category": "electronics", "has_title_vec": true, "bound_words": [] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "product"
+    },
+    {
+      "name": "the MIXED lane is never shared",
+      "lane": "MIXED",
+      "answer": "Unopened items can be returned within 30 days of delivery for a full refund.",
+      "product": { "category": "electronics", "has_title_vec": true, "bound_words": [] },
+      "policy": { "category": "electronics" },
+      "has_policy": true,
+      "out": "product"
+    }
+  ],
+  "project": [
+    { "name": "drops the component along t",       "v": [1, 1, 0],            "t": [1, 0, 0],      "out": [0, 1, 0],                                              "tol": 1e-6 },
+    { "name": "renormalises a v that is not unit", "v": [3, 4, 0],            "t": [0, 1, 0],      "out": [1, 0, 0],                                              "tol": 1e-6 },
+    { "name": "renormalises a t that is not unit", "v": [1, 1, 0],            "t": [2, 0, 0],      "out": [0, 1, 0],                                              "tol": 1e-6 },
+    { "name": "a general case",                    "v": [1, 3, 4],            "t": [1, 0, 0],      "out": [0, 0.6, 0.8],                                          "tol": 1e-6 },
+    { "name": "a negative component",              "v": [0.5, -0.5, 0.5, 0.5], "t": [0, 0, 0, 1],  "out": [0.5773502692, -0.5773502692, 0.5773502692, 0],         "tol": 1e-6 },
+    { "name": "v along t has nothing left",        "v": [2, 0, 0],            "t": [1, 0, 0],      "out": null,                                                   "tol": 1e-6 },
+    { "name": "an empty t is missing",             "v": [1, 1, 0],            "t": [],             "out": null,                                                   "tol": 1e-6 },
+    { "name": "a zero t is missing",               "v": [1, 1, 0],            "t": [0, 0, 0],      "out": null,                                                   "tol": 1e-6 },
+    { "name": "a zero v has nothing to project",   "v": [0, 0, 0],            "t": [1, 0, 0],      "out": null,                                                   "tol": 1e-6 }
+  ]
+}

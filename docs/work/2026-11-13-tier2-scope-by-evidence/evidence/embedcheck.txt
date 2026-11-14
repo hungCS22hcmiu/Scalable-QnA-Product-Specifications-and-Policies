@@ -1,0 +1,4 @@
+embedcheck: q-policy-return-electronics:except-product-electronics-b00j5l0fmi cosine 1.000000 ok
+embedcheck: q-product-electronics-b07jgrd2qr-55020-look cosine 1.000000 ok
+embedcheck: q-product-laptops-b01doa6gak-144081-natural cosine 1.000000 ok
+embedcheck: PASS, 3 of 3 at or over 0.9999

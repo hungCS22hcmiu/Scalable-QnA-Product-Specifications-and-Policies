@@ -274,8 +274,10 @@ def preflight(
 
     Refuses when the manifest check fails (`manifest_problems`), the manifest says `admissible: false`,
     or the run has `mutation: on`; when the manifest and the reference set differ on the corpus digest,
-    `retrieval_version`, the retrieval source hash, `top_k` or one of the six generator fields (its
-    prompt hash, `prompt_sha256`, included); when the reference set has no `reference_writer`, or its
+    `retrieval_version`, the retrieval source hash, `top_k` or one of the five generator fields (the
+    prompt hash, `prompt_sha256`, is recorded and not compared, ADR-029: the references are written with
+    the reference writer's own pinned prompt, so the run may be served under another one; the reference
+    set must still carry it); when the reference set has no `reference_writer`, or its
     `model`, `digest`, `options`, `think` or `prompt_sha256` differs from `writer_cfg` (ADR-023; by
     default `reference-writer-v1.json`); when `judge_problems` finds one; and when the output folder (or
     its `.partial`) exists.
@@ -294,7 +296,7 @@ def preflight(
     version_fields = (
         ("corpus", ("snapshot_digest",)),
         ("retrieval", ("retrieval_version", "retrieve_py_sha256", "top_k")),
-        ("generator", ("model", "digest", "num_ctx", "think", "temperature", "prompt_sha256")),
+        ("generator", ("model", "digest", "num_ctx", "think", "temperature")),
     )
     # fmt: on
     for section, keys in version_fields:
@@ -306,6 +308,13 @@ def preflight(
                     f"{section}.{key}: the manifest has {have.get(key)!r}, "
                     f"the reference set has {want.get(key)!r}"
                 )
+
+    # The generator prompt is not compared (ADR-029), but both hashes are written to summary.json, so the
+    # reference set must still carry its own.
+    if "prompt_sha256" not in (ref_version.get("generator") or {}):
+        problems.append(
+            "generator.prompt_sha256: the reference set records no generator prompt hash"
+        )
 
     # The reference writer is not in the manifest: the reference set is compared with its pinned file.
     writer = refs.load_writer() if writer_cfg is None else writer_cfg
@@ -554,6 +563,12 @@ def run(
         "run_id": run_id,
         "judge_version": cfg["version"],
         "reference_set_sha256": hashlib.sha256(index_bytes).hexdigest(),
+        # Recorded, not compared (ADR-029): the run's served prompt and the one the reference set was
+        # built under. The reference writer's own prompt is checked against reference-writer-v1.json.
+        "generator_prompt_sha256": {
+            "run": (manifest.get("generator") or {}).get("prompt_sha256"),
+            "reference_set": (ref_version.get("generator") or {}).get("prompt_sha256"),
+        },
         "records": {
             "total": len(records),
             "judged": sum(1 for row in rows if row["verdict"] is not None),

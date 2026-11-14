@@ -1,0 +1,18 @@
+{
+  "n": 120,
+  "n_answerable": 100,
+  "meta_old": 88,
+  "meta_new": 23,
+  "meta_share_old": 0.7333333333333333,
+  "meta_share_new": 0.19166666666666668,
+  "dont_know_old": 10,
+  "no_answer_new": 6,
+  "refuse_share_old": 0.1,
+  "refuse_share_new": 0.06,
+  "no_answer_new_all": 15,
+  "meta_ok": true,
+  "refuse_ok": true,
+  "new_prompt_sha256": "7a6acf979a041a7683e67a8453de1316636410998d2c225ef12f7b2179fe3929",
+  "old_prompt_sha256": "3e224f4500a18dc065ab6e24c46e25302ac275f8e145085bfb211bcf65ba67dd",
+  "seed": 20261113
+}

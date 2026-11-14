@@ -1,0 +1,4 @@
+{"qa_id": "q-product-electronics-b00g3kytjo-11729-u-seed", "kind": "fallback-unanswerable", "answer": "Sorry, I don't have that detail for this product. Please check the product page or contact our support team.", "expected": "CORRECT"}
+{"qa_id": "q-product-furniture-b000as7sy8-9718-u-seed", "kind": "fallback-unanswerable", "answer": "Sorry, I don't have that detail for this product. Please check the product page or contact our support team.", "expected": "CORRECT"}
+{"qa_id": "q-product-electronics-b079jfb616-107670-seed", "kind": "fallback-answerable", "answer": "Sorry, I don't have that detail for this product. Please check the product page or contact our support team.", "expected": "INCORRECT"}
+{"qa_id": "q-policy-return-furniture-opened:remedy-product-furniture-b071vtgtp9", "kind": "fallback-answerable", "answer": "Sorry, I don't have that detail for this product. Please check the product page or contact our support team.", "expected": "INCORRECT"}

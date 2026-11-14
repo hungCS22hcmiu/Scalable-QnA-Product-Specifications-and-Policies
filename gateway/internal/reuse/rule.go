@@ -88,6 +88,12 @@ func Jaccard(a, b []string) float64 {
 type Thresholds struct {
 	Tau   float64 // similarity floor
 	Theta float64 // overlap floor
+
+	// TauP is the similarity floor for a SHARED candidate (item 6.0a, ADR-030): one found in the policy
+	// document's own namespace under the projected question vector. It is calibrated, never swept (the
+	// rule is in design.md section 1), and needed only with the scope arm on. Zero means unset, and then a
+	// shared candidate can never pass (see DecideLane).
+	TauP float64
 }
 
 // Decision records what the rule concluded and enough to reconstruct why.

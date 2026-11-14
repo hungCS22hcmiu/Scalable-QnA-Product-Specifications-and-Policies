@@ -14,6 +14,10 @@ type AnswerResult struct {
 	SourceChunkIDs []string
 	ModelUsed      string
 	DatasetEpoch   uint64
+
+	// NoAnswer is true when the model wrote the NO_ANSWER sentinel and Text is the service's fixed
+	// fallback sentence (item 6.0a, interfaces.md B v0.37). The caller serves the text and never caches it.
+	NoAnswer bool
 }
 
 // Answer calls the full miss path: retrieve + generate. Loops Recv() until io.EOF, keeping
@@ -56,6 +60,7 @@ func (c *Client) Answer(ctx context.Context, query string, topK uint32, retrieve
 				SourceChunkIDs: chunk.GetSourceChunkIds(),
 				ModelUsed:      chunk.GetModelUsed(),
 				DatasetEpoch:   chunk.GetDatasetEpoch(),
+				NoAnswer:       chunk.GetNoAnswer(),
 			}
 		}
 	}

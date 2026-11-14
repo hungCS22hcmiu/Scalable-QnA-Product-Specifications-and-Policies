@@ -67,6 +67,10 @@ warning. Writing the entry is the only trace such a change leaves.
 | ADR-025 | Every `/ask` request must carry a `product_id` | in force (the author, 2026-11-08; built the same day, `interfaces.md` v0.30); **open:** the 16 validation queries with none are dropped (decided 2026-11-08), but the workload is not regenerated yet; it must be before the next replay of validation | none — no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) holds 16 requests that would now get `400` |
 | ADR-026 | δ stays 5 %, read through a correction for `judge-v1`'s measured error; the judge alone cannot certify it | in force (the author, 2026-11-12) | none — no M08 rate has been reported against δ |
 | ADR-027 | A run's `raw/` and `judge/` are kept as one tar outside the repository, and a tracked hash list proves them unchanged | in force (the author, 2026-11-12) | none — the cost run gets one new tracked file, `archive.sha256`; nothing recorded changes |
+| ADR-028 | The policy document of a POLICY namespace is a vote over the retrieved chunks, not the document of the rank-1 chunk | decided (the author, 2026-11-13; amends ADR-024's rank-1 rule; built in the trail `docs/work/2026-11-13-tier2-scope-by-evidence/`, `interfaces.md` v0.37) | no citable run; the cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) is read as "before ADR-028" |
+| ADR-029 | The generator prompt is short and direct, the model writes `NO_ANSWER` when the facts do not answer, and the service replaces it with one fixed sentence that is never cached | decided (the author, 2026-11-13; amends ADR-023's prompt coupling; built in the same trail, `interfaces.md` v0.37) | no citable run; the cost run (citable: no) no longer describes the served generator and is read as "before ADR-029"; it stays the basis of item 5.2's labels |
+| ADR-030 | A POLICY answer that names nothing of its product is stored once, under its policy document, and shared by the category: the scope arm | decided (the author, 2026-11-13; amends ADR-024's namespace and ADR-025's mechanism; built in the same trail, `interfaces.md` v0.37; the default is `off` until ADR-031 decides) | no citable run; the cost run (citable: no) is read as "before ADR-030"; ADR-025's "before the next replay" is closed by exclusion at replay |
+| ADR-031 | The scope arm stays `off`: the trial did not meet the adoption rule of ADR-030 | decided (the rule's verdict, applied 2026-11-14; drafted for the author's review; built in the same trail; `SCOPE_ARM` default stays `off`) | no citable run; the two trial runs are `citable: no`; nothing recorded changes |
 
 ---
 
@@ -2267,3 +2271,229 @@ How it is used:
     `raw-restore`, `figures-clean-check`; `interfaces.md` §I, v0.35.
 - **Invalidates:** none — the cost run gets one new tracked file, `archive.sha256`. Its `raw/`, `judge/`,
   `ablation/` and `manifest.yaml` are read and not changed (done condition 8 of the trail compares their hashes).
+
+### ADR-028 — The policy document of a POLICY namespace is a vote over the retrieved chunks, not the document of the rank-1 chunk
+**Decided (method)** · 2026-11-13 · the author · *amends ADR-024's rank-1 rule; super-plan.md item 6.0a; `gateway/internal/reuse/lane.go` (`policyDocByVote`, `Namespace`); `contracts/interfaces.md` §D (v0.37); trail `docs/work/2026-11-13-tier2-scope-by-evidence/`*
+
+For a POLICY request, and for the policy part of a MIXED request, the policy document is the one with the **most
+retrieved chunks**. On a tie, it is the document whose first chunk ranks better. ADR-024 took the document of the
+first policy chunk. The format stays as ADR-024 and ADR-016 set it: `{policy_doc}@{product_id}` and
+`{product_id}|{policy_doc}`. The read path and the write path call the same function, so a request and the entry it
+may reuse get the same namespace. The vote runs in both arms of the scope trial (ADR-030). **Built** in the trail
+named above (`interfaces.md` v0.37).
+
+- **Rationale.**
+  - **One chunk should not decide the namespace.** With rank-1, a single stray chunk at the top sends the request to
+    another policy document, although most of the retrieved policy chunks point to one document. The vote reads all of
+    them. This is reasoning. The offline check below is the only measurement behind it.
+  - **A wrong document costs more once entries can be shared.** A shared entry (ADR-030) lives in the policy document
+    alone, so a wrong document puts its answer in front of every product of the category.
+  - **It changes no stored text and no answer.** Only the key changes. With one chunk per document, the vote and
+    rank-1 pick the same document, so `TestNamespaceUsesRankNotSetMembership` passes unchanged.
+- **Alternatives.**
+  - **Keep rank-1.** Rejected for the reasons above.
+  - **Choose the lane from scores** (design B). Not part of this decision. It is outside item 6.0a.
+- **Consequences.**
+  - **Pinned by tests** (`reuse/vote_test.go`): a 2–1 vote against rank-1, a tie in both directions, stability, and
+    MIXED's policy part. SPEC namespaces are unchanged.
+  - **The check** is done condition 5 of the trail: `go run ./cmd/gateprobe -routing` on the cost run's logged
+    retrievals (offline, no model) must print vote-correct at least as high as top-chunk-correct for policy-gold
+    questions. The number is written in the trail's plan, step 6.5.
+  - **Entries written under the rank-1 document may sit in another namespace.** Every trial run starts from
+    `make cache-reset`, so none is read.
+  - **Unchanged:** the lane rule and its band (ADR-016), the support gate, τ, τ_s, `top_k`, retrieval and the
+    dependency map.
+- **Invalidates:** no citable run. The cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) ran the rank-1 rule
+  and is read as "before ADR-028", as it is already read as "before ADR-024".
+
+### ADR-029 — The generator prompt is short and direct, the model writes `NO_ANSWER` when the facts do not answer, and the service replaces it with one fixed sentence that is never cached
+**Decided (frozen)** · 2026-11-13 · the author · *amends ADR-023's prompt coupling; super-plan.md item 6.0a; `rag/src/rag/generate.py`, `server.py`; `contracts/rag/v1/rag.proto` (`AnswerChunk.no_answer`); `experiments/judge/reference-prompt-v1.txt`; `experiments/scripts/judge_references.py`, `judge.py`; `contracts/interfaces.md` §B and §I (v0.37); trail `docs/work/2026-11-13-tier2-scope-by-evidence/`*
+
+Three changes, one decision.
+
+- **The prompt has two parts.** A system text and a user template (`"Facts:\n{context}\n\nQuestion: {query}\nAnswer:"`).
+  The system text is P1 of the trail's design §3.3 B, word for word in `generate._SYSTEM_PROMPT`: one or two short
+  sentences, start with the answer, never mention the facts, the context, a document or the source, no greeting, do not
+  repeat the product's name, use the exact numbers and terms, and reply with exactly `NO_ANSWER` when the facts do not
+  answer the question. The Ollama request body gains a sixth field, `system`. The served prompt's hash is
+  `generate.prompt_sha256()`, the sha256 of the system text, a `\x00` byte and the template. It is pinned by
+  `rag/tests/test_generate_prompt.py` and recorded in each run's manifest.
+- **The sentinel never reaches a customer.** `finalize(text)` replaces the whole text with *"Sorry, I don't have that
+  detail for this product. Please check the product page or contact our support team."* and sets `no_answer` when
+  `\bno[ _]?answer\b` matches, in any case. It fails closed: an answer that only mentions the words is also replaced.
+- **The gateway never stores a fallback.** A flagged answer is served and written nowhere: no Tier-1 key, no Tier-2
+  record, no `dep:*` or `entry:*` member, no LRU touch or trim. The return comes before the epoch check. The record says
+  `no_answer: true`. It is a MISS and never a hit, and the judge judges the fallback like any answer.
+
+**P2 is the only fallback prompt.** If the probe of the trail (done condition 4) fails with P1, P2 is P1 followed by one
+more example (design §3.3 B), used once. If P2 fails too, the work stops and the author decides. No third prompt is
+tried.
+
+- **Rationale.**
+  - **A policy answer that names the product cannot be shared** (ADR-030). ADR-024 rejected a prompt change, option (a),
+    because the reference writer used the served prompt (ADR-023, hash `3e224f45…`). Decoupling the writer removes that
+    objection.
+  - **The meta-words add nothing for a shopper.** "Based on the context" and "according to the provided text" say
+    nothing about the product or the policy.
+  - **A fixed sentence can be recognised and never cached.** A free refusal cannot be told from an answer. And "no
+    detail" cached for one question would be served to a later question that does have an answer.
+  - **The probe is the gate.** Done condition 4 (`make prompt-probe`, a seeded sample of 120 validation queries, both
+    prompts in one run, `citable: no`): the share of answers with a meta-phrase (`context`, `provided`, `based on`,
+    `according to`) is at most half the old prompt's, and the `NO_ANSWER` share on `answerable: true` questions is at most
+    the old prompt's "don't know" share plus 3 points.
+- **Alternatives.**
+  - **Keep ADR-023's coupling and write the references again with the new prompt.** Rejected: it redoes the references
+    and puts ADR-026's judge-error figures in doubt.
+  - **Keep the old prompt.** Rejected: policy answers keep the product's name, so the scope test (ADR-030) would share
+    few of them. How many the new prompt makes neutral is not measured. The trial's `write_scope` counts will show it.
+  - **A different served generator.** Out of scope. The model, `num_ctx` and `think: false` do not change.
+- **Consequences.**
+  - **The reference writer keeps the old text.** `experiments/judge/reference-prompt-v1.txt` holds the old template
+    verbatim (sha256 `3e224f45…`, equal to `prompt_sha256` in `reference-writer-v1.json`). `judge_references.py` builds
+    the writer's prompt from that file and refuses a file whose hash differs. The references (Entry 4) and ADR-026's
+    floor stay valid.
+  - **ADR-023 is amended in one place.** The writer no longer "uses the served prompt". It uses its own pinned prompt,
+    which is the old served one. Its model, digest and options are unchanged.
+  - **`judge.py` stops comparing the run's generator prompt with the reference set's.** It records both hashes in
+    `summary.json` and still requires the writer's prompt hash to match `reference-writer-v1.json`.
+  - **Three existing tests changed, with the human's approval on 2026-11-13** (design §4): `test_server_cancel.py`
+    (the pin moves to `prompt_sha256()`, and the body test gains `system`), `test_judge.py` (the refusal moves to the
+    writer's prompt) and `test_judge_references.py` (the writer's prompt comes from the pinned file).
+  - **A new outcome.** The fallback is counted and is never a hit. `make judge-sanity` with
+    `experiments/judge/sanity-fallback.jsonl` shows the judge calls it correct for an unanswerable question and incorrect
+    for an answerable one (done condition 15).
+  - **The miss path reads differently.** A MISS answer now comes from the new prompt, so M20 describes the new generator.
+    The cost run's answers came from the old one.
+  - **New frozen values:** the system text, the user template, the sentinel pattern, the fallback sentence. **Changed:**
+    the served prompt (sha256 `3e224f45…`), ADR-023's coupling. **Unchanged:** the served generator, the judge and its
+    prompt, the references, τ_s.
+- **Invalidates:** no citable run. The cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) no longer describes the
+  served generator, and is read as "before ADR-029". It stays the basis of item 5.2's labels.
+
+### ADR-030 — A POLICY answer that names nothing of its product is stored once, under its policy document, and shared by the category: the scope arm
+**Decided (method)** · 2026-11-13 · the author · *amends ADR-024's POLICY namespace and ADR-025's mechanism; super-plan.md item 6.0a; `gateway/internal/reuse/scope.go`, `cache/docmeta.go`, `cache/tier2.go`, `httpapi/cascade.go`, `handler.go`, `cmd/gateway/main.go`; `rag/src/rag/docmeta.py`; `experiments/scripts/replay.py`, `scope_calibrate.py`, `scope_trial.py`; `contracts/scope/cases.json`; `contracts/interfaces.md` §C, §D, §H, §I (v0.37); trail `docs/work/2026-11-13-tier2-scope-by-evidence/`*
+
+The served rule stays `sim ≥ τ ∧ namespace`. What changes is where an answer may be served. A POLICY answer that names
+nothing of its product is true for every product that routes to the same policy document, so it is stored once for all
+of them. The change is an on/off arm, **`SCOPE_ARM=off|on`, default `off`**, written on every record. **Built** in the
+trail named above.
+
+- **Document metadata** (`make docmeta`, `docmeta:{doc_id}`, embedding model only). `category` for all 164 documents.
+  For the 152 products also `title_vec` (the title, embedded with the `search_document:` prefix) and `bound_words`. A
+  **product-bound word** is a token of the product's title and spec values that is in no policy document of its
+  category and occurs in at most **10 %** of products (the cut, pinned, never swept). A token is lowercase text split on
+  `[^a-z0-9]+`, length 2 or more. The tokenizer is written once in `contracts/scope/cases.json` and tested in Go and in
+  Python.
+- **Write, on a miss** (`reuse.DecideScope`). The entry is **shared** only when the lane is POLICY, the arm is on, the
+  product has a title vector, the product and the policy document have the same non-empty category, and no token of the
+  *answer* is a bound word. A shared entry has `scope: shared`, the namespace `{policy_doc}` and the key
+  `normalise(v − (v·t)·t)`, where `v` is the question vector and `t` the unit title vector of the request's product.
+  Every other answer is written as ADR-024 says (`scope: product`). With the arm off, every write is the ADR-024 form.
+- **Read, for a POLICY request with the arm on.** It searches the product namespace with the raw vector and judges the
+  candidate against τ. **The product-scope match is served first.** Only if that does not serve, and the category guard
+  holds, it searches `{policy_doc}` with the projected vector and judges the candidate against **τ_P**. Each candidate
+  meets its own threshold (`NamespaceDecision.Tau`). SPEC and MIXED requests, and every request with the arm off, take
+  one search.
+- **τ_P is set by a rule fixed before any replay, with no verdicts.** On the stored validation question vectors, take
+  the policy pairs with *another question on the same policy document*. τ_P is the smallest projected cosine at which the
+  share of those pairs that pass is not above the share that passes raw cosine at τ = 0.85 (equal specificity).
+  `make scope-calibrate` applies it, and `gateprobe -embedcheck` first shows that a stored vector equals the gateway's own
+  embedding of the same question (cosine at least 0.9999). The value and its date go in the trail's design §4 and as
+  Entry 8 of `preregistration.md`, before the first replay. τ_P is **never swept**.
+- **The adoption rule, fixed now, before any replay.** The arm becomes the served default only if both hold on the two
+  validation replays: (1) POLICY-lane hits judged correct rise by **at least 20** (arm on minus arm off); (2) with the
+  arm on, the judged-wrong share of POLICY-lane hits is **at most** the judged-wrong share of POLICY-lane misses in the
+  same run **plus 5 points**. Otherwise the default stays `off` and the arm is reported as a measured result. Either way,
+  the decision is an ADR (ADR-031).
+- **The trial.** Two validation replays, arm off and arm on: the same seed and order, a cold cache (`make cache-reset`),
+  support gate off, MIXED off, τ = 0.85, `CACHE_CAPACITY=156` as the cost run had. Each is judged by `judge-v1`. Green
+  pressure is preferred, yellow is allowed and recorded, red stops the run. Both are `citable: no`.
+- **ADR-025's mechanism moves.** ADR-025 planned a workload rebuild for the 16 validation queries with no `product_id`.
+  A rebuild rewrites `data/workload-manifest.json` and fails `make corpus-verify`. Instead `replay.py` drops those
+  queries before it orders the rest and prints `skipped_no_product_id`. Validation replays send 606 queries and report
+  16 skipped. The decision (drop them) is unchanged. The frozen `v1` workload files, the manifest and
+  `data/v1-freeze.json` are untouched. The test split has none.
+
+- **Rationale.**
+  - **ADR-024 gave up all cross-product reuse in the POLICY lane.** In the cost run it removed 2 correct and 4 wrong
+    hits, and ADR-024 warned that with real traffic, where many products share one policy, the cost would be larger. The
+    arm asks whether the right hits can come back without the wrong ones.
+  - **The answer decides, not the question.** The scope test reads the words of the answer, once per miss. The
+    projection uses the title vector that `product_id` names. No classifier, no learned model and nothing on the hit path
+    but one dot product. So no cut scope comes back.
+  - **The alternative it beat** is a hit-time word check (ADR-024 option (d)). It runs on every hit and can only block.
+    The write-time test runs once per miss and widens reuse. A failing answer loses nothing: it is stored per product, as
+    today.
+  - **Product-first** because an entry written for this very product is the narrowest scope that fits.
+- **Alternatives.**
+  - **Option (d) at hit time.** Not taken, as above.
+  - **The workload rebuild of ADR-025.** Rejected, as above.
+  - **Adopt the arm now.** Rejected. Whether a shared answer is right for another product is known only after the trial.
+- **Consequences.**
+  - **Wrong hits come in groups.** One wrong shared answer is served to every product of the category. Intervals are also
+    computed by cluster (a cluster is wrong when any of its hits is wrong), and hits are reported per `scope_arm` and per
+    scope.
+  - **Over-invalidation.** A shared entry depends on every chunk it was generated over, so an edit to the writer
+    product's own chunk also purges it. Item 6.5 counts it. Invalidation stays blind.
+  - **Tier 1.** Each shared hit is promoted under the requesting product's own key, and every such key is in
+    `lru:t1keys:{entry_id}`, so one purge removes them all (a `make test-go` test shows it).
+  - **Unknowns.** (1) Whether a shared answer is judged right for another product. (2) Whether the new prompt (ADR-029)
+    makes about three quarters of policy answers neutral. (3) The electronics policies cover TVs and headphones in one
+    text, so a neutral answer can still be wrong for another product type; the wrong hits per cluster will show it, and it
+    is reported in RQ2a. (4) Shared entries take fewer slots at 0.25 × K, so the arm may also gain from eviction. The
+    trial cannot separate the two.
+  - **The records.** Seven new keys on every record, none with `omitempty`: `scope_arm`, `query_lane`, `hit_scope`,
+    `write_scope`, `no_answer`, `shared_similarity`, `shared_refusal_cause`. `run_manifest.py` reads `scope_arm` from the
+    records and from the gateway's start-up line and refuses a pair that disagrees (ADR-010).
+  - **Memory.** Document metadata is about 0.5 MB, in Redis and in the gateway.
+  - **New frozen values:** the cut 0.10, τ_P (by the rule above) and `SCOPE_ARM`. **Changed:** ADR-024's namespace gains
+    a shared form; ADR-025's mechanism. **Unchanged:** τ 0.85, τ_s 0.6, `top_k` 5, chunking, the embedder, the generator
+    model, `RETRIEVAL_VERSION`, ADR-016's band.
+  - **The default.** `off` until ADR-031 decides. If ADR-031 says `ADOPT`, it changes the default to `on` and this entry
+    is updated to say so.
+- **Invalidates:** no citable run. The cost run `2026-11-01T21-17-56_cfg4_judgecost` (citable: no) ran the single POLICY
+  namespace and the old generator and is read as "before ADR-030". ADR-025's "must be done before the next replay of
+  validation" is closed by the exclusion at replay.
+
+### ADR-031 — The scope arm stays `off`: the trial did not meet the adoption rule of ADR-030
+**Decided (method)** · 2026-11-14 · the verdict of the rule the author fixed in ADR-030 on 2026-11-13, before any replay; drafted for the author's review · *ADR-030's adoption rule and default; super-plan.md item 6.0a; `experiments/scripts/scope_trial.py`; trail `docs/work/2026-11-13-tier2-scope-by-evidence/` (`evidence/scope-trial.txt`, `evidence/scope-trial.json`)*
+
+`make scope-trial` printed **`verdict: KEEP OFF`** for the two validation replays. So the served default of
+`SCOPE_ARM` stays **`off`**, nothing in `gateway/cmd/gateway/main.go` changes, and the arm is reported as a measured
+result (ADR-030).
+
+- **The runs.** Arm off: `2026-11-14T01-43-29_cfg4_scope-off`. Arm on: `2026-11-14T02-18-25_cfg4_scope-on`. Both:
+  validation, 606 sent and 16 skipped, the same seed and order, cold cache (`make cache-reset`), support gate off, MIXED
+  off, τ 0.85, `CACHE_CAPACITY=156`; the arm on has τ_P 0.8329 (Entry 8). Both pass `make run-manifest-check` with
+  `admissible: true`, and both are judged by `judge-v1` (606 verdicts each, 0 UNPARSED). Both are `citable: no`.
+  Pressure: arm off, 1 at all 20 samples; arm on, 2 (yellow) at the first 3 samples and 1 at the other 17; the judge
+  passes read 1 throughout; never 4. The two earlier folders of 2026-11-14 are not in these numbers: `…T01-11-00…` is an
+  empty start, `…T01-11-46…` was written `admissible: false` because rule 6 could not hold (design §4, found at step 6.8).
+- **The table, as `scope_trial.py` printed it** (Wilson 95 %, over requests and over clusters):
+
+  | lane | arm | requests | hits | correct | wrong | wrong / hits | Wilson (requests) | clusters | wrong clusters | Wilson (clusters) |
+  | :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- | ---: | ---: | :--- |
+  | POLICY | off | 170 | 8 | 1 | 7 | 0.875 | [0.529, 0.978] | 8 | 7 | [0.529, 0.978] |
+  | POLICY | on | 170 | 15 | 9 | 6 | 0.400 | [0.198, 0.643] | 6 | 5 | [0.436, 0.970] |
+  | SPEC | off | 436 | 172 | 108 | 64 | 0.372 | [0.303, 0.446] | 117 | 48 | [0.325, 0.501] |
+  | SPEC | on | 436 | 168 | 105 | 63 | 0.375 | [0.305, 0.450] | 112 | 46 | [0.324, 0.503] |
+
+- **The rule.**
+  - Rule 1: POLICY hits judged correct, on minus off, is 9 − 1 = **8**; it needs at least 20. **FAIL.**
+  - Rule 2: with the arm on, the judged-wrong share of POLICY hits is 0.400 (6 of 15); the share of POLICY misses is 0.419
+    (65 of 155); 0.419 + 0.05 = 0.469. **Pass.**
+  - Verdict: **`KEEP OFF`**.
+- **Other counts the script printed.** POLICY hits by scope, arm on: 14 `shared`, 1 `product` (arm off: 8 `product`).
+  POLICY writes, arm on: 97 `shared`, 48 `product` (arm off: 152 `product`). POLICY `no_answer` answers: 10 in each run.
+  POLICY misses judged wrong: 71 of 162 (0.438) arm off, 65 of 155 (0.419) arm on.
+- **What the two runs cannot show.** There is one replay per arm, so the difference of 8 has no repeat. The arm-off
+  replay that was written inadmissible (`…T01-11-46…`, same seed, order and configuration, not judged) had 176 Tier-2
+  hits; the arm-off rerun above has 180.
+- **Alternatives.** Adopt the arm anyway: not allowed by the rule, which was fixed before any replay (ADR-030). Change the
+  rule or τ_P after seeing the result: not done; a threshold is never tuned to make a headline work.
+- **Consequences.**
+  - `SCOPE_ARM` stays `off` by default, and the default test in `cmd/gateway` is unchanged. ADR-030's line "The default.
+    `off` until ADR-031 decides" is now settled as `off`; ADR-030 itself needs no other change.
+  - The arm stays in the code and on every record (`scope_arm`), so the trial can be repeated with a different seed.
+  - Whether to repeat, extend or drop the arm is left to the author; this entry does not decide it.
+- **Invalidates:** no citable run. Both trial runs are `citable: no` and nothing recorded changes.

@@ -1,0 +1,16 @@
+{
+  "rule": "design.md section 1: smallest projected cosine whose pass share is not above the raw share",
+  "tau_raw": 0.85,
+  "scope_test_cut": 0.1,
+  "policy_questions": 142,
+  "policy_documents": 12,
+  "pairs": 1322,
+  "no_projection_pairs": 0,
+  "raw_pass": 78,
+  "raw_pass_share": 0.059001512859304085,
+  "tau_p_exact": 0.8328125255000463,
+  "tau_p": 0.8329,
+  "projected_pass": 77,
+  "projected_pass_share": 0.058245083207261725,
+  "date": "2026-11-14"
+}

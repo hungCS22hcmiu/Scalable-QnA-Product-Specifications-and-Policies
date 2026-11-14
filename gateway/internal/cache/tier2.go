@@ -58,7 +58,22 @@ type Tier2Entry struct {
 	// as recorded provenance for reuse/ to judge.
 	Namespace string
 	Lane      string
+
+	// Scope is where the entry may be served (item 6.0a, ADR-030): "product" (the namespace is
+	// "{policy_doc}@{product_id}", the key vector is the raw question vector) or "shared" (the namespace
+	// is the policy document, the key vector is the projected one). Stored as the plain field `scope`,
+	// not indexed: `namespace` is already a TAG, and a shared entry differs only in its namespace string.
+	// Like Namespace it is stored, never interpreted here. An entry written before the arm has no such
+	// field and reads as "product".
+	Scope string
 }
+
+// Scope values as stored. They are the strings of reuse.ScopeProduct and reuse.ScopeShared; this
+// package does not import reuse/ (architecture.md 2).
+const (
+	scopeProduct = "product"
+	scopeShared  = "shared"
+)
 
 // Candidate is a nearest-neighbour result: what was stored, plus how close the query was.
 // Similarity, not distance -- see NearestTier2.
@@ -171,7 +186,18 @@ func (s *Store) PutTier2(ctx context.Context, e Tier2Entry, vec []float32) error
 		"created_at":       e.CreatedAt.Format(time.RFC3339),
 		"namespace":        e.Namespace,
 		"lane":             e.Lane,
+		"scope":            storedScope(e.Scope),
 	}).Err()
+}
+
+// storedScope is the value PutTier2 writes: "shared" only when the caller said so, "product" for
+// everything else, the empty string included. A value nobody planned for is never stored, so a reader
+// can trust the field to be one of the two.
+func storedScope(s string) string {
+	if s == scopeShared {
+		return scopeShared
+	}
+	return scopeProduct
 }
 
 // NearestTier2 returns the k nearest entries by cosine similarity, over the whole cache.
@@ -240,6 +266,7 @@ func (s *Store) nearest(ctx context.Context, filter string, vec []float32, k int
 				{FieldName: "created_at"},
 				{FieldName: "namespace"},
 				{FieldName: "lane"},
+				{FieldName: "scope"},
 			},
 		}).Result()
 	if err != nil {
@@ -255,6 +282,7 @@ func (s *Store) nearest(ctx context.Context, filter string, vec []float32, k int
 			T1Key:     d.Fields["t1_key"],
 			Namespace: d.Fields["namespace"],
 			Lane:      d.Fields["lane"],
+			Scope:     storedScope(d.Fields["scope"]), // an entry from before the arm has none: product
 		}
 		if raw := d.Fields["source_chunk_ids"]; raw != "" {
 			if err := json.Unmarshal([]byte(raw), &e.SourceChunkIDs); err != nil {
