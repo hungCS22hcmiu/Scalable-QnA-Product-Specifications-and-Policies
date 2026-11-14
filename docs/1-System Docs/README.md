@@ -13,7 +13,7 @@
 - **Codebase docs** (§5) explain the code **by folder**: what each package or module is for, and the logic
   of its files and functions.
 
-**Status (30 Oct 2026):** five system docs are written (`Tier 2.md`, `Redis-Data Structure.md`,
+**Status (30 Oct 2026):** six system docs are written (`Tier 1.md`, `Tier 2.md`, `Redis-Data Structure.md`,
 `Admission Control/Admission Control.md`, `Cache_Invalidation/Invalidation.md`, `Cache_Invalidation/Update set.md`),
 all 21 codebase docs (§5), and the seven `Pipelines/` docs (30 Oct 2026), which double as drawing blueprints for
 the report's figures (each has Mermaid diagrams and drawing notes keyed to `docs/0-Thesis-Report/plan/figures.md`). The tables in §3 and §5 say what each file should
@@ -47,18 +47,37 @@ flowchart LR
 
 ---
 
-## 2. Reading order
+## 2. Reading map
 
-1. `Pipelines/whole Request.md`: what happens to one question, from the client to the answer.
-2. `Pipelines/Corpus.md`, then `Pipelines/Workload.md`: where the data comes from, and how the questions are
-   built.
-3. `Pipelines/RAG.md` and `Pipelines/LLM.md`: retrieval and generation.
-4. `Tier 2.md`: the semantic cache and every known trap.
-5. `Pipelines/write-back.md` and `Redis-Data Structure.md`: what a miss leaves behind, and how it is stored.
-6. `Admission Control/` and `Cache_Invalidation/`: the two mechanisms that keep the system safe under load
-   and under change.
-7. `Pipelines/Evaluation.md`: how a run becomes a number and a figure.
-8. `Codebase/`: when you need the code itself, open the doc of the package you are reading (§5).
+*Updated 13 Nov 2026, checked against the code at `1a9d7a0`.*
+
+**The order.** Start with the picture in §1. Then read the cache, because it is the contribution. Then read the
+request that joins the parts, then the data and the Python side. Read the measurement last, because it uses
+everything before it. Each file links back to files earlier in the list, so this order means few jumps forward.
+
+**How to read one file.** Read the idea part first, then the diagrams, then the worked examples. Keep the code
+open beside the mechanism parts. Look up a term in `Redis-Data Structure.md` §10.
+
+**Most files describe the code of 30 Oct 2026.** Each file's header names its commit. The last column says what
+changed after that, and where the current rule is written. When a file disagrees with `decisions.md` or
+`interfaces.md`, the file is out of date.
+
+| # | File | What you learn | Changed since the file was written |
+| :---: | :--- | :--- | :--- |
+| 1 | [`Redis-Data Structure.md`](Redis-Data%20Structure.md) | Every key and field; the words the other files use (§2, §10) | §5's namespace table: the POLICY namespace is now `{policy_doc}@{product_id}` (ADR-024), and a request with no `product_id` is refused with `400` (ADR-025) |
+| 2 | [`Tier 1.md`](Tier%201.md) | The exact-match cache: the key, how a record is written and how it leaves | §3 "a request with no `product_id` is its own partition": such a request is now refused (ADR-025) |
+| 3 | [`Tier 2.md`](Tier%202.md) | The semantic cache, the reuse rule, the support gate, every known trap | Up to date with ADR-024 (10 Nov). Its cases with no `product_id` no longer reach the gateway (ADR-025) |
+| 4 | [`Admission Control.md`](Admission%20Control/Admission%20Control.md) | One permit, the queue budget, `503 busy, retry`, coalescing | §11: F-L is fixed (`03a05a8`). `rag.server` now stops the Ollama call when the request ends; Ollama still finishes the prompt's prefill (~2 s) |
+| 5 | [`Pipelines/whole Request.md`](Pipelines/whole%20Request.md) | Rows 1–4 joined into one request, step by step | `product_id` is required (ADR-025). A body over 8 KiB gets `413` (item 5.5, `interfaces.md` v0.36) |
+| 6 | [`Pipelines/write-back.md`](Pipelines/write-back.md) | What a miss leaves behind; the epoch guard | — |
+| 7 | [`Cache_Invalidation/Invalidation.md`](Cache_Invalidation/Invalidation.md) | The dependency map, blind purge, the three invariants | Shutdown now waits for requests in flight before it closes the map and the log (`29da622`) |
+| 8 | [`Cache_Invalidation/Update set.md`](Cache_Invalidation/Update%20set.md) | The 20 edits that measure invalidation (RQ3) | — |
+| 9 | [`Pipelines/Corpus.md`](Pipelines/Corpus.md) | Where the corpus comes from; the gate G1–G5 | — |
+| 10 | [`Pipelines/RAG.md`](Pipelines/RAG.md) | Chunking, the index, retrieval | Product scoping changed (ADR-020, ADR-021). The current version is `Tier 2.md` §6, Step 1 |
+| 11 | [`Pipelines/LLM.md`](Pipelines/LLM.md) | The model, one slot, the memory envelope | F-L is fixed, as in row 4 |
+| 12 | [`Pipelines/Workload.md`](Pipelines/Workload.md) | The questions, the strata, the split by cluster | ADR-025 drops the 16 validation queries with no `product_id` (622 → 606, B-within 124 → 108). Not done yet: the file still holds 622 |
+| 13 | [`Pipelines/Evaluation.md`](Pipelines/Evaluation.md) | How a run becomes a number and a figure | Phase 5 is closed: the judge (ADR-022, ADR-023), δ (ADR-026), the raw archive (ADR-027). §3 still lists them as not built |
+| 14 | [`Codebase/`](Codebase/) | One doc per package, to read beside the code (§5) | All describe 30 Oct. For later changes, read `git log` on the package |
 
 ---
 
@@ -66,6 +85,7 @@ flowchart LR
 
 | File | Status | What it covers | Write it from |
 | :--- | :--- | :--- | :--- |
+| [`Tier 1.md`](Tier%201.md) | **written** | The exact-match cache: the key and `Normalize`, how a record is written and how it leaves, promotion from Tier 2, worked examples, what it logs | — |
 | [`Tier 2.md`](Tier%202.md) | **written** | The semantic cache: lanes, namespaces, the support gate, worked examples, and every known false-hit and false-miss trap (§12a) | — |
 | [`Redis-Data Structure.md`](Redis-Data%20Structure.md) | **written** | Every Redis key, field by field: corpus, both tiers, LRU, dependency records | — |
 | [`Pipelines/whole Request.md`](Pipelines/whole%20Request.md) | **written** | One request end to end, as a sequence diagram: Tier 1 → embedding and retrieval **in parallel** → lane and namespace → Tier 2 → hit, or miss → admission → coalescing → generation → write-back → the response and one log record. Time per step. Failure paths: a Tier-2 failure degrades to a miss, and overload answers `503` | `docs/architecture.md` §3; `docs/0. progress 16-10.md` §1.2; `Redis-Data Structure.md` §7; `gateway/internal/httpapi/` |
